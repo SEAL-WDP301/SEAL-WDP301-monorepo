@@ -52,6 +52,9 @@ cp inventory.ini.example inventory.ini
 
 # 3. Execute the Playbook to auto-install K3s Cluster + Helm + NGINX Ingress Controller:
 ansible-playbook playbook.yml
+
+# Windows PowerShell via Docker:
+docker run --rm -e "ANSIBLE_HOST_KEY_CHECKING=False" -v "${PWD}:/ansible" -v "D:\Users\ADMIN\Desktop\key:/root/.ssh:ro" -w /ansible willhallonline/ansible:latest ansible-playbook -i inventory.ini playbook.yml --key-file /root/.ssh/ssh-key-do
 ```
 
 Once the Playbook completes, your **K3s Cluster (1 Master + 2 Workers)** along with **NGINX Ingress Controller** is 100% ready to receive Kubernetes Manifests via **Argo CD**!

@@ -35,7 +35,6 @@ vietnamese_lines.txt
 .vscode/*
 !.vscode/extensions.json
 .idea/
-infrastructure/terraform/README.md
 # ==========================================
 # Dependencies & Build Output
 # ==========================================
