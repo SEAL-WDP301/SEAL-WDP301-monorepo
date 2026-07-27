@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # Redis Cache & Task Queue
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: seal_prod_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - seal_prod_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ==========================================
+  # NestJS Backend API Service
+  # ==========================================
+  backend:
+    build:
+      context: ./BE
+      dockerfile: Dockerfile
+    container_name: seal_prod_backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    env_file:
+      - ./BE/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - seal_prod_network
+
+  # ==========================================
+  # Next.js Frontend Web Application
+  # ==========================================
+  frontend:
+    build:
+      context: ./FE
+      dockerfile: Dockerfile
+    container_name: seal_prod_frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - seal_prod_network
+
+volumes:
+  redis_prod_data:
+    driver: local
+
+networks:
+  seal_prod_network:
+    driver: bridge
