@@ -6,6 +6,6 @@
 
 - name: Install and Join K3s Agent Worker to Master
   shell: |
-    curl -sfL https://get.k3s.io | K3S_URL="https://{{ hostvars[groups['master'][0]]['ansible_host'] }}:6443" K3S_TOKEN="{{ hostvars[groups['master'][0]]['k3s_node_token'] }}" sh -s - agent \
-      --node-name "{{ inventory_hostname }}"
+    curl -sfL https://get.k3s.io | K3S_URL="https://{{ groups['master'][0] }}:6443" K3S_TOKEN="{{ hostvars[groups['master'][0]]['k3s_node_token'] }}" sh -s - agent \
+      --node-name "worker-{{ inventory_hostname | replace('.', '-') }}"
   when: not k3s_worker_binary.stat.exists
