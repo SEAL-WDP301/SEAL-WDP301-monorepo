@@ -1,0 +1,25 @@
+---
+- name: Update apt cache and upgrade system packages
+  apt:
+    update_cache: yes
+    upgrade: dist
+
+- name: Install essential utilities
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - ufw
+      - htop
+      - iptables
+      - ca-certificates
+      - apt-transport-https
+    state: present
+
+- name: Enable kernel IP forwarding for Kubernetes networking
+  sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    state: present
+    reload: yes

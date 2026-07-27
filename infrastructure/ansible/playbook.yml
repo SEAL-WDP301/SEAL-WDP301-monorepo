@@ -1,0 +1,24 @@
+---
+- name: Common System Hardening & Dependencies
+  hosts: k3s_cluster
+  gather_facts: true
+  roles:
+    - common
+
+- name: Setup K3s Control Plane Master Node
+  hosts: master
+  gather_facts: true
+  roles:
+    - k3s_master
+
+- name: Join Worker Nodes to K3s Cluster
+  hosts: workers
+  gather_facts: true
+  roles:
+    - k3s_worker
+
+- name: Install Helm and NGINX Ingress Controller
+  hosts: master
+  gather_facts: true
+  roles:
+    - helm_ingress

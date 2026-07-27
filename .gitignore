@@ -6,6 +6,17 @@
 !.env.example
 
 # ==========================================
+# Terraform & Ansible Secrets
+# ==========================================
+*.tfvars
+!*.tfvars.example
+*.tfstate
+*.tfstate.*
+.terraform/
+infrastructure/ansible/inventory.ini
+!infrastructure/ansible/inventory.ini.example
+
+# ==========================================
 # OS & System Junk Files
 # ==========================================
 .DS_Store
@@ -24,7 +35,7 @@ vietnamese_lines.txt
 .vscode/*
 !.vscode/extensions.json
 .idea/
-
+infrastructure/terraform/README.md
 # ==========================================
 # Dependencies & Build Output
 # ==========================================
