@@ -1,0 +1,429 @@
+Project SEAL {
+  database_type: 'PostgreSQL'
+  Note: 'Generated from prisma/schema.prisma. Fields marked as Prisma-managed updated timestamps are updated by the application.'
+}
+
+Enum Role {
+  student
+  stakeholder
+  organizer
+  admin
+}
+
+Enum StudentType {
+  fpt
+  external
+}
+
+Enum EventStatus {
+  draft
+  active
+  ongoing
+  closed
+}
+
+Enum Season {
+  Spring
+  Summer
+  Fall
+}
+
+Enum RoundStatus {
+  not_started
+  open
+  closed
+  results_published
+}
+
+Enum SubmissionType {
+  file
+  github_link
+}
+
+Enum TeamStatus {
+  pending
+  approved
+  rejected
+  disqualified
+}
+
+Enum RoundResultStatus {
+  competing
+  advanced
+  eliminated
+}
+
+Enum AwardType {
+  first_prize
+  second_prize
+  third_prize
+  honorable_mention
+}
+
+Enum TeamMemberRole {
+  leader
+  member
+}
+
+Enum TeamMemberStatus {
+  pending
+  accepted
+  rejected
+}
+
+Enum SubmissionStatus {
+  submitted
+  under_review
+  valid
+  flagged_violation
+  disqualified
+}
+
+Enum NotificationType {
+  registration_received
+  registration_approved
+  registration_rejected
+  team_assigned
+  round_opened
+  round_result
+  finalist
+  final_result
+  judge_assigned
+  mentor_assigned
+  team_invite_accepted
+  team_invite_rejected
+  team_leadership_transfer
+}
+
+Enum FeedbackStatus {
+  unread
+  acknowledged
+  completed
+}
+
+Table users {
+  id integer [pk, increment]
+  email text [not null, unique]
+  name text [not null]
+  google_id text [unique]
+  github_id text [unique]
+  password_hash text
+  role Role [not null, default: 'student']
+  hashed_refresh_token text
+  is_active boolean [not null, default: true]
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+  avatar_url text
+}
+
+Table student_profiles {
+  id integer [pk, increment]
+  user_id integer [not null, unique]
+  student_type StudentType [not null]
+  student_code text [not null]
+  university_name text
+  phone text
+  github_username text
+}
+
+Table stakeholder_profiles {
+  id integer [pk, increment]
+  user_id integer [not null, unique]
+  job_title text
+  organization text
+  experience text
+  achievements text
+  bio text
+  is_public boolean [not null, default: true]
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+}
+
+Table events {
+  id integer [pk, increment]
+  name text [not null]
+  description text
+  image_url text
+  season Season [not null]
+  year integer [not null]
+  status EventStatus [not null, default: 'draft']
+  registration_deadline timestamp(3)
+  start_date timestamp(3)
+  end_date timestamp(3)
+  github_org_url text
+  faq jsonb
+  contact text
+  location text
+  rules text
+  prize_1st text
+  prize_2nd text
+  prize_3rd text
+  prize_honorable text
+  created_by integer [not null]
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+}
+
+Table tracks {
+  id integer [pk, increment]
+  event_id integer [not null]
+  name text [not null]
+  description text
+  max_teams integer
+  max_members_per_team integer
+  created_at timestamp(3) [not null, default: `now()`]
+}
+
+Table rounds {
+  id integer [pk, increment]
+  event_id integer [not null]
+  round_number integer [not null]
+  name text [not null]
+  status RoundStatus [not null, default: 'not_started']
+  submission_type SubmissionType [not null]
+  submission_deadline timestamp(3)
+  max_file_size_mb integer [not null, default: 20]
+  is_track_specific boolean [not null, default: true]
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+
+  indexes {
+    (event_id, round_number) [unique]
+  }
+}
+
+Table criteria {
+  id integer [pk, increment]
+  name text [not null]
+  description text
+  max_score integer [not null, default: 10]
+  weight decimal(65,30) [not null, default: 1.0]
+  round_id integer [not null]
+  track_id integer
+  created_by integer [not null]
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+}
+
+Table teams {
+  id integer [pk, increment]
+  event_id integer [not null]
+  track_id integer [not null]
+  name text [not null]
+  status TeamStatus [not null, default: 'pending']
+  elimination_reason text
+  github_repo_url text
+  github_repo_name text
+  leader_id integer [not null]
+  award AwardType
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+}
+
+Table team_rounds {
+  id integer [pk, increment]
+  team_id integer [not null]
+  round_id integer [not null]
+  status RoundResultStatus [not null, default: 'competing']
+  score decimal(65,30)
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+
+  indexes {
+    (team_id, round_id) [unique]
+  }
+}
+
+Table team_members {
+  id integer [pk, increment]
+  team_id integer [not null]
+  user_id integer [not null]
+  role TeamMemberRole [not null]
+  status TeamMemberStatus [not null, default: 'pending']
+  joined_at timestamp(3) [not null, default: `now()`]
+
+  indexes {
+    (team_id, user_id) [unique]
+  }
+}
+
+Table student_registrations {
+  id integer [pk, increment]
+  user_id integer [not null]
+  event_id integer [not null]
+  track_id integer [not null]
+  has_team boolean [not null, default: false]
+  skills text
+  reviewed_by integer
+  reviewed_at timestamp(3)
+  note text
+  created_at timestamp(3) [not null, default: `now()`]
+
+  indexes {
+    (user_id, event_id) [unique]
+  }
+}
+
+Table submissions {
+  id integer [pk, increment]
+  team_id integer [not null]
+  round_id integer [not null]
+  status SubmissionStatus [not null, default: 'submitted']
+  file_url text
+  file_key text
+  github_url text
+  description text
+  history jsonb
+  submitted_by integer [not null]
+  submitted_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+  violation_reason text
+  disqualified_by integer
+  disqualified_at timestamp(3)
+
+  indexes {
+    (team_id, round_id) [unique]
+  }
+}
+
+Table scores {
+  id integer [pk, increment]
+  submission_id integer [not null]
+  judge_id integer [not null]
+  criterion_id integer [not null]
+  score_value decimal(65,30) [not null]
+  comment text
+  scored_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+
+  indexes {
+    (submission_id, judge_id, criterion_id) [unique]
+  }
+}
+
+Table judge_assignments {
+  id integer [pk, increment]
+  judge_id integer [not null]
+  round_id integer [not null]
+  track_id integer
+  assigned_by integer [not null]
+  assigned_at timestamp(3) [not null, default: `now()`]
+
+  indexes {
+    (judge_id, round_id, track_id) [unique]
+  }
+}
+
+Table mentor_assignments {
+  id integer [pk, increment]
+  mentor_id integer [not null]
+  team_id integer [not null]
+  assigned_by integer [not null]
+  assigned_at timestamp(3) [not null, default: `now()`]
+
+  indexes {
+    (mentor_id, team_id) [unique]
+  }
+}
+
+Table mentor_feedbacks {
+  id integer [pk, increment]
+  mentor_id integer [not null]
+  team_id integer [not null]
+  submission_id integer [not null]
+  content text [not null]
+  status FeedbackStatus [not null, default: 'unread']
+  created_at timestamp(3) [not null, default: `now()`]
+}
+
+Table notifications {
+  id integer [pk, increment]
+  user_id integer [not null]
+  event_id integer
+  type NotificationType [not null]
+  title text [not null]
+  content text [not null]
+  is_email_sent boolean [not null, default: false]
+  is_read boolean [not null, default: false]
+  sent_at timestamp(3)
+  created_at timestamp(3) [not null, default: `now()`]
+}
+
+Table team_messages {
+  id integer [pk, increment]
+  team_id integer [not null]
+  sender_id integer [not null]
+  content text [not null]
+  created_at timestamp(3) [not null, default: `now()`]
+  updated_at timestamp(3) [not null, default: `now()`, note: 'Updated automatically by Prisma']
+  is_edited boolean [not null, default: false]
+  is_deleted boolean [not null, default: false]
+}
+
+Table team_message_reads {
+  id integer [pk, increment]
+  message_id integer [not null]
+  user_id integer [not null]
+  read_at timestamp(3) [not null, default: `now()`]
+
+  indexes {
+    (message_id, user_id) [unique]
+  }
+}
+
+Ref: student_profiles.user_id - users.id [delete: cascade]
+Ref: stakeholder_profiles.user_id - users.id [delete: cascade]
+
+Ref: events.created_by > users.id
+Ref: tracks.event_id > events.id [delete: cascade]
+Ref: rounds.event_id > events.id [delete: cascade]
+
+Ref: criteria.round_id > rounds.id [delete: cascade]
+Ref: criteria.track_id > tracks.id [delete: set null]
+Ref: criteria.created_by > users.id
+
+Ref: teams.event_id > events.id [delete: cascade]
+Ref: teams.track_id > tracks.id [delete: cascade]
+Ref: teams.leader_id > users.id
+
+Ref: team_rounds.team_id > teams.id [delete: cascade]
+Ref: team_rounds.round_id > rounds.id [delete: cascade]
+
+Ref: team_members.team_id > teams.id [delete: cascade]
+Ref: team_members.user_id > users.id [delete: cascade]
+
+Ref: student_registrations.user_id > users.id [delete: cascade]
+Ref: student_registrations.event_id > events.id [delete: cascade]
+Ref: student_registrations.track_id > tracks.id [delete: cascade]
+Ref: student_registrations.reviewed_by > users.id
+
+Ref: submissions.team_id > teams.id [delete: cascade]
+Ref: submissions.round_id > rounds.id [delete: cascade]
+Ref: submissions.submitted_by > users.id
+Ref: submissions.disqualified_by > users.id
+
+Ref: scores.submission_id > submissions.id [delete: cascade]
+Ref: scores.judge_id > users.id [delete: cascade]
+Ref: scores.criterion_id > criteria.id [delete: cascade]
+
+Ref: judge_assignments.judge_id > users.id [delete: cascade]
+Ref: judge_assignments.round_id > rounds.id [delete: cascade]
+Ref: judge_assignments.track_id > tracks.id [delete: set null]
+Ref: judge_assignments.assigned_by > users.id
+
+Ref: mentor_assignments.mentor_id > users.id [delete: cascade]
+Ref: mentor_assignments.team_id > teams.id [delete: cascade]
+Ref: mentor_assignments.assigned_by > users.id
+
+Ref: mentor_feedbacks.mentor_id > users.id [delete: cascade]
+Ref: mentor_feedbacks.team_id > teams.id [delete: cascade]
+Ref: mentor_feedbacks.submission_id > submissions.id [delete: cascade]
+
+Ref: notifications.user_id > users.id [delete: cascade]
+Ref: notifications.event_id > events.id [delete: set null]
+
+Ref: team_messages.team_id > teams.id [delete: cascade]
+Ref: team_messages.sender_id > users.id [delete: cascade]
+
+Ref: team_message_reads.message_id > team_messages.id [delete: cascade]
+Ref: team_message_reads.user_id > users.id [delete: cascade]

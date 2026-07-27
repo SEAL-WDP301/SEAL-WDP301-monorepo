@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  # ==========================================
+  # [DISABLED] PostgreSQL Database (Using Remote DigitalOcean DB instead)
+  # ==========================================
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: seal_postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_DB: seal_db
+  #     POSTGRES_USER: root
+  #     POSTGRES_PASSWORD: root
+  #     PGDATA: /var/lib/postgresql/data/pgdata
+  #   ports:
+  #     - '5432:5432'
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data/pgdata
+  #   networks:
+  #     - seal_network
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -U root -d seal_db']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: seal_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - seal_network
+    volumes:
+      - redis_data:/data
+
+# ==========================================
+# Volumes - Persist data between restarts
+# ==========================================
+volumes:
+  redis_data:
+    driver: local
+networks:
+  seal_network:
+    driver: bridge

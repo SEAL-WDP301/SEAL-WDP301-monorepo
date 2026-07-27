@@ -1,0 +1,1 @@
+export function RegistrationTableSkeleton() { return <div className="space-y-2 rounded-2xl border border-border p-4">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-14 animate-pulse rounded-xl bg-muted/60" />)}</div>; }

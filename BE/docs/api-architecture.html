@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEAL Backend — Kiến trúc API</title>
+<script>
+(function(){
+  var k='seal-api-theme';
+  var s=localStorage.getItem(k);
+  if(s==='dark'||(s!=='light'&&window.matchMedia('(prefers-color-scheme:dark)').matches))
+    document.documentElement.classList.add('dark');
+})();
+</script>
+<style>
+  :root {
+    --ivory:  #FAF9F5;
+    --paper:  #FFFFFF;
+    --slate:  #141413;
+    --clay:   #D97757;
+    --clay-d: #B85C3E;
+    --oat:    #E3DACC;
+    --olive:  #788C5D;
+    --rust:   #B04A3F;
+    --g100:   #F0EEE6;
+    --g200:   #E6E3DA;
+    --g300:   #D1CFC5;
+    --g500:   #87867F;
+    --g700:   #3D3D3A;
+    --serif: ui-serif, Georgia, "Times New Roman", Times, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    --bg: var(--ivory);
+    --surface: var(--paper);
+    --text: var(--g700);
+    --heading: var(--slate);
+    --border: var(--g300);
+    --muted: var(--g500);
+    --accent: var(--clay);
+    --accent-bg: rgba(217,119,87,0.10);
+    --shadow: rgba(20,20,19,.08);
+  }
+  html.dark {
+    --ivory:  #1A1918;
+    --paper:  #222120;
+    --slate:  #FAF9F5;
+    --clay:   #E8956F;
+    --clay-d: #D97757;
+    --oat:    #3A3530;
+    --olive:  #9AAF82;
+    --rust:   #E07060;
+    --g100:   #2A2826;
+    --g200:   #333130;
+    --g300:   #4A4744;
+    --g500:   #9C9A94;
+    --g700:   #D4D2CB;
+    --bg: var(--ivory);
+    --surface: var(--paper);
+    --text: var(--g700);
+    --heading: var(--slate);
+    --border: var(--g300);
+    --muted: var(--g500);
+    --accent: var(--clay);
+    --accent-bg: rgba(232,149,111,0.12);
+    --shadow: rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 28px 100px; }
+
+  .theme-btn {
+    position: fixed; top: 18px; right: 18px; z-index: 100;
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--heading);
+    cursor: pointer; font-size: 17px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px var(--shadow);
+    transition: border-color .2s, transform .15s;
+  }
+  .theme-btn:hover { border-color: var(--accent); transform: scale(1.05); }
+
+  /* ── Header ── */
+  header.masthead {
+    padding: 72px 0 48px;
+    border-bottom: 1.5px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before { content: ""; width: 22px; height: 1.5px; background: var(--accent); }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(32px, 5vw, 52px);
+    line-height: 1.1;
+    letter-spacing: -.02em;
+    color: var(--heading);
+    margin-bottom: 18px;
+    max-width: 20ch;
+  }
+  h1 em { font-style: italic; color: var(--accent); }
+  .intro { font-size: 16px; max-width: 640px; color: var(--text); }
+  .intro code { font-family: var(--mono); font-size: 13px; color: var(--accent); }
+
+  .hero-meta {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-top: 28px;
+  }
+  .pill {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--heading);
+  }
+  .pill.hot { border-color: var(--accent); background: var(--accent-bg); color: var(--accent); }
+
+  /* ── Layout ── */
+  .page-grid {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) 240px;
+    gap: 40px;
+    align-items: start;
+  }
+  @media (max-width: 900px) { .page-grid { grid-template-columns: 1fr; } }
+
+  nav.toc {
+    position: sticky; top: 24px;
+    padding: 20px 0;
+    font-size: 13px;
+  }
+  nav.toc h3 {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+  nav.toc a {
+    display: block;
+    padding: 5px 0;
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    padding-left: 12px;
+    transition: color .15s, border-color .15s;
+  }
+  nav.toc a:hover, nav.toc a.active { color: var(--accent); border-left-color: var(--accent); }
+  @media (max-width: 900px) { nav.toc { display: none; } }
+
+  main section { padding: 36px 0 8px; }
+  h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 24px;
+    color: var(--heading);
+    margin-bottom: 16px;
+  }
+  h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 17px;
+    color: var(--heading);
+    margin: 24px 0 10px;
+  }
+  p { margin-bottom: 12px; }
+  p:last-child { margin-bottom: 0; }
+
+  /* ── Cards & panels ── */
+  .panel {
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 20px 22px;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .panel.hot { border-color: var(--accent); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  tr:last-child td { border-bottom: none; }
+  td code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* ── Diagram ── */
+  svg.arch { display: block; width: 100%; max-width: 100%; }
+  svg.arch text { font-family: var(--mono); }
+  svg.arch .box { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  svg.arch .box.hot { fill: var(--accent-bg); stroke: var(--accent); }
+  svg.arch .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  svg.arch .lbl { font-size: 11px; fill: var(--heading); }
+  svg.arch .sub { font-size: 9.5px; fill: var(--muted); }
+
+  /* ── Flow steps ── */
+  .step {
+    display: grid;
+    grid-template-columns: 40px 1fr;
+    gap: 16px;
+    padding: 18px 0;
+    border-bottom: 1.5px solid var(--g100);
+  }
+  .step:last-child { border-bottom: none; }
+  .badge {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--oat);
+    border: 1.5px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 13px; font-weight: 600;
+    color: var(--heading);
+  }
+  .step.hot .badge { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+  .step-loc {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--heading);
+    margin-bottom: 4px;
+  }
+  .step-loc span { color: var(--muted); }
+
+  /* ── Role cards ── */
+  .role-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .role-card {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 16px;
+  }
+  .role-card h4 {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .role-card p { font-size: 13px; margin: 0; color: var(--muted); }
+  .role-card .routes {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--heading);
+    line-height: 1.7;
+  }
+
+  /* ── Module grid ── */
+  .mod-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .mod {
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--surface);
+  }
+  .mod strong {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--heading);
+    display: block;
+    margin-bottom: 4px;
+  }
+  .mod span { font-size: 12.5px; color: var(--muted); }
+
+  /* ── Endpoint groups ── */
+  details.ep {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  details.ep summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--heading);
+    list-style: none;
+    display: flex; align-items: center; gap: 10px;
+  }
+  details.ep summary::before {
+    content: "▸";
+    color: var(--accent);
+    transition: transform .15s;
+  }
+  details.ep[open] summary::before { transform: rotate(90deg); }
+  details.ep .ep-body { padding: 0 16px 14px; }
+  .method {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-right: 6px;
+    min-width: 44px;
+    text-align: center;
+  }
+  .method.get { background: rgba(120,140,93,.18); color: var(--olive); }
+  .method.post { background: rgba(217,119,87,.15); color: var(--accent); }
+  .method.put, .method.patch { background: rgba(176,74,63,.12); color: var(--rust); }
+  .method.delete { background: rgba(176,74,63,.18); color: var(--rust); }
+  .ep-row {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 5px 0;
+    border-top: 1px solid var(--g100);
+    color: var(--text);
+  }
+  .ep-row:first-child { border-top: none; }
+
+  /* ── Quickstart ── */
+  pre {
+    background: var(--g100);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--heading);
+    margin: 12px 0;
+  }
+  .callout {
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    background: var(--accent-bg);
+    border-radius: 0 8px 8px 0;
+    font-size: 14px;
+    margin: 16px 0;
+  }
+  footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1.5px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<button class="theme-btn" id="themeToggle" aria-label="Toggle dark mode">☀</button>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="eyebrow">seal-wdp301-backend</div>
+    <h1>Kiến trúc <em>API</em></h1>
+    <p class="intro">
+      Hệ thống quản lý hackathon <strong>SEAL</strong> — monolith NestJS với routing theo vai trò
+      (<code>student</code>, <code>mentor</code>, <code>judge</code>, <code>organizer</code>).
+      Mọi endpoint dùng prefix <code>/api</code>, tài liệu Swagger tại <code>/api/docs</code>.
+    </p>
+    <div class="hero-meta">
+      <span class="pill hot">NestJS 10</span>
+      <span class="pill">TypeScript</span>
+      <span class="pill">Prisma + PostgreSQL</span>
+      <span class="pill">Redis</span>
+      <span class="pill">JWT + OAuth2</span>
+      <span class="pill">Socket.IO</span>
+    </div>
+  </header>
+
+  <div class="page-grid">
+    <main>
+      <section id="overview">
+        <h2>Tổng quan</h2>
+        <p>
+          Đây là một ứng dụng <strong>monolithic</strong> — tất cả module nằm trong một process Node.js,
+          tổ chức theo feature modules dưới <code>src/modules/</code>. Cross-cutting concerns
+          (guards, filters, interceptors) nằm ở <code>src/common/</code>.
+        </p>
+        <div class="panel hot">
+          <svg class="arch" viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg">
+            <!-- Client -->
+            <rect class="box" x="10" y="130" width="90" height="50" rx="8"/>
+            <text class="lbl" x="55" y="152" text-anchor="middle">Client</text>
+            <text class="sub" x="55" y="168" text-anchor="middle">Frontend</text>
+            <!-- Middleware -->
+            <rect class="box" x="130" y="120" width="100" height="70" rx="8"/>
+            <text class="lbl" x="180" y="148" text-anchor="middle">Middleware</text>
+            <text class="sub" x="180" y="162" text-anchor="middle">helmet · CORS</text>
+            <text class="sub" x="180" y="176" text-anchor="middle">RequestLogger</text>
+            <!-- Guards -->
+            <rect class="box hot" x="270" y="120" width="90" height="70" rx="8"/>
+            <text class="lbl" x="315" y="148" text-anchor="middle">Guards</text>
+            <text class="sub" x="315" y="164" text-anchor="middle">JWT + Roles</text>
+            <!-- Controller -->
+            <rect class="box hot" x="400" y="120" width="100" height="70" rx="8"/>
+            <text class="lbl" x="450" y="148" text-anchor="middle">Controller</text>
+            <text class="sub" x="450" y="164" text-anchor="middle">role-based</text>
+            <!-- Service -->
+            <rect class="box" x="530" y="120" width="90" height="70" rx="8"/>
+            <text class="lbl" x="575" y="152" text-anchor="middle">Service</text>
+            <!-- Data -->
+            <rect class="box" x="400" y="240" width="90" height="50" rx="8"/>
+            <text class="lbl" x="445" y="262" text-anchor="middle">Prisma</text>
+            <text class="sub" x="445" y="278" text-anchor="middle">PostgreSQL</text>
+            <rect class="box" x="530" y="240" width="90" height="50" rx="8"/>
+            <text class="lbl" x="575" y="262" text-anchor="middle">Redis</text>
+            <text class="sub" x="575" y="278" text-anchor="middle">OTP · cache</text>
+            <!-- External -->
+            <rect class="box" x="640" y="240" width="70" height="50" rx="8"/>
+            <text class="lbl" x="675" y="258" text-anchor="middle" font-size="9">DO · GH</text>
+            <text class="sub" x="675" y="274" text-anchor="middle">SMTP</text>
+            <!-- Arrows -->
+            <line class="arrow" x1="100" y1="155" x2="128" y2="155" marker-end="url(#arr)"/>
+            <line class="arrow" x1="230" y1="155" x2="268" y2="155"/>
+            <line class="arrow" x1="360" y1="155" x2="398" y2="155"/>
+            <line class="arrow" x1="500" y1="155" x2="528" y2="155"/>
+            <line class="arrow" x1="575" y1="190" x2="445" y2="238"/>
+            <line class="arrow" x1="590" y1="190" x2="575" y2="238"/>
+            <line class="arrow" x1="610" y1="170" x2="655" y2="238"/>
+            <!-- Validation pipe label -->
+            <text class="sub" x="315" y="108" text-anchor="middle">ValidationPipe · TransformInterceptor</text>
+            <defs>
+              <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6" fill="var(--muted)"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+      </section>
+
+      <section id="stack">
+        <h2>Tech Stack</h2>
+        <div class="panel">
+          <table>
+            <thead><tr><th>Lớp</th><th>Công nghệ</th><th>Ghi chú</th></tr></thead>
+            <tbody>
+              <tr><td>Framework</td><td><code>NestJS 10</code></td><td>Module-based, decorator routing</td></tr>
+              <tr><td>ORM</td><td><code>Prisma</code></td><td>19 models, PostgreSQL</td></tr>
+              <tr><td>Cache</td><td><code>ioredis</code></td><td>OTP, reset tokens</td></tr>
+              <tr><td>Auth</td><td><code>Passport + JWT</code></td><td>Google &amp; GitHub OAuth2</td></tr>
+              <tr><td>Validation</td><td><code>class-validator</code></td><td>Global ValidationPipe</td></tr>
+              <tr><td>Docs</td><td><code>Swagger</code></td><td><code>GET /api/docs</code></td></tr>
+              <tr><td>Real-time</td><td><code>Socket.IO</code></td><td>Chat &amp; feedback rooms</td></tr>
+              <tr><td>Storage</td><td><code>AWS SDK → DO Spaces</code></td><td>File uploads</td></tr>
+              <tr><td>Email</td><td><code>Nodemailer</code></td><td>OTP, notifications</td></tr>
+              <tr><td>Logging</td><td><code>Winston</code></td><td>Request ID tracing</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="lifecycle">
+        <h2>Vòng đời Request</h2>
+        <p>Mỗi HTTP request đi qua pipeline sau (định nghĩa trong <code>src/bootstrap.ts</code>):</p>
+
+        <div class="step">
+          <div class="badge">1</div>
+          <div>
+            <div class="step-loc">Middleware <span>— bootstrap.ts</span></div>
+            <p>Helmet (security headers) → CORS → cookie-parser → RequestLoggerMiddleware (gán <code>X-Request-Id</code>).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="badge">2</div>
+          <div>
+            <div class="step-loc">Guards <span>— JwtAuthGuard + RolesGuard</span></div>
+            <p>JWT Bearer token được verify bởi <code>JwtStrategy</code>, load user vào <code>req.user</code>. RolesGuard kiểm tra <code>@Roles()</code> decorator.</p>
+          </div>
+        </div>
+        <div class="step hot">
+          <div class="badge">3</div>
+          <div>
+            <div class="step-loc">Pipe + Handler <span>— Controller → Service</span></div>
+            <p>ValidationPipe validate DTO → Controller gọi Service → Prisma ghi/đọc PostgreSQL. TransformInterceptor bọc response: <code>{ success, message, data, timestamp }</code>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="badge">4</div>
+          <div>
+            <div class="step-loc">Error <span>— AllExceptionsFilter</span></div>
+            <p>Lỗi validation/auth trả về envelope thống nhất: <code>{ success: false, statusCode, message }</code>.</p>
+          </div>
+        </div>
+
+        <div class="callout">
+          <strong>Ví dụ:</strong> Judge chấm điểm submission —
+          <code>PUT /api/judge/submissions/:id/scores</code> → JWT verify → role <code>stakeholder</code> →
+          SubmissionJudgeService → ghi bảng <code>Score</code> qua Prisma.
+        </div>
+      </section>
+
+      <section id="roles">
+        <h2>Routing theo vai trò</h2>
+        <p>Thay vì REST resource tree thuần, API chia controller theo actor:</p>
+        <div class="role-grid">
+          <div class="role-card">
+            <h4>public</h4>
+            <p>Không cần JWT</p>
+            <div class="routes">/health<br>/public/events<br>/auth/*</div>
+          </div>
+          <div class="role-card">
+            <h4>student</h4>
+            <p>Đăng ký team, nộp bài</p>
+            <div class="routes">/student/teams/*</div>
+          </div>
+          <div class="role-card">
+            <h4>mentor</h4>
+            <p>Feedback cho team</p>
+            <div class="routes">/mentor/teams/*<br>/mentor/feedback/*</div>
+          </div>
+          <div class="role-card">
+            <h4>judge</h4>
+            <p>Chấm điểm submission</p>
+            <div class="routes">/judge/events<br>/judge/submissions/*</div>
+          </div>
+          <div class="role-card">
+            <h4>organizer</h4>
+            <p>Quản lý sự kiện</p>
+            <div class="routes">/organizer/events/*<br>/organizer/teams/*<br>/organizer/assignments/*</div>
+          </div>
+          <div class="role-card">
+            <h4>admin</h4>
+            <p>Full access</p>
+            <div class="routes">Kế thừa organizer + user CRUD</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="auth">
+        <h2>Authentication</h2>
+        <div class="panel">
+          <table>
+            <thead><tr><th>Cơ chế</th><th>Flow</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Email/Password</td>
+                <td><code>POST /auth/signup</code> → OTP 6 số (Redis, 5 phút) → <code>verify-otp</code> → kích hoạt tài khoản</td>
+              </tr>
+              <tr>
+                <td>JWT</td>
+                <td>Access token (Bearer header) + Refresh token (body/cookie, hash trong DB)</td>
+              </tr>
+              <tr>
+                <td>Google OAuth</td>
+                <td><code>GET /auth/google</code> → callback → redirect frontend kèm tokens</td>
+              </tr>
+              <tr>
+                <td>GitHub OAuth</td>
+                <td><code>GET /auth/github</code> → callback → redirect frontend kèm tokens</td>
+              </tr>
+              <tr>
+                <td>WebSocket</td>
+                <td>JWT từ <code>Authorization</code> header hoặc <code>auth.token</code> trong handshake</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>Roles (Prisma enum)</h3>
+        <p>
+          <code>student</code> · <code>stakeholder</code> (judge &amp; mentor) ·
+          <code>organizer</code> · <code>admin</code>
+          — Admin mặc định: <code>admin@admin.com</code> / <code>admin123</code>
+        </p>
+      </section>
+
+      <section id="modules">
+        <h2>Feature Modules</h2>
+        <div class="mod-grid">
+          <div class="mod"><strong>auth</strong><span>Signup, OTP, JWT, OAuth</span></div>
+          <div class="mod"><strong>user</strong><span>Profiles, notifications, admin CRUD</span></div>
+          <div class="mod"><strong>event</strong><span>Event/round lifecycle, rankings</span></div>
+          <div class="mod"><strong>team</strong><span>Registration, invitations, GitHub repo</span></div>
+          <div class="mod"><strong>submission</strong><span>Nộp bài, chấm điểm</span></div>
+          <div class="mod"><strong>assignment</strong><span>Gán judge/mentor cho team</span></div>
+          <div class="mod"><strong>rubric</strong><span>Tiêu chí chấm điểm</span></div>
+          <div class="mod"><strong>feedback</strong><span>Mentor feedback + WS room</span></div>
+          <div class="mod"><strong>chat</strong><span>Team messaging REST + WS</span></div>
+          <div class="mod"><strong>storage</strong><span>Upload file → DO Spaces</span></div>
+          <div class="mod"><strong>github</strong><span>Tự tạo repo cho team</span></div>
+          <div class="mod"><strong>mail</strong><span>OTP, reset password emails</span></div>
+          <div class="mod"><strong>redis</strong><span>OTP, tokens, cache</span></div>
+          <div class="mod"><strong>health</strong><span>DB + Redis connectivity</span></div>
+        </div>
+      </section>
+
+      <section id="data">
+        <h2>Data Layer</h2>
+        <p>Schema tại <code>prisma/schema.prisma</code> — 19 models, services inject <code>PrismaService</code> trực tiếp (không có repository layer).</p>
+        <div class="panel">
+          <table>
+            <thead><tr><th>Domain</th><th>Models</th></tr></thead>
+            <tbody>
+              <tr><td>Users</td><td><code>User</code>, <code>StudentProfile</code>, <code>StakeholderProfile</code></td></tr>
+              <tr><td>Events</td><td><code>Event</code>, <code>Track</code>, <code>Round</code>, <code>Criterion</code></td></tr>
+              <tr><td>Teams</td><td><code>Team</code>, <code>TeamMember</code>, <code>TeamRound</code>, <code>StudentRegistration</code></td></tr>
+              <tr><td>Submissions</td><td><code>Submission</code>, <code>Score</code></td></tr>
+              <tr><td>Assignments</td><td><code>JudgeAssignment</code>, <code>MentorAssignment</code></td></tr>
+              <tr><td>Comms</td><td><code>MentorFeedback</code>, <code>Notification</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="integrations">
+        <h2>Tích hợp bên ngoài</h2>
+        <div class="panel">
+          <table>
+            <thead><tr><th>Service</th><th>Mục đích</th><th>Config</th></tr></thead>
+            <tbody>
+              <tr><td>PostgreSQL</td><td>Primary datastore</td><td><code>DATABASE_URL</code></td></tr>
+              <tr><td>Redis</td><td>OTP, reset tokens</td><td><code>REDIS_HOST/PORT</code></td></tr>
+              <tr><td>DO Spaces</td><td>File uploads (S3-compatible)</td><td><code>DO_SPACES_*</code></td></tr>
+              <tr><td>SMTP</td><td>Transactional email</td><td><code>SMTP_*</code></td></tr>
+              <tr><td>Google OAuth</td><td>Login</td><td><code>GOOGLE_CLIENT_*</code></td></tr>
+              <tr><td>GitHub</td><td>OAuth + auto-provision repos</td><td><code>GITHUB_*</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="endpoints">
+        <h2>API Endpoints</h2>
+        <p>Tất cả path có prefix <code>/api</code>. Click để mở rộng từng nhóm:</p>
+
+        <details class="ep" open>
+          <summary>Auth — /auth</summary>
+          <div class="ep-body">
+            <div class="ep-row"><span class="method post">POST</span>/auth/signup · /verify-otp · /signin · /forgot-password · /reset-password · /refresh</div>
+            <div class="ep-row"><span class="method post">POST</span>/auth/logout <em style="color:var(--muted)">(JWT)</em></div>
+            <div class="ep-row"><span class="method get">GET</span>/auth/google · /auth/github <em style="color:var(--muted)">(OAuth redirect)</em></div>
+          </div>
+        </details>
+
+        <details class="ep">
+          <summary>Public — /public/events, /health</summary>
+          <div class="ep-body">
+            <div class="ep-row"><span class="method get">GET</span>/health</div>
+            <div class="ep-row"><span class="method get">GET</span>/public/events · /public/events/:id</div>
+          </div>
+        </details>
+
+        <details class="ep">
+          <summary>Student — /student/teams</summary>
+          <div class="ep-body">
+            <div class="ep-row"><span class="method get">GET</span>/student/teams/my-events · /status/:eventId · /invitations/pending · /my-team/workspace</div>
+            <div class="ep-row"><span class="method post">POST</span>/student/teams/register/individual/:eventId · /register/team/:eventId</div>
+            <div class="ep-row"><span class="method post">POST</span>/student/teams/invitations/:teamId/accept · /reject</div>
+            <div class="ep-row"><span class="method post">POST</span>/student/teams/my-team/submissions</div>
+          </div>
+        </details>
+
+        <details class="ep">
+          <summary>Organizer — /organizer/*</summary>
+          <div class="ep-body">
+            <div class="ep-row"><span class="method post">POST</span>/organizer/events · <span class="method get">GET</span>/organizer/events</div>
+            <div class="ep-row"><span class="method put">PUT</span>/organizer/events/:id · <span class="method patch">PATCH</span>/status · /rounds/:roundId/status</div>
+            <div class="ep-row"><span class="method get">GET</span>/organizer/events/:id/rubrics · /submissions · /rounds/:roundId/rankings</div>
+            <div class="ep-row"><span class="method post">POST</span>/organizer/assignments/events/:eventId/judges · /mentors/bulk-assign</div>
+            <div class="ep-row"><span class="method put">PUT</span>/organizer/teams/:teamId/status</div>
+          </div>
+        </details>
+
+        <details class="ep">
+          <summary>Judge — /judge</summary>
+          <div class="ep-body">
+            <div class="ep-row"><span class="method get">GET</span>/judge/events · /rounds/:roundId/submissions · /submissions/:id</div>
+            <div class="ep-row"><span class="method put">PUT</span>/judge/submissions/:id/scores</div>
+          </div>
+        </details>
+
+        <details class="ep">
+          <summary>Mentor — /mentor</summary>
+          <div class="ep-body">
+            <div class="ep-row"><span class="method get">GET</span>/mentor/teams · /teams/:teamId · /submissions · /feedback</div>
+            <div class="ep-row"><span class="method post">POST</span>/mentor/submissions/:id/feedback</div>
+            <div class="ep-row"><span class="method patch">PATCH</span>/mentor/feedback/:id · <span class="method delete">DELETE</span>/mentor/feedback/:id</div>
+          </div>
+        </details>
+
+        <details class="ep">
+          <summary>WebSocket</summary>
+          <div class="ep-body">
+            <div class="ep-row"><code>ws://host/chat</code> — team real-time messaging</div>
+            <div class="ep-row">Feedback gateway — <code>join_team_room</code>, <code>leave_team_room</code></div>
+          </div>
+        </details>
+      </section>
+
+      <section id="quickstart">
+        <h2>Dev Quickstart</h2>
+        <pre>npm install
+cp .env.example .env        # cấu hình DATABASE_URL, REDIS, JWT...
+npm run prisma:generate
+npm run prisma:migrate
+npm run start:dev           # http://localhost:3000/api
+
+# Swagger UI
+open http://localhost:3000/api/docs
+
+# Redis local (Docker)
+docker compose up -d</pre>
+        <div class="callout">
+          Postman collection: <code>postman/SEAL-Full-Flow.postman_collection.json</code> —
+          E2E scripts trong <code>scripts/e2e-tester/</code>.
+        </div>
+      </section>
+
+      <footer>
+        Generated from seal-wdp301-backend codebase · src/app.module.ts · prisma/schema.prisma · src/bootstrap.ts
+      </footer>
+    </main>
+
+    <nav class="toc">
+      <h3>Mục lục</h3>
+      <a href="#overview">Tổng quan</a>
+      <a href="#stack">Tech Stack</a>
+      <a href="#lifecycle">Request Lifecycle</a>
+      <a href="#roles">Routing theo vai trò</a>
+      <a href="#auth">Authentication</a>
+      <a href="#modules">Modules</a>
+      <a href="#data">Data Layer</a>
+      <a href="#integrations">Tích hợp</a>
+      <a href="#endpoints">Endpoints</a>
+      <a href="#quickstart">Quickstart</a>
+    </nav>
+  </div>
+</div>
+
+<script>
+(function(){
+  var btn = document.getElementById('themeToggle');
+  var key = 'seal-api-theme';
+  function apply() {
+    var dark = document.documentElement.classList.contains('dark');
+    btn.textContent = dark ? '☀' : '☾';
+  }
+  btn.addEventListener('click', function(){
+    document.documentElement.classList.toggle('dark');
+    localStorage.setItem(key, document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    apply();
+  });
+  apply();
+
+  var links = document.querySelectorAll('nav.toc a');
+  var sections = [];
+  links.forEach(function(a){ sections.push(document.querySelector(a.getAttribute('href'))); });
+  window.addEventListener('scroll', function(){
+    var cur = 0;
+    sections.forEach(function(s, i){ if(s && s.getBoundingClientRect().top < 120) cur = i; });
+    links.forEach(function(a, i){ a.classList.toggle('active', i === cur); });
+  }, {passive:true});
+})();
+</script>
+</body>
+</html>

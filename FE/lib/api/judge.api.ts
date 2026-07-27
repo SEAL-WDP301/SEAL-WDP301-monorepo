@@ -1,0 +1,181 @@
+import { axiosClient } from "../axios";
+
+export type JudgeScoringStatus = "pending" | "in_review" | "completed";
+
+export interface JudgeAssignedRound {
+  assignmentId: number;
+  roundId: number;
+  roundNumber: number;
+  roundName: string;
+  roundStatus: string;
+  submissionDeadline?: string | null;
+  trackId: number | null;
+  trackName: string | null;
+}
+
+export interface JudgeAssignedEvent {
+  id: number;
+  name: string;
+  season: string;
+  year: number;
+  status: string;
+  rounds: JudgeAssignedRound[];
+}
+
+export interface JudgeRoundSubmission {
+  submissionId: number;
+  id: number;
+  teamName: string;
+  anonymousIndex?: number;
+  track: { id: number; name: string };
+  status: string;
+  githubUrl?: string | null;
+  submittedAt?: string | null;
+  scoringStatus: JudgeScoringStatus;
+  scoredCriteria: number;
+  totalCriteria: number;
+  weightedScore?: number | null;
+  isVotedByMe?: boolean;
+}
+
+export interface JudgeRubric {
+  id: number;
+  name: string;
+  description?: string | null;
+  maxScore: number;
+  weight: number | string;
+}
+
+export interface JudgeScoreEntry {
+  criterionId: number;
+  scoreValue: number | string;
+  comment?: string | null;
+  criterion?: JudgeRubric;
+}
+
+export interface JudgeSubmissionDetail {
+  id: number;
+  status: string;
+  fileUrl?: string | null;
+  githubUrl?: string | null;
+  description?: string | null;
+  submittedAt?: string | null;
+  team: {
+    name: string;
+    anonymousIndex?: number;
+    track: { id: number; name: string };
+  };
+  round: {
+    id: number;
+    name: string;
+    roundNumber: number;
+    status: string;
+    submissionDeadline?: string | null;
+    problemFileUrl?: string | null;
+  };
+  event: { id: number; name: string; season: string; year: number };
+  rubrics: JudgeRubric[];
+  myScores: JudgeScoreEntry[];
+  scoringStatus: JudgeScoringStatus;
+  weightedScore?: number | null;
+  isVotedByMe?: boolean;
+}
+
+export interface SubmitJudgeScoresPayload {
+  scores: Array<{
+    criterionId: number;
+    scoreValue: number;
+    comment?: string;
+  }>;
+}
+
+export const judgeApi = {
+  getAssignedEvents: async () => {
+    const response = await axiosClient.get("/judge/events");
+    const data = response.data?.data as JudgeAssignedEvent[] || [];
+    
+    return data.map(event => {
+      // Deduplicate rounds by roundId because a judge can be assigned to multiple tracks in the same round
+      const uniqueRounds = Array.from(
+        new Map(event.rounds.map(r => [r.roundId, r])).values()
+      );
+      return { ...event, rounds: uniqueRounds };
+    });
+  },
+
+  getRoundSubmissions: async (roundId: number) => {
+    const response = await axiosClient.get(`/judge/rounds/${roundId}/submissions`);
+    return response.data?.data as JudgeRoundSubmission[];
+  },
+
+  getSubmissionDetail: async (submissionId: number) => {
+    const response = await axiosClient.get(`/judge/submissions/${submissionId}`);
+    return response.data?.data as JudgeSubmissionDetail;
+  },
+
+  submitScores: async (
+    submissionId: number,
+    payload: SubmitJudgeScoresPayload,
+  ) => {
+    const response = await axiosClient.put(
+      `/judge/submissions/${submissionId}/scores`,
+      payload,
+    );
+    return response.data?.data as {
+      scoringStatus: JudgeScoringStatus;
+      weightedScore: number | null;
+    };
+  },
+
+  toggleVote: async (submissionId: number) => {
+    const response = await axiosClient.post(`/judge/submissions/${submissionId}/vote`);
+    return response.data?.data as { isVotedByMe: boolean };
+  },
+};
+
+export function computeLocalWeightedScore(
+  rubrics: JudgeRubric[],
+  scores: Record<number, number>,
+): number | null {
+  if (!rubrics.length) return null;
+
+  let weightedSum = 0;
+  let totalWeight = 0;
+
+  for (const rubric of rubrics) {
+    const value = scores[rubric.id];
+    if (value === undefined) continue;
+
+    const weight = Number(rubric.weight);
+    const normalized = (value / rubric.maxScore) * 10;
+    weightedSum += normalized * weight;
+    totalWeight += weight;
+  }
+
+  if (totalWeight === 0) return null;
+  return Math.round((weightedSum / totalWeight) * 100) / 100;
+}
+
+export function mapScoringStatusLabel(status: JudgeScoringStatus) {
+  switch (status) {
+    case "completed":
+      return "Completed";
+    case "in_review":
+      return "In Review";
+    default:
+      return "Pending";
+  }
+}
+
+export function formatSubmissionLabel(submission: {
+  id: number;
+  submissionId?: number;
+  anonymousIndex?: number;
+  teamName?: string;
+  name?: string;
+}) {
+  if (submission.teamName) return submission.teamName;
+  if (submission.name) return submission.name;
+  const value = submission.anonymousIndex ?? submission.submissionId ?? submission.id;
+  return `Team #${String(value).padStart(3, "0")}`;
+}

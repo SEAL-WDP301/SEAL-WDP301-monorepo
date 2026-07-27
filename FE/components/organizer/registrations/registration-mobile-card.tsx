@@ -1,0 +1,6 @@
+import { Button } from "@/components/ui/button";
+import type { RegistrationListItem } from "@/lib/organizer/registrations/registration-types";
+import { RegistrationStatusBadge } from "./registration-status-badge"; import { EligibilityBadge } from "./eligibility-badge";
+export function RegistrationMobileCard({ registration, selected, onSelectedChange, onView }: { registration: RegistrationListItem; selected: boolean; onSelectedChange: (selected: boolean) => void; onView: () => void }) {
+  return <article className="rounded-xl border border-border bg-card/60 p-4"><div className="flex items-start gap-3"><input aria-label={`Select ${registration.student.fullName}`} type="checkbox" checked={selected} onChange={(event) => onSelectedChange(event.target.checked)} className="mt-1 size-4 accent-orange-500" /><div className="min-w-0 flex-1"><p className="font-semibold">{registration.student.fullName}</p><p className="truncate text-xs text-muted-foreground">{registration.student.email} · {registration.student.studentId}</p><p className="mt-3 text-sm">{registration.event.name}</p><div className="mt-3 flex flex-wrap gap-2"><RegistrationStatusBadge status={registration.status} /><EligibilityBadge status={registration.eligibility} /></div><Button variant="outline" className="mt-4 w-full" onClick={onView}>View Details</Button></div></div></article>;
+}

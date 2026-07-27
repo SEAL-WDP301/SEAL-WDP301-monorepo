@@ -1,0 +1,598 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  student
+  stakeholder
+  organizer
+  admin
+}
+
+enum StudentType {
+  fpt
+  external
+}
+
+enum EventStatus {
+  draft
+  active
+  ongoing
+  closed
+}
+
+enum Season {
+  Spring
+  Summer
+  Fall
+}
+
+enum RoundStatus {
+  not_started
+  open
+  closed
+  results_published
+}
+
+enum SubmissionType {
+  file
+  github_link
+}
+
+enum TeamStatus {
+  pending
+  approved
+  rejected
+  disqualified
+}
+
+enum RoundResultStatus {
+  competing
+  advanced
+  eliminated
+}
+
+enum TeamMemberRole {
+  leader
+  member
+}
+
+enum TeamMemberStatus {
+  pending
+  accepted
+  rejected
+}
+
+enum SubmissionStatus {
+  submitted
+  under_review
+  valid
+  flagged_violation
+  disqualified
+}
+
+enum NotificationType {
+  registration_received
+  registration_approved
+  registration_rejected
+  team_assigned
+  round_opened
+  round_result
+  finalist
+  final_result
+  judge_assigned
+  mentor_assigned
+  team_invite_accepted
+  team_invite_rejected
+  team_leadership_transfer
+  deadline_reminder
+  github_repo_created
+  bulk_reminder_unsubmitted
+  bulk_reminder_submitted
+  event_published
+}
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
+  name               String
+  googleId           String?  @unique @map("google_id")
+  githubId           String?  @unique @map("github_id")
+  passwordHash       String?  @map("password_hash")
+  role               Role     @default(student)
+  hashedRefreshToken String?  @map("hashed_refresh_token")
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at")
+
+  avatarUrl String? @map("avatar_url")
+
+  // Relationships
+  studentProfile               StudentProfile?
+  stakeholderProfile           StakeholderProfile?
+  eventsCreated                Event[]                   @relation("EventCreatedBy")
+  criteriaCreated              Criterion[]               @relation("CriterionCreatedBy")
+  teamsLed                     Team[]                    @relation("TeamLeader")
+  teamMemberships              TeamMember[]
+  registrations                StudentRegistration[]
+  submissions                  Submission[]              @relation("SubmissionSubmittedBy")
+  disqualifiedSubmissions      Submission[]              @relation("SubmissionDisqualifiedBy")
+  scores                       Score[]
+  judgeAssignments             JudgeAssignment[]
+  judgeVotes                   JudgeVote[]
+  judgeAssignedBy              JudgeAssignment[]     @relation("JudgeAssignedBy")
+  mentorAssignments            MentorAssignment[]
+  mentorAssignedBy             MentorAssignment[]        @relation("MentorAssignedBy")
+  mentorFeedbacks              MentorFeedback[]
+  notifications                Notification[]
+  studentRegistrationsReviewed StudentRegistration[]     @relation("RegistrationReviewedBy")
+  teamMessages                 TeamMessage[]
+  teamMessageReads             TeamMessageRead[]
+  googleCalendarConnection     GoogleCalendarConnection?
+  googleOAuthStates            GoogleOAuthState[]
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id             Int         @id @default(autoincrement())
+  userId         Int         @unique @map("user_id")
+  studentType    StudentType @map("student_type")
+  studentCode    String      @map("student_code")
+  universityName String?     @map("university_name")
+  phone          String?
+  githubUsername String?     @map("github_username")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("student_profiles")
+}
+
+model StakeholderProfile {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique @map("user_id")
+  jobTitle     String?  @map("job_title")
+  organization String?
+  experience   String?
+  achievements String?
+  bio          String?
+  isPublic     Boolean  @default(true) @map("is_public")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("stakeholder_profiles")
+}
+
+model Event {
+  id                   Int         @id @default(autoincrement())
+  name                 String
+  description          String?
+  imageUrl             String?     @map("image_url")
+  season               Season
+  year                 Int
+  status               EventStatus @default(draft)
+  registrationDeadline DateTime?   @map("registration_deadline")
+  startDate            DateTime?   @map("start_date")
+  endDate              DateTime?   @map("end_date")
+  githubOrgUrl         String?     @map("github_org_url")
+  faq                  Json?
+  contact              String?     @db.Text
+  location             String?
+  rules                String?     @db.Text
+  createdById          Int         @map("created_by")
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @default(now()) @updatedAt @map("updated_at")
+
+  createdBy       User                  @relation("EventCreatedBy", fields: [createdById], references: [id])
+  tracks          Track[]
+  rounds          Round[]
+  teams           Team[]
+  registrations   StudentRegistration[]
+  notifications   Notification[]
+  prizes          EventPrize[]
+  calendarMeeting EventCalendarMeeting?
+
+  @@index([createdById])
+  @@index([status])
+  @@index([season, year])
+  @@index([createdAt])
+  @@index([startDate])
+  @@index([endDate])
+  @@map("events")
+}
+
+model GoogleCalendarConnection {
+  id                    Int      @id @default(autoincrement())
+  userId                Int      @unique @map("user_id")
+  refreshTokenEncrypted String   @map("refresh_token_encrypted") @db.Text
+  scope                 String?  @db.Text
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("google_calendar_connections")
+}
+
+model GoogleOAuthState {
+  id        String   @id
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("google_oauth_states")
+}
+
+model EventCalendarMeeting {
+  id            Int       @id @default(autoincrement())
+  eventId       Int       @unique @map("event_id")
+  googleEventId String    @unique @map("google_event_id")
+  calendarId    String    @default("primary") @map("calendar_id")
+  meetUrl       String?   @map("meet_url")
+  htmlLink      String?   @map("html_link")
+  startDate     DateTime? @map("start_date")
+  endDate       DateTime? @map("end_date")
+  timeZone      String    @default("Asia/Ho_Chi_Minh") @map("time_zone")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("event_calendar_meetings")
+}
+
+model EventPrize {
+  id          Int      @id @default(autoincrement())
+  eventId     Int      @map("event_id")
+  name        String
+  description String?
+  quantity    Int      @default(1)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teams Team[] @relation("TeamAward")
+
+  @@map("event_prizes")
+}
+
+model Track {
+  id                Int      @id @default(autoincrement())
+  eventId           Int      @map("event_id")
+  name              String
+  description       String?
+  maxTeams          Int?     @map("max_teams")
+  maxMembersPerTeam Int?     @map("max_members_per_team")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  event            Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  criteria         Criterion[]
+  teams            Team[]
+  registrations    StudentRegistration[]
+  judgeAssignments JudgeAssignment[]
+
+  @@map("tracks")
+}
+
+model Round {
+  id                 Int            @id @default(autoincrement())
+  eventId            Int            @map("event_id")
+  roundNumber        Int            @map("round_number")
+  name               String
+  status             RoundStatus    @default(not_started)
+  submissionType     SubmissionType @map("submission_type")
+  submissionDeadline DateTime?      @map("submission_deadline")
+  maxFileSizeMb      Int            @default(20) @map("max_file_size_mb")
+  isTrackSpecific    Boolean        @default(true) @map("is_track_specific")
+  problemFileUrl     String?        @map("problem_file_url")
+  isReminderSent     Boolean        @default(false) @map("is_reminder_sent")
+  isRepoFrozen       Boolean        @default(false) @map("is_repo_frozen")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  event            Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  criteria         Criterion[]
+  submissions      Submission[]
+  judgeAssignments JudgeAssignment[]
+  teamRounds       TeamRound[]
+
+  @@unique([eventId, roundNumber])
+  @@map("rounds")
+}
+
+model Criterion {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  maxScore    Int      @default(10) @map("max_score")
+  weight      Decimal  @default(1.0)
+  roundId     Int      @map("round_id")
+  trackId     Int?     @map("track_id")
+  createdById Int      @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  round     Round   @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  track     Track?  @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  createdBy User    @relation("CriterionCreatedBy", fields: [createdById], references: [id])
+  scores    Score[]
+
+  @@map("criteria")
+}
+
+model Team {
+  id                Int        @id @default(autoincrement())
+  eventId           Int        @map("event_id")
+  trackId           Int        @map("track_id")
+  name              String
+  status            TeamStatus @default(pending)
+  eliminationReason String?    @map("elimination_reason")
+  githubRepoUrl     String?    @map("github_repo_url")
+  githubRepoName    String?    @map("github_repo_name")
+  leaderId          Int        @map("leader_id")
+  awardId           Int?       @map("award_id")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at")
+
+  event             Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  track             Track              @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  leader            User               @relation("TeamLeader", fields: [leaderId], references: [id])
+  award             EventPrize?        @relation("TeamAward", fields: [awardId], references: [id], onDelete: SetNull)
+  members           TeamMember[]
+  submissions       Submission[]
+  mentorAssignments MentorAssignment[]
+  mentorFeedbacks   MentorFeedback[]
+  teamRounds        TeamRound[]
+  teamMessages      TeamMessage[]
+  githubCommits     GithubCommit[]
+
+  @@map("teams")
+}
+
+model TeamRound {
+  id        Int               @id @default(autoincrement())
+  teamId    Int               @map("team_id")
+  roundId   Int               @map("round_id")
+  status    RoundResultStatus @default(competing)
+  score     Decimal?
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @default(now()) @updatedAt @map("updated_at")
+
+  team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, roundId])
+  @@map("team_rounds")
+}
+
+model TeamMember {
+  id       Int              @id @default(autoincrement())
+  teamId   Int              @map("team_id")
+  userId   Int              @map("user_id")
+  role     TeamMemberRole
+  status   TeamMemberStatus @default(pending)
+  joinedAt DateTime         @default(now()) @map("joined_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId, status])
+  @@index([userId, status])
+  @@map("team_members")
+}
+
+model StudentRegistration {
+  id      Int     @id @default(autoincrement())
+  userId  Int     @map("user_id")
+  eventId Int     @map("event_id")
+  trackId Int     @map("track_id")
+  hasTeam Boolean @default(false) @map("has_team")
+  skills  String?
+
+  reviewedById Int?      @map("reviewed_by")
+  reviewedAt   DateTime? @map("reviewed_at")
+  note         String?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event      Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  track      Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("RegistrationReviewedBy", fields: [reviewedById], references: [id])
+
+  @@unique([userId, eventId])
+  @@index([eventId, createdAt])
+  @@index([eventId, reviewedAt])
+  @@map("student_registrations")
+}
+
+model Submission {
+  id               Int              @id @default(autoincrement())
+  teamId           Int              @map("team_id")
+  roundId          Int              @map("round_id")
+  status           SubmissionStatus @default(submitted)
+  fileUrl          String?          @map("file_url")
+  fileKey          String?          @map("file_key")
+  githubUrl        String?          @map("github_url")
+  description      String?          @db.Text
+  history          Json?
+  submittedById    Int              @map("submitted_by")
+  submittedAt      DateTime         @default(now()) @map("submitted_at")
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at")
+  violationReason  String?          @map("violation_reason")
+  disqualifiedById Int?             @map("disqualified_by")
+  disqualifiedAt   DateTime?        @map("disqualified_at")
+
+  team            Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  round           Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  submittedBy     User             @relation("SubmissionSubmittedBy", fields: [submittedById], references: [id])
+  disqualifiedBy  User?            @relation("SubmissionDisqualifiedBy", fields: [disqualifiedById], references: [id])
+  scores          Score[]
+  judgeVotes      JudgeVote[]
+  mentorFeedbacks MentorFeedback[]
+
+  @@unique([teamId, roundId])
+  @@index([roundId, submittedAt])
+  @@index([status])
+  @@map("submissions")
+}
+
+model Score {
+  id           Int      @id @default(autoincrement())
+  submissionId Int      @map("submission_id")
+  judgeId      Int      @map("judge_id")
+  criterionId  Int      @map("criterion_id")
+  scoreValue   Decimal  @map("score_value")
+  comment      String?
+  scoredAt     DateTime @default(now()) @map("scored_at")
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  judge      User       @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  criterion  Criterion  @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, judgeId, criterionId])
+  @@map("scores")
+}
+
+model JudgeAssignment {
+  id           Int      @id @default(autoincrement())
+  judgeId      Int      @map("judge_id")
+  roundId      Int      @map("round_id")
+  trackId      Int?     @map("track_id")
+  assignedById Int      @map("assigned_by")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  judge      User   @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+  round      Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  track      Track? @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  assignedBy User   @relation("JudgeAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([judgeId, roundId, trackId])
+  @@map("judge_assignments")
+}
+
+model MentorAssignment {
+  id           Int      @id @default(autoincrement())
+  mentorId     Int      @map("mentor_id")
+  teamId       Int      @map("team_id")
+  assignedById Int      @map("assigned_by")
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+
+  mentor     User @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  team       Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignedBy User @relation("MentorAssignedBy", fields: [assignedById], references: [id])
+
+  @@unique([mentorId, teamId])
+  @@map("mentor_assignments")
+}
+
+model MentorFeedback {
+  id           Int            @id @default(autoincrement())
+  mentorId     Int            @map("mentor_id")
+  teamId       Int            @map("team_id")
+  submissionId Int            @map("submission_id")
+  content      String
+  status       FeedbackStatus @default(unread)
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  mentor     User       @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@map("mentor_feedbacks")
+}
+
+model Notification {
+  id          Int              @id @default(autoincrement())
+  userId      Int              @map("user_id")
+  eventId     Int?             @map("event_id")
+  type        NotificationType
+  title       String
+  content     String
+  actionUrl   String?          @map("action_url")
+  isEmailSent Boolean          @default(false) @map("is_email_sent")
+  isRead      Boolean          @default(false) @map("is_read")
+  sentAt      DateTime?        @map("sent_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@map("notifications")
+}
+
+enum FeedbackStatus {
+  unread
+  acknowledged
+  completed
+}
+
+model TeamMessage {
+  id        Int      @id @default(autoincrement())
+  teamId    Int      @map("team_id")
+  senderId  Int      @map("sender_id")
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  isEdited  Boolean  @default(false) @map("is_edited")
+  isDeleted Boolean  @default(false) @map("is_deleted")
+
+  team   Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sender User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reads  TeamMessageRead[]
+
+  @@map("team_messages")
+}
+
+model TeamMessageRead {
+  id        Int      @id @default(autoincrement())
+  messageId Int      @map("message_id")
+  userId    Int      @map("user_id")
+  readAt    DateTime @default(now()) @map("read_at")
+
+  message TeamMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("team_message_reads")
+}
+
+model GithubCommit {
+  id         Int      @id @default(autoincrement())
+  teamId     Int      @map("team_id")
+  commitHash String   @map("commit_hash")
+  message    String   @db.Text
+  pusher     String
+  url        String
+  timestamp  DateTime
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([timestamp(sort: Desc)])
+  @@map("github_commits")
+}
+
+model JudgeVote {
+  id           Int      @id @default(autoincrement())
+  submissionId Int      @map("submission_id")
+  judgeId      Int      @map("judge_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  judge      User       @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, judgeId])
+  @@map("judge_votes")
+}

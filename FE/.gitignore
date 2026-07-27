@@ -1,0 +1,86 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+.cursor/
+.cursorrules
+.cursor/skills/
+.codegraph/
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Pids
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# TypeScript / Typings cache
+*.tsbuildinfo
+typings/
+
+# Env files (Must never be committed)
+.env
+.env.local
+.env.test
+.env.production
+.env.development
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+out/
+.next/
+.nuxt/
+.vuepress/dist/
+
+# Cache directories
+.eslintcache
+.stylelintcache
+.npm
+.yarn
+.vite/
+.turbo/
+
+# Coverage directory
+coverage/
+*.lcov
+.nyc_output/
+
+# Serverless directories
+.serverless/
+
+# Antigravity agent directories (Internal local AI agent)
+.agent/
+.agent_logs/
+# Added by code-review-graph
+.code-review-graph/
