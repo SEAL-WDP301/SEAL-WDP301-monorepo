@@ -3,8 +3,14 @@ kind: Ingress
 metadata:
   name: argocd-server-ingress
   namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - argocd.sealhackathon.site
+      secretName: argocd-secret-tls
   rules:
     - host: argocd.sealhackathon.site
       http:
