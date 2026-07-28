@@ -6,7 +6,6 @@ namespace: hackathon
 resources:
   - namespace.yaml
   - configmaps/app-configmap.yaml
-  - secrets/app-secret.yaml.example
   - redis/pvc.yaml
   - redis/statefulset.yaml
   - redis/service.yaml
