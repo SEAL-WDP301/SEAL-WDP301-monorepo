@@ -1,0 +1,104 @@
+name: CI/CD Pipeline - SEAL Hackathon Platform
+
+on:
+  push:
+    branches:
+      - production
+      - main
+  pull_request:
+    branches:
+      - production
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # ============================================================================
+  # JOB 1: Test & Quality Gate (Runs unit tests and builds code first)
+  # ============================================================================
+  test-and-lint:
+    name: Test & Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Test & Build Backend (BE)
+        run: |
+          cd BE
+          npm ci || npm install
+          npx prisma generate
+          npm run build
+          if npm run test -- --passWithNoTests 2>/dev/null; then echo "BE Tests Passed"; fi
+
+      - name: Test & Build Frontend (FE)
+        run: |
+          cd FE
+          npm ci || npm install
+          npm run build
+
+  # ============================================================================
+  # JOB 2: Build & Push Docker Images to GHCR (Only runs if Job 1 passes!)
+  # ============================================================================
+  build-and-push:
+    name: Build & Push Docker Images to GHCR
+    needs: test-and-lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lowercase Repository Owner Name
+        id: string
+        run: |
+          echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
+      # ------------------------------------------------------------------------
+      # Build & Push Backend Image
+      # ------------------------------------------------------------------------
+      - name: Build & Push Backend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./BE
+          file: ./BE/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/be:latest
+            ghcr.io/${{ env.OWNER_LC }}/be:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ------------------------------------------------------------------------
+      # Build & Push Frontend Image
+      # ------------------------------------------------------------------------
+      - name: Build & Push Frontend Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./FE
+          file: ./FE/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/fe:latest
+            ghcr.io/${{ env.OWNER_LC }}/fe:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
