@@ -18,7 +18,9 @@ export function SplashCursorGate() {
       DENSITY_DISSIPATION={7}
       SPLAT_RADIUS={0.1}
       SPLAT_FORCE={3400}
-      DYE_RESOLUTION={1024}
+      DYE_RESOLUTION={256}
+      SIM_RESOLUTION={128}
+      CAPTURE_RESOLUTION={256}
       BACK_COLOR={{ r: 0, g: 0, b: 0 }}
       TRANSPARENT
     />

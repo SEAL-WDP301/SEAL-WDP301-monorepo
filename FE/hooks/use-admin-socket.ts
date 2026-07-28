@@ -27,7 +27,7 @@ export function useAdminSocket({ eventId, roundId, teamId, userId }: UseAdminSoc
     socketInstance.on("connect", () => {
       console.log("Admin socket connected:", socketInstance.id);
       setIsConnected(true);
-      
+
       // Join specific rooms based on props
       if (eventId) {
         socketInstance.emit("joinEvent", { eventId: Number(eventId) });

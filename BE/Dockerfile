@@ -1,33 +1,24 @@
 # Multi-stage production Dockerfile for NestJS Backend
 
-# Stage 1: Build stage
+# Stage 1: Build & Prune stage
 FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install all dependencies including devDependencies
+# Install all dependencies
 RUN npm ci
 
 COPY . .
 
 # Generate Prisma Client & Build NestJS app
-RUN npx prisma generate
-RUN npm run build
+RUN npx prisma generate && npm run build
 
-# Stage 2: Production dependencies stage
-FROM node:20-alpine AS prod-deps
-WORKDIR /app
+# Prune devDependencies to keep only production dependencies
+RUN npm prune --production
 
-COPY package*.json ./
-COPY prisma ./prisma/
-
-# Install production dependencies only
-RUN npm ci --omit=dev
-RUN npx prisma generate
-
-# Stage 3: Production runner stage
+# Stage 2: Production runner stage
 FROM node:20-alpine AS runner
 WORKDIR /app
 
@@ -36,10 +27,10 @@ ENV NODE_ENV production
 RUN addgroup --system --gid 1001 nestjs
 RUN adduser --system --uid 1001 nestjs
 
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/package*.json ./
+COPY --from=builder --chown=nestjs:nestjs /app/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nestjs /app/dist ./dist
+COPY --from=builder --chown=nestjs:nestjs /app/prisma ./prisma
+COPY --from=builder --chown=nestjs:nestjs /app/package*.json ./
 
 USER nestjs
 

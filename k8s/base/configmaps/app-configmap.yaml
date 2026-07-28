@@ -16,6 +16,7 @@ data:
   # Redis Host
   REDIS_HOST: "redis-service"
   REDIS_PORT: "6379"
+  REDIS_PASSWORD: ""
   
   # Mail Config
   SMTP_HOST: "smtp.gmail.com"

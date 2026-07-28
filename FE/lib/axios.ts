@@ -99,12 +99,12 @@ axiosClient.interceptors.response.use(
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new Event('token-refreshed'));
           }
-          
+
           originalRequest.headers = AxiosHeaders.from(originalRequest.headers);
           originalRequest.headers.set('Authorization', `Bearer ${newAccessToken}`);
-          
+
           processQueue(null, newAccessToken);
-          
+
           // Retry the original request
           return axiosClient(originalRequest);
         } else {
@@ -112,7 +112,7 @@ axiosClient.interceptors.response.use(
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
-        
+
         // If refresh fails, log the user out
         useAuthStore.getState().clearAccessToken();
         if (typeof window !== 'undefined') {
