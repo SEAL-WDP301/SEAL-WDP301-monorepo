@@ -10,6 +10,7 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-body-size: "50m"
     nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
+  ingressClassName: traefik
   tls:
     - hosts:
         - sealhackathon.site
