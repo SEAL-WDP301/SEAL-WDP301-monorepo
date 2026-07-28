@@ -84,6 +84,8 @@ jobs:
           context: ./FE
           file: ./FE/Dockerfile
           push: true
+          build-args: |
+              NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/fe:latest
             ghcr.io/${{ env.OWNER_LC }}/fe:${{ github.sha }}
