@@ -17,6 +17,12 @@ infrastructure/ansible/inventory.ini
 !infrastructure/ansible/inventory.ini.example
 
 # ==========================================
+# Kubernetes Secrets Protection
+# ==========================================
+k8s/base/secrets/app-secret.yaml
+*.secret.yaml
+
+# ==========================================
 # OS & System Junk Files
 # ==========================================
 .DS_Store
