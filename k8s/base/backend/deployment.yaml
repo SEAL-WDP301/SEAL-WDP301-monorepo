@@ -20,6 +20,8 @@ spec:
       labels:
         app: backend
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: backend
           image: ghcr.io/seal-wdp301/be:latest
