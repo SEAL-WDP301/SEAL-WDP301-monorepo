@@ -6,6 +6,7 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
+    "ignoreDeprecations": "5.0",
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
@@ -36,5 +37,10 @@
       ]
     }
   },
-  "exclude": ["scratch", "scripts", "node_modules", "dist"]
+  "exclude": [
+    "scratch",
+    "scripts",
+    "node_modules",
+    "dist"
+  ]
 }
