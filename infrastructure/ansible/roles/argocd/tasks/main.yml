@@ -1,0 +1,28 @@
+---
+- name: Create argocd namespace
+  shell: |
+    kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Install Argo CD Server
+  command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Patch argocd-server deployment with --insecure flag
+  shell: |
+    echo a3ViZWN0bCBwYXRjaCBkZXBsb3ltZW50IGFyZ29jZC1zZXJ2ZXIgLW4gYXJnb2NkIC0tdHlwZT1qc29uIC1wICdbeyJvcCI6ICJhZGQiLCAicGF0aCI6ICIvc3BlYy90ZW1wbGF0ZS9zcGVjL2NvbnRhaW5lcnMvMC9hcmdzLy0iLCAidmFsdWUiOiAiLS1pbnNlY3VyZSJ9XSc= | base64 -d | sh
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Patch webhook.github.secret into argocd-secret
+  shell: |
+    echo a3ViZWN0bCBwYXRjaCBzZWNyZXQgYXJnb2NkLXNlY3JldCAtbiBhcmdvY2QgLS10eXBlPW1lcmdlIC1wICd7InN0cmluZ0RhdGEiOnsid2ViaG9vay5naXRodWIuc2VjcmV0IjoibXlfc3VwZXJfc2VjcmV0X3dlYmhvb2tfa2V5In19Jw== | base64 -d | sh
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Apply Argo CD Ingress and Application Manifests
+  command: kubectl apply -f https://raw.githubusercontent.com/SEAL-WDP301/SEAL-WDP301-monorepo/production/k8s/argocd/argocd-ingress.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml

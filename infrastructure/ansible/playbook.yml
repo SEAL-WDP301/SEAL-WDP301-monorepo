@@ -22,3 +22,9 @@
   gather_facts: true
   roles:
     - helm_ingress
+
+- name: Deploy Argo CD Server & Ingress Rules
+  hosts: master
+  gather_facts: true
+  roles:
+    - argocd
