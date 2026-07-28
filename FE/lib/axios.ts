@@ -2,7 +2,9 @@ import axios, { AxiosHeaders, AxiosError, InternalAxiosRequestConfig } from 'axi
 import { useAuthStore } from './stores/auth.store';
 
 const baseURL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_BASE_URL;
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.API_BASE_URL ||
+  'http://localhost:3000/api';
 
 export const axiosClient = axios.create({
   baseURL,
