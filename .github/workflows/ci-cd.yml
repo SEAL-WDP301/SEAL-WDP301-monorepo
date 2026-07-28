@@ -40,7 +40,7 @@ jobs:
       - name: Test & Build Frontend (FE)
         run: |
           cd FE
-          npm ci || npm install
+          npm ci --legacy-peer-deps || npm install --legacy-peer-deps
           npm run build
 
   # ============================================================================
