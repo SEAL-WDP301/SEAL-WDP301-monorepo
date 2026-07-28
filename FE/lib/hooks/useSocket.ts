@@ -14,7 +14,7 @@ export const useSocket = (namespace: string = "") => {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    
+
     const token = useAuthStore.getState().accessToken;
     if (!token) return;
 
@@ -34,7 +34,7 @@ export const useSocket = (namespace: string = "") => {
     if (socketRef.current.connected) {
       setIsConnected(true);
     }
-    
+
     socketRef.current.on("connect", () => setIsConnected(true));
     socketRef.current.on("disconnect", () => setIsConnected(false));
 
@@ -58,7 +58,7 @@ export const useSocket = (namespace: string = "") => {
     return () => {
       window.removeEventListener("token-refreshed", handleTokenRefresh);
       window.removeEventListener("auth-unauthorized", handleAuthUnauthorized);
-      
+
       // Do not disconnect the singleton socket on unmount, 
       // otherwise other components using it will lose connection.
       // We just clean up the local reference.
