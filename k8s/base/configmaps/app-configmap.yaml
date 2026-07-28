@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-configmap
+  namespace: hackathon
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  FE_PORT: "3001"
+  APP_PREFIX: "api"
+  DOMAIN: "sealhackathon.site"
+  FRONTEND_URL: "https://sealhackathon.site"
+  BACKEND_URL: "https://sealhackathon.site/api"
+  NEXT_PUBLIC_API_BASE_URL: "https://sealhackathon.site/api"
+  
+  # Redis Host
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  
+  # Mail Config
+  SMTP_HOST: "smtp.gmail.com"
+  SMTP_PORT: "587"
+  MAIL_FROM: "SEAL Hackathon <phamthanhqb2005@gmail.com>"
+  
+  # DigitalOcean Spaces Config
+  DO_SPACES_ENDPOINT: "https://sgp1.digitaloceanspaces.com"
+  DO_SPACES_REGION: "sgp1"
+  DO_SPACES_BUCKET_NAME: "hackathon-submissions"
+  
+  # GitHub & Google Callbacks for Production Domain
+  GOOGLE_CALLBACK_URL: "https://sealhackathon.site/api/auth/google/callback"
+  GITHUB_CALLBACK_URL: "https://sealhackathon.site/api/auth/github/callback"
+  GOOGLE_CALENDAR_REDIRECT_URI: "https://sealhackathon.site/api/integrations/google/callback"
+  
+  # GitHub Org Config
+  GITHUB_ORG: "DEMO-SEAL-HackaThon-ORG"
+  GITHUB_REPO_PRIVATE: "true"
+  GITHUB_REPO_AUTO_INIT: "true"

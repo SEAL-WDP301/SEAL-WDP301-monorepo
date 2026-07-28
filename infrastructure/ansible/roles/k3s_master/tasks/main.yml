@@ -1,0 +1,28 @@
+---
+- name: Check if K3s is already installed on Master
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Install K3s Control Plane Server
+  shell: |
+    curl -sfL https://get.k3s.io | sh -s - server \
+      --write-kubeconfig-mode "0644" \
+      --node-name "seal-k3s-master"
+  when: not k3s_binary.stat.exists
+
+- name: Fetch K3s Node Token from Master
+  slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_b64
+
+- name: Save K3s Token as facts for workers
+  set_fact:
+    k3s_node_token: "{{ k3s_token_b64['content'] | b64decode | trim }}"
+    k3s_master_ip: "{{ ansible_host }}"
+
+- name: Create local .kube directory if not exists
+  file:
+    path: ~/.kube
+    state: directory
+    mode: '0755'

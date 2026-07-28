@@ -1,0 +1,8 @@
+# Copy this file to terraform.tfvars and fill in your values
+do_token     = "dop_v1_your_digitalocean_token_here"
+region       = "sgp1"
+master_size  = "s-1vcpu-2gb"
+worker_size  = "s-1vcpu-2gb"
+worker_count = 2
+ssh_key_name = "your-ssh-key-name-in-digitalocean"
+pvt_key_path = "~/.ssh/id_rsa"
