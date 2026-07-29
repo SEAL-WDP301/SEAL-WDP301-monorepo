@@ -63,6 +63,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { event: "joined_room", data: roomName };
   }
 
+  @SubscribeMessage("join_event_chat_room")
+  handleJoinEventChatRoom(
+    @MessageBody() eventId: number,
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!eventId) return;
+    const roomName = `event_chat_${eventId}`;
+    client.join(roomName);
+    return { event: "joined_event_chat_room", data: roomName };
+  }
+
   @SubscribeMessage("join_multiple_team_rooms")
   handleJoinMultipleRooms(
     @MessageBody() teamIds: number[],
@@ -101,7 +112,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       content,
     );
 
-    // Broadcast to room
+    // Broadcast strictly to team room (single clean broadcast)
     const roomName = `team_${teamId}`;
     this.server.to(roomName).emit("receive_chat_message", savedMessage);
 
