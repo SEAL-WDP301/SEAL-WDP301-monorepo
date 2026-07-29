@@ -112,9 +112,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       content,
     );
 
-    // Broadcast strictly to team room (single clean broadcast)
+    // Broadcast to team room and event-level room
     const roomName = `team_${teamId}`;
     this.server.to(roomName).emit("receive_chat_message", savedMessage);
+    if (savedMessage.eventId) {
+      this.server.to(`event_chat_${savedMessage.eventId}`).emit("receive_chat_message", savedMessage);
+    }
 
     return savedMessage;
   }
@@ -134,8 +137,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (updatedMessages && updatedMessages.length > 0) {
       const roomName = `team_${teamId}`;
       this.server.to(roomName).emit("messages_read_updated", updatedMessages);
+      const eventId = (updatedMessages[0] as any).eventId;
+      if (eventId) {
+        this.server.to(`event_chat_${eventId}`).emit("messages_read_updated", updatedMessages);
+      }
     }
   }
+
   @SubscribeMessage("edit_chat_message")
   async handleEditMessage(
     @MessageBody() data: { messageId: number; content: string },
@@ -154,6 +162,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
       const roomName = `team_${updatedMessage.teamId}`;
       this.server.to(roomName).emit("chat_message_edited", updatedMessage);
+      if ((updatedMessage as any).eventId) {
+        this.server.to(`event_chat_${(updatedMessage as any).eventId}`).emit("chat_message_edited", updatedMessage);
+      }
       return updatedMessage;
     } catch (e) {
       console.error(e);
@@ -178,6 +189,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
       const roomName = `team_${deletedMessage.teamId}`;
       this.server.to(roomName).emit("chat_message_deleted", deletedMessage);
+      if ((deletedMessage as any).eventId) {
+        this.server.to(`event_chat_${(deletedMessage as any).eventId}`).emit("chat_message_deleted", deletedMessage);
+      }
       return deletedMessage;
     } catch (e) {
       console.error(e);

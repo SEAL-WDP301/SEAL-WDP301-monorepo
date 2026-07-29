@@ -98,19 +98,22 @@ export default function MentorWorkspacePage() {
   const teamId = workspaceQuery.data?.team?.id;
 
   useEffect(() => {
-    if (!socket || !teamId) return;
+    if (!socket || !isConnected || !teamId) return;
 
     socket.emit("join_team_room", teamId);
 
-    socket.on("feedback_updated", () => {
+    const handleFeedbackUpdated = () => {
       queryClient.invalidateQueries({ queryKey: ["studentMentorWorkspace", eventId] });
-    });
+      queryClient.invalidateQueries({ queryKey: ["studentAssignedMentor", eventId] });
+    };
+
+    socket.on("feedback_updated", handleFeedbackUpdated);
 
     return () => {
       socket.emit("leave_team_room", teamId);
-      socket.off("feedback_updated");
+      socket.off("feedback_updated", handleFeedbackUpdated);
     };
-  }, [socket, teamId, queryClient, eventId]);
+  }, [socket, isConnected, teamId, queryClient, eventId]);
 
   if (workspaceQuery.isLoading) {
     return (
