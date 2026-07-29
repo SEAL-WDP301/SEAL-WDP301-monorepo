@@ -30,8 +30,8 @@ export class E2eTesterService {
         env.TARGET_EVENT_ID = String(eventId);
       }
 
-      // Run script via npx ts-node
-      const command = `npx ts-node "${scriptPath}"`;
+      // Run script via npx -y ts-node
+      const command = `npx -y ts-node "${scriptPath}"`;
       exec(command, { cwd: process.cwd(), env, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
         const fullOutput = (stdout + '\n' + stderr).trim();
 
