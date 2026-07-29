@@ -11,7 +11,10 @@ defaultRules:
 
 grafana:
   enabled: true
-  adminPassword: "CHANGE_ME_GRAFANA_ADMIN_PASSWORD"
+  admin:
+    existingSecret: "grafana-admin-secret"
+    userKey: admin-user
+    passwordKey: admin-password
   ingress:
     enabled: true
     ingressClassName: traefik
@@ -54,18 +57,21 @@ prometheus:
 
 alertmanager:
   enabled: true
+  alertmanagerSpec:
+    secrets:
+      - alertmanager-smtp-secret
   config:
     global:
       smtp_smarthost: 'smtp.gmail.com:587'
       smtp_from: 'phamthanhqb2005@gmail.com'
       smtp_auth_username: 'phamthanhqb2005@gmail.com'
-      smtp_auth_password: 'CHANGE_ME_GMAIL_APP_PASSWORD'
+      smtp_auth_password_file: '/etc/alertmanager/secrets/alertmanager-smtp-secret/smtp-password'
       smtp_require_tls: true
     route:
       group_by: ['alertname', 'namespace']
       group_wait: 30s
       group_interval: 5m
-      repeat_interval: 4h
+      repeat_interval: 2h
       receiver: 'email-notifications'
     receivers:
       - name: 'email-notifications'

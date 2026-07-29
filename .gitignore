@@ -20,6 +20,7 @@ infrastructure/ansible/inventory.ini
 # Kubernetes Secrets Protection
 # ==========================================
 k8s/base/secrets/app-secret.yaml
+k8s/monitoring/monitoring-secret.yaml
 *.secret.yaml
 
 # ==========================================
