@@ -114,20 +114,32 @@ export default function EventDashboardLayout({
     const handleReceiveMessage = (newMessage: any) => {
       const isIncomingMessage = user?.id ? Number(newMessage.senderId) !== Number(user.id) : false;
 
-      queryClient.setQueryData(["organizerTeams", eventId], (oldData: any) => {
+      const updateTeamData = (oldData: any) => {
         if (!oldData) return oldData;
-        return oldData.map((t: any) => {
+        const updateItem = (t: any) => {
           if (t.id === newMessage.teamId) {
             return {
               ...t,
               unreadCount: (t.unreadCount || 0) + (isIncomingMessage ? 1 : 0),
-              lastMessageAt: newMessage.createdAt,
+              lastMessage: newMessage,
+              lastMessageAt: newMessage.createdAt || new Date().toISOString(),
             };
           }
           return t;
-        });
-      });
-      queryClient.invalidateQueries({ queryKey: ["organizerTeamsMessages", eventId] });
+        };
+
+        if (Array.isArray(oldData)) return oldData.map(updateItem);
+        if (Array.isArray(oldData?.data)) {
+          return {
+            ...oldData,
+            data: oldData.data.map(updateItem),
+          };
+        }
+        return oldData;
+      };
+
+      queryClient.setQueryData(["organizerTeams", eventId], updateTeamData);
+      queryClient.setQueryData(["organizerTeamsMessages", eventId], updateTeamData);
 
       // Show real-time Snackbar toast for incoming message if sender is not current admin
       if (isIncomingMessage) {
