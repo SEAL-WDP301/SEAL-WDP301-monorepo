@@ -2679,7 +2679,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                         control={control}
                         name="location.meetingPlatform"
                         render={({ field }) => (
-                          <FormItem className="md:col-span-4">
+                          <FormItem className={watchedCreateGoogleMeet ? "md:col-span-6" : "md:col-span-4"}>
                             <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                               Online Platform {!isEdit && "*"}
                             </FormLabel>
@@ -2687,39 +2687,42 @@ export default function EventForm({ initialData }: EventFormProps) {
                               <Input
                                 className="bg-card/50 rounded-lg"
                                 placeholder="Google Meet / Zoom"
+                                disabled={watchedCreateGoogleMeet}
                                 {...field}
-                                value={field.value ?? ""}
+                                value={watchedCreateGoogleMeet ? "Google Meet" : (field.value ?? "")}
                               />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={control}
-                        name="location.meetingUrl"
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-4">
-                            <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                              Meeting URL {!isEdit && "*"}
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                className="bg-card/50 rounded-lg"
-                                placeholder="https://..."
-                                {...field}
-                                value={field.value ?? ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {!watchedCreateGoogleMeet ? (
+                        <FormField
+                          control={control}
+                          name="location.meetingUrl"
+                          render={({ field }) => (
+                            <FormItem className="md:col-span-4">
+                              <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                                Meeting URL {!isEdit && "*"}
+                              </FormLabel>
+                              <FormControl>
+                                <Input
+                                  className="bg-card/50 rounded-lg"
+                                  placeholder="https://..."
+                                  {...field}
+                                  value={field.value ?? ""}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ) : null}
                       <FormField
                         control={control}
                         name="location.mapUrl"
                         render={({ field }) => (
-                          <FormItem className="md:col-span-4">
+                          <FormItem className={watchedCreateGoogleMeet ? "md:col-span-6" : "md:col-span-4"}>
                             <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                               Map URL {!isEdit && "*"}
                             </FormLabel>

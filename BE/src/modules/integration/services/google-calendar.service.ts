@@ -188,20 +188,29 @@ export class GoogleCalendarService {
     };
     const sendUpdates =
       dto.sendInvitations !== false && attendeeEmails.length ? "all" : "none";
-    const response = existing
-      ? await calendar.events.patch({
-          calendarId: existing.calendarId,
-          eventId: existing.googleEventId,
-          conferenceDataVersion: 1,
-          sendUpdates,
-          requestBody,
-        })
-      : await calendar.events.insert({
-          calendarId: "primary",
-          conferenceDataVersion: 1,
-          sendUpdates,
-          requestBody,
-        });
+    let response: any;
+    try {
+      response = existing
+        ? await calendar.events.patch({
+            calendarId: existing.calendarId,
+            eventId: existing.googleEventId,
+            conferenceDataVersion: 1,
+            sendUpdates,
+            requestBody,
+          })
+        : await calendar.events.insert({
+            calendarId: "primary",
+            conferenceDataVersion: 1,
+            sendUpdates,
+            requestBody,
+          });
+    } catch (err: any) {
+      const gError = err?.response?.data?.error_description || err?.response?.data?.error?.message || err?.message || "";
+      if (gError.toLowerCase().includes("invalid_grant") || gError.toLowerCase().includes("token") || gError.toLowerCase().includes("credentials")) {
+        throw new BadRequestException("Tài khoản Google Calendar của bạn đã hết hạn hoặc chưa liên kết. Vui lòng bấm Kết nối Google Calendar trước.");
+      }
+      throw new BadRequestException(`Google Calendar error: ${gError || "Failed to create Google Meet event"}`);
+    }
 
     if (!response.data.id) {
       throw new ServiceUnavailableException(
@@ -328,12 +337,15 @@ export class GoogleCalendarService {
   }
 
   private async getOwnedEvent(userId: number, eventId: number) {
-    const event = await this.prisma.event.findUnique({
-      where: { id: eventId },
-      include: { calendarMeeting: true },
-    });
+    const [user, event] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } }),
+      this.prisma.event.findUnique({
+        where: { id: eventId },
+        include: { calendarMeeting: true },
+      }),
+    ]);
     if (!event) throw new BadRequestException("Event not found");
-    if (event.createdById !== userId) {
+    if (user?.role !== Role.admin && event.createdById !== userId) {
       throw new ForbiddenException("You do not manage this event");
     }
     return event;
@@ -362,13 +374,17 @@ export class GoogleCalendarService {
       where: { userId },
     });
     if (!connection) {
-      throw new BadRequestException("Connect Google Calendar first");
+      throw new BadRequestException("Connect Google Calendar first in Settings / Integrations.");
     }
-    const auth = this.createOAuthClient();
-    auth.setCredentials({
-      refresh_token: this.decrypt(connection.refreshTokenEncrypted),
-    });
-    return google.calendar({ version: "v3", auth });
+    try {
+      const auth = this.createOAuthClient();
+      auth.setCredentials({
+        refresh_token: this.decrypt(connection.refreshTokenEncrypted),
+      });
+      return google.calendar({ version: "v3", auth });
+    } catch {
+      throw new BadRequestException("Stored Google token is invalid. Please reconnect your Google account.");
+    }
   }
 
   private createOAuthClient() {

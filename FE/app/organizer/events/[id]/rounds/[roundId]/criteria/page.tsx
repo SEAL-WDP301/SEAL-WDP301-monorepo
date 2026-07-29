@@ -284,7 +284,7 @@ export default function EventCriteriaPage() {
         <div>
           <div className="mb-2 flex items-center gap-2">
             <Badge variant="outline">{event.season} {event.year}</Badge>
-            <Badge variant={event.status === "draft" ? "warning" : "success"}>
+            <Badge variant={event.status === "draft" ? "warning" : "success"} className="capitalize">
               {event.status}
             </Badge>
           </div>
