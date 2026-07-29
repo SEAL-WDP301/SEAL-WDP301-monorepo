@@ -95,7 +95,7 @@ export function FloatingTeamChat({ teamId, inline = false, defaultOpen = false, 
   }, [isOpen, unreadCount, socket, isConnected, teamId, user, queryClient, readOnly]);
 
   useEffect(() => {
-    if (!socket || !teamId) return;
+    if (!socket || !isConnected || !teamId) return;
 
     // Join room immediately on mount so we can receive background messages
     socket.emit("join_team_room", teamId);
@@ -233,7 +233,7 @@ export function FloatingTeamChat({ teamId, inline = false, defaultOpen = false, 
       socket.off("chat_message_edited", handleMessageEdited);
       socket.off("chat_message_deleted", handleMessageDeleted);
     };
-  }, [socket, teamId, queryClient]);
+  }, [socket, isConnected, teamId, queryClient]);
 
   // Scroll to bottom on new messages
   useEffect(() => {

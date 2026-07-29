@@ -12,7 +12,6 @@ interface UseAdminSocketOptions {
 export function useAdminSocket({ eventId, roundId, teamId, userId }: UseAdminSocketOptions = {}) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const accessToken = useAuthStore((state) => state.accessToken);
 
   useEffect(() => {
     // We get the base URL from env or fallback to localhost
@@ -27,20 +26,6 @@ export function useAdminSocket({ eventId, roundId, teamId, userId }: UseAdminSoc
     socketInstance.on("connect", () => {
       console.log("Admin socket connected:", socketInstance.id);
       setIsConnected(true);
-
-      // Join specific rooms based on props
-      if (eventId) {
-        socketInstance.emit("joinEvent", { eventId: Number(eventId) });
-      }
-      if (roundId) {
-        socketInstance.emit("joinRound", { roundId: Number(roundId) });
-      }
-      if (teamId) {
-        socketInstance.emit("joinTeam", { teamId: Number(teamId) });
-      }
-      if (userId) {
-        socketInstance.emit("joinUser", { userId: Number(userId) });
-      }
     });
 
     socketInstance.on("disconnect", () => {
@@ -53,7 +38,25 @@ export function useAdminSocket({ eventId, roundId, teamId, userId }: UseAdminSoc
     return () => {
       socketInstance.disconnect();
     };
-  }, [eventId, roundId, teamId]);
+  }, []);
+
+  // Dynamically join rooms whenever socket is connected and room IDs resolve
+  useEffect(() => {
+    if (!socket || !isConnected) return;
+
+    if (eventId) {
+      socket.emit("joinEvent", { eventId: Number(eventId) });
+    }
+    if (roundId) {
+      socket.emit("joinRound", { roundId: Number(roundId) });
+    }
+    if (teamId) {
+      socket.emit("joinTeam", { teamId: Number(teamId) });
+    }
+    if (userId) {
+      socket.emit("joinUser", { userId: Number(userId) });
+    }
+  }, [socket, isConnected, eventId, roundId, teamId, userId]);
 
   return { socket, isConnected };
 }

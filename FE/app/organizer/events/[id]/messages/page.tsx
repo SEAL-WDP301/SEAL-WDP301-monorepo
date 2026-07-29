@@ -77,13 +77,18 @@ export default function EventMessagesPage() {
     }
   }, [sortedTeams, selectedTeamId, teamIdParam]);
 
-  // Join all team rooms to receive global notifications
+  // Join event room & team rooms for live updates
   useEffect(() => {
-    if (socket && isConnected && teams?.length > 0) {
-      const teamIds = teams.map((t: any) => t.id);
-      socket.emit("join_multiple_team_rooms", teamIds);
+    if (socket && isConnected) {
+      if (eventId) {
+        socket.emit("join_event_chat_room", Number(eventId));
+      }
+      if (teams?.length > 0) {
+        const teamIds = teams.map((t: any) => t.id);
+        socket.emit("join_multiple_team_rooms", teamIds);
+      }
     }
-  }, [socket, isConnected, teams]);
+  }, [socket, isConnected, teams, eventId]);
 
   const handleTeamSelect = (team: any) => {
     setSelectedTeamId(team.id);

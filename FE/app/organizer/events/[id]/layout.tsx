@@ -106,7 +106,10 @@ export default function EventDashboardLayout({
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    // Join team rooms for all approved teams in the event
+    // Join event room and team rooms for all approved teams in the event
+    if (eventId) {
+      socket.emit("join_event_chat_room", Number(eventId));
+    }
     if (teams && teams.length > 0) {
       const teamIds = teams.map((t: any) => t.id);
       socket.emit("join_multiple_team_rooms", teamIds);
@@ -171,15 +174,15 @@ export default function EventDashboardLayout({
     const handleMessagesReadUpdated = (updatedMessages: any[]) => {
       if (!updatedMessages || updatedMessages.length === 0) return;
       const teamId = updatedMessages[0].teamId;
-      queryClient.setQueryData(["organizerTeams", eventId], (oldData: any) => {
+      const resetUnread = (oldData: any) => {
         if (!oldData) return oldData;
-        return oldData.map((t: any) => {
-          if (t.id === teamId) {
-            return { ...t, unreadCount: 0 };
-          }
-          return t;
-        });
-      });
+        const updateItem = (t: any) => t.id === teamId ? { ...t, unreadCount: 0 } : t;
+        if (Array.isArray(oldData)) return oldData.map(updateItem);
+        if (Array.isArray(oldData?.data)) return { ...oldData, data: oldData.data.map(updateItem) };
+        return oldData;
+      };
+      queryClient.setQueryData(["organizerTeams", eventId], resetUnread);
+      queryClient.setQueryData(["organizerTeamsMessages", eventId], resetUnread);
     };
 
     socket.on("receive_chat_message", handleReceiveMessage);
@@ -189,7 +192,7 @@ export default function EventDashboardLayout({
       socket.off("receive_chat_message", handleReceiveMessage);
       socket.off("messages_read_updated", handleMessagesReadUpdated);
     };
-  }, [socket, isConnected, teams, queryClient, eventId, user?.id]);
+  }, [socket, isConnected, teams, queryClient, eventId, user?.id, router]);
 
   const sortedRounds = [...(event?.rounds || [])].sort((a, b) => a.roundNumber - b.roundNumber);
   const activeRoundId = roundId || (sortedRounds.length > 0 ? String(sortedRounds[0].id) : null);

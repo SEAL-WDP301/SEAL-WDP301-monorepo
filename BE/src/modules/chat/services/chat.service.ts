@@ -178,6 +178,7 @@ export class ChatService {
 
     return updatedMessages.map((msg) => ({
       ...msg,
+      eventId: team?.eventId,
       sender: {
         ...msg.sender,
         role: msg.sender.id === team?.leaderId ? "Leader" : msg.sender.role,
@@ -224,6 +225,7 @@ export class ChatService {
     });
     return {
       ...updated,
+      eventId: team?.eventId,
       sender: {
         ...updated.sender,
         role:
@@ -266,6 +268,7 @@ export class ChatService {
     });
     return {
       ...updated,
+      eventId: team?.eventId,
       sender: {
         ...updated.sender,
         role:
