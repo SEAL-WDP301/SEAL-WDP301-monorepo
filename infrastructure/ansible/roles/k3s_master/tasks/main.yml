@@ -27,3 +27,10 @@
     path: ~/.kube
     state: directory
     mode: '0755'
+
+- name: Install Bitnami Sealed Secrets Controller
+  shell: |
+    kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.27.3/controller.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+

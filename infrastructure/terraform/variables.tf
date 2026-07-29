@@ -13,7 +13,7 @@ variable "region" {
 variable "master_size" {
   description = "Droplet size for K3s Control Plane Master"
   type        = string
-  default     = "s-1vcpu-2gb" # 1 vCPU, 2GB RAM
+  default     = "s-2vcpu-4gb" # 2 vCPU, 4GB RAM
 }
 
 variable "worker_size" {
