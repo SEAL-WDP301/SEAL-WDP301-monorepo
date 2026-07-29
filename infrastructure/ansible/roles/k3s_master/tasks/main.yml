@@ -8,7 +8,8 @@
   shell: |
     curl -sfL https://get.k3s.io | sh -s - server \
       --write-kubeconfig-mode "0644" \
-      --node-name "seal-k3s-master"
+      --node-name "seal-k3s-master" \
+      --node-taint "CriticalAddonsOnly=true:NoSchedule"
   when: not k3s_binary.stat.exists
 
 - name: Fetch K3s Node Token from Master

@@ -20,6 +20,14 @@ spec:
       labels:
         app: backend
     spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
       containers:
         - name: backend
           image: ghcr.io/seal-wdp301/be:latest
