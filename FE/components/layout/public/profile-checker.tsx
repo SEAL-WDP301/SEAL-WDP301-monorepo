@@ -11,14 +11,13 @@ import { queryKeys } from "@/lib/query-keys";
 
 export function ProfileChecker() {
   const [showModal, setShowModal] = useState(false);
-  const [hasChecked, setHasChecked] = useState(false);
   const setUser = useAuthStore((state) => state.setUser);
-  const storeUser = useAuthStore((state) => state.user);
 
   // We only run this query if there is an access_token in state
   const hasToken = !!useAuthStore.getState().accessToken;
 
-  const { data: user, isSuccess } = useQuery({
+  // Always fetch fresh from API — do NOT use initialData (stale sessionStorage)
+  const { data: user, isSuccess, isFetching } = useQuery({
     queryKey: queryKeys.user,
     queryFn: async () => {
       const res = await axiosClient.get("/users/profile");
@@ -29,26 +28,24 @@ export function ProfileChecker() {
       if (normalized) setUser(normalized);
       return normalized;
     },
-    initialData: storeUser ? { ...storeUser, avatarUrl: storeUser.avatarUrl ?? storeUser.avatar_url } : undefined,
-    enabled: hasToken && !hasChecked,
+    enabled: hasToken,
     retry: false,
+    staleTime: 0, // always re-fetch fresh
   });
 
   useEffect(() => {
-    if (isSuccess && user) {
-      // Skip check for admin and organizer roles
-      if (user.role === 'admin' || user.role === 'organizer') {
-        setHasChecked(true);
-        return;
-      }
+    // Wait until fetch is done (not still loading)
+    if (!isSuccess || isFetching) return;
+    if (!user) return;
 
-      // Check if both profiles are missing
-      if (!user.studentProfile && !user.stakeholderProfile) {
-        setShowModal(true);
-      }
-      setHasChecked(true);
+    // Skip check for admin and organizer roles
+    if (user.role === 'admin' || user.role === 'organizer') return;
+
+    // Only show modal if BOTH profiles are missing
+    if (!user.studentProfile && !user.stakeholderProfile) {
+      setShowModal(true);
     }
-  }, [isSuccess, user]);
+  }, [isSuccess, isFetching, user]);
 
   return (
     <>

@@ -35,6 +35,7 @@ import { isAxiosError } from "axios";
 import { useWorkspaceAccess } from "../workspace-access";
 import { useAdminSocket } from "@/hooks/use-admin-socket";
 import { axiosClient } from "@/lib/axios";
+import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
 
 interface SubmissionHistoryEntry {
   action: string;
@@ -344,6 +345,16 @@ export default function SubmissionsPage() {
     );
   }
 
+  const rounds = workspaceData?.rounds || [];
+  const selectedRoundIdx = rounds.findIndex((r: any) => r.id === displayRound?.id);
+  const isFinalRound = selectedRoundIdx >= 0 && selectedRoundIdx === rounds.length - 1;
+  const nextRoundCandidate = (selectedRoundIdx >= 0 && selectedRoundIdx < rounds.length - 1) ? rounds[selectedRoundIdx + 1] : null;
+  const nextRoundHasAccess = nextRoundCandidate
+    ? roundSubmissions.some((rs: any) => rs.round.id === nextRoundCandidate.id && rs.teamRound !== null)
+    : false;
+  const nextRound = nextRoundHasAccess ? nextRoundCandidate : null;
+  const basePath = `/student/events/${eventId}/workspace/submissions`;
+
   // ── Past Round Read-Only View ──────────────────────────────────────────────
   if (isPastRound) {
     return (
@@ -378,6 +389,23 @@ export default function SubmissionsPage() {
             </div>
           )}
         </header>
+
+        {/* Team Round Status Banner (Submissions Context) */}
+        {selectedRoundEntry && (
+          <TeamRoundStatusBanner
+            roundName={selectedRoundEntry.round?.name}
+            roundStatus={selectedRoundEntry.round?.status}
+            teamRoundStatus={selectedRoundEntry.teamRound?.status}
+            score={selectedRoundEntry.teamRound?.score}
+            isFinalRound={isFinalRound}
+            eventStatus={workspaceData?.eventStatus || workspaceData?.event?.status}
+            award={(selectedRoundEntry as any)?.award || workspaceData?.team?.award}
+            nextRoundId={nextRound?.id}
+            nextRoundName={nextRound?.name}
+            basePath={basePath}
+            isOverview={false}
+          />
+        )}
 
         {/* Problem Statement & Guidelines Attachment */}
         {displayRound?.problemFileUrl && (

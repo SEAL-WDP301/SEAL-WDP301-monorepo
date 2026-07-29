@@ -7,7 +7,7 @@ async function main() {
     console.log("Starting 07-advance-to-round2.ts...");
 
     // Muốn chạy cho 1 Event cụ thể? Bỏ comment dòng dưới và điền ID (VD: 42)
-    const TARGET_EVENT_ID: number | null = null; 
+    const TARGET_EVENT_ID: number | null = process.env.TARGET_EVENT_ID ? parseInt(process.env.TARGET_EVENT_ID, 10) : null; 
 
     const latestEvent = await prisma.event.findFirst({
         where: TARGET_EVENT_ID 

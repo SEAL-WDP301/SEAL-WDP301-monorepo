@@ -32,6 +32,7 @@ import { getStudentOnlineMeeting } from "@/lib/api/student-events.api";
 import { getPublicEvent } from "@/lib/api/public-events.api";
 import { OnlineMeetingCard } from "@/components/events/online-meeting-card";
 import { useEffect, useMemo, useState } from "react";
+import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
 
 interface WorkspaceRound {
   id: number;
@@ -142,10 +143,28 @@ export default function WorkspaceOverviewPage() {
     -1
   );
 
-  const progressWidth =
-    lastParticipatedIdx >= 0 && rounds.length > 0
-      ? ((lastParticipatedIdx + (isEliminated ? 0 : 0.5)) / rounds.length) * 100
-      : 0;
+  const isFinalRoundCompleted = rounds.length > 0 && (
+    (rounds[rounds.length - 1]?.status === "results_published" || workspaceData?.eventStatus === "closed" || workspaceData?.event?.status === "closed") &&
+    !isEliminated
+  );
+
+  const progressWidth = useMemo(() => {
+    if (!rounds || rounds.length === 0) return 0;
+    if (isEliminated) {
+      return ((eliminatedRoundIdx + 0.5) / rounds.length) * 100;
+    }
+    if (isFinalRoundCompleted) {
+      return 100;
+    }
+    if (lastParticipatedIdx >= 0) {
+      const lastRs = roundSubmissions[lastParticipatedIdx];
+      const lastStatus = lastRs?.round?.status;
+      const isDone = lastStatus === "closed" || lastStatus === "results_published";
+      const extra = isDone ? 1.0 : 0.5;
+      return Math.min(100, ((lastParticipatedIdx + extra) / rounds.length) * 100);
+    }
+    return 0;
+  }, [rounds, isEliminated, eliminatedRoundIdx, isFinalRoundCompleted, lastParticipatedIdx, roundSubmissions]);
 
   // ── Prev / Next round navigation ──────────────────────────────────────────
   const selectedIdx = rounds.findIndex((r) => r.id === selectedRoundId);
@@ -230,6 +249,23 @@ export default function WorkspaceOverviewPage() {
         meeting={onlineMeeting || publicEvent?.calendarMeeting}
         eventStatus={publicEvent?.status}
       />
+
+      {/* ── Team Round Status Banner (Overview Context) ── */}
+      {selectedRoundEntry && (
+        <TeamRoundStatusBanner
+          roundName={selectedRoundEntry.round?.name}
+          roundStatus={selectedRoundEntry.round?.status}
+          teamRoundStatus={selectedRoundEntry.teamRound?.status}
+          score={selectedRoundEntry.teamRound?.score}
+          isFinalRound={selectedIdx === rounds.length - 1}
+          eventStatus={workspaceData?.eventStatus || workspaceData?.event?.status}
+          award={(selectedRoundEntry as any)?.award || workspaceData?.team?.award}
+          nextRoundId={nextRound?.id}
+          nextRoundName={nextRound?.name}
+          basePath={basePath}
+          isOverview={true}
+        />
+      )}
 
       {/* ── Competition Journey ── */}
       <section>
