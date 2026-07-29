@@ -30,6 +30,7 @@ export class TeamOrganizerController {
   @Get("events/:eventId")
   @ApiOperation({ summary: "Get all teams for an event with filters and pagination" })
   async getTeamsByEvent(
+    @CurrentUser("id") userId: number,
     @Param("eventId", ParseIntPipe) eventId: number,
     @Query("trackId") trackId?: string,
     @Query("roundId") roundId?: string,
@@ -50,6 +51,7 @@ export class TeamOrganizerController {
       status,
       search,
       roundStatus,
+      userId,
     );
     return { message: "Teams fetched", ...result };
   }
