@@ -77,8 +77,8 @@ export default function EventOverviewPage() {
               timeZone: storedLocation.timeZone || "Asia/Ho_Chi_Minh",
             });
             meetingCreated = true;
-          } catch {
-            meetingCreationFailed = true;
+          } catch (err: any) {
+            meetingCreationFailed = err.response?.data?.message || "Check your Google Calendar connection in Settings and try again.";
           }
         }
       }
@@ -94,8 +94,11 @@ export default function EventOverviewPage() {
       }
       if (meetingCreationFailed) {
         enqueueSnackbar(
-          "Event is ongoing, but Google Meet creation failed. Check the Google Calendar connection and try again.",
-          { variant: "warning" },
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-xs">⚠️ Google Meet Link Not Created</span>
+            <span className="text-xs opacity-90">{typeof meetingCreationFailed === "string" ? meetingCreationFailed : "Check Google Calendar connection in Settings."}</span>
+          </div>,
+          { variant: "warning", autoHideDuration: 7000 }
         );
       }
       queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
@@ -252,20 +255,21 @@ export default function EventOverviewPage() {
             <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
             <div>
               <p className="font-semibold text-foreground">
-                Google Meet has not been created
+                Google Meet link has not been created yet
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Check the Google Calendar connection, then retry.
+                Connect your Google Calendar account in event settings first, then click Retry.
               </p>
             </div>
           </div>
           <Button
             variant="outline"
+            size="sm"
             disabled={updateStatusMutation.isPending}
             onClick={() => updateStatusMutation.mutate("ongoing")}
           >
             {updateStatusMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin mr-1" />
             ) : null}
             Retry Google Meet
           </Button>

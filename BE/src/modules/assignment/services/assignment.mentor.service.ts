@@ -7,7 +7,7 @@ export class AssignmentMentorService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getTeams(mentorId: number, eventId?: number) {
-    const teams = await this.prisma.team.findMany({
+    const rawTeams = await this.prisma.team.findMany({
       where: {
         mentorAssignments: { some: { mentorId } },
         ...(eventId && { eventId }),
@@ -16,7 +16,26 @@ export class AssignmentMentorService {
       orderBy: { createdAt: "desc" },
     });
 
-    return teams.map((team) => this.sanitizeTeamRounds(team));
+    const teams = await Promise.all(
+      rawTeams.map(async (team) => {
+        const unreadCount = await this.prisma.teamMessage.count({
+          where: {
+            teamId: team.id,
+            senderId: { not: mentorId },
+            reads: { none: { userId: mentorId } },
+          },
+        });
+        const sanitized = this.sanitizeTeamRounds(team);
+        return {
+          ...sanitized,
+          unreadCount,
+          lastMessage: (team as any).teamMessages?.[0] || null,
+          lastMessageAt: (team as any).teamMessages?.[0]?.createdAt || (team as any).createdAt,
+        };
+      })
+    );
+
+    return teams;
   }
 
   async getTeamById(mentorId: number, teamId: number) {
@@ -137,6 +156,13 @@ export class AssignmentMentorService {
       },
       teamRounds: {
         include: { round: true },
+      },
+      teamMessages: {
+        take: 1,
+        orderBy: { createdAt: "desc" as const },
+        include: {
+          sender: { select: { id: true, name: true } },
+        },
       },
       _count: {
         select: { submissions: true },

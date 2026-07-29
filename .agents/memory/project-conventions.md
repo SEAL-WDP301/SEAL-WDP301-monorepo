@@ -9,6 +9,13 @@ updated: 2026-07-12
 ## Git Workflow
 - Always create a new dedicated branch for major code changes.
 - Branch name format should follow: `feature/[task-slug]` or `fix/[bug-slug]`.
+- Separate git commits by feature/module (`feat(realtime)`, `feat(round)`, `fix(round)`, `docs(readme)`).
+
+## SEAL Project Conventions
+- **Past-Date Validation:** Frontend deadline picker must enforce HTML5 `min` attribute matching `now` and block past-date deadline selection with user warnings.
+- **Dynamic Endpoints:** All API and WebSocket base URLs must be resolved dynamically via environment variables (`ConfigService` in NestJS, `process.env.NEXT_PUBLIC_*` in Next.js).
+- **Zero Sentry Dependencies:** Sentry packages and configuration files (`instrument.*`) are completely removed in favor of Winston Logger and custom `AllExceptionsFilter`.
+- **Public Assets:** All logo and brand identity images must be stored in `FE/public/brand/` (no temporary `tmp/imagegen` folders).
 
 ## Supported AI platforms (AG Kit)
 - AG Kit **only supports Gemini CLI and Google Antigravity**.

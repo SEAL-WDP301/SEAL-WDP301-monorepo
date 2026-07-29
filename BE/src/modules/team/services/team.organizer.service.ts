@@ -36,6 +36,7 @@ export class TeamOrganizerService {
     status?: string,
     search?: string,
     roundStatus?: string,
+    userId?: number,
   ) {
     const where: any = {
       eventId,
@@ -62,7 +63,7 @@ export class TeamOrganizerService {
 
     const skip = (page - 1) * limit;
 
-    const [teams, total] = await Promise.all([
+    const [rawTeams, total] = await Promise.all([
       this.prisma.team.findMany({
         where,
         skip,
@@ -100,10 +101,37 @@ export class TeamOrganizerService {
             },
           },
           teamRounds: { include: { round: true } },
+          teamMessages: {
+            take: 1,
+            orderBy: { createdAt: "desc" },
+            include: {
+              sender: { select: { id: true, name: true } },
+            },
+          },
         },
       }),
       this.prisma.team.count({ where }),
     ]);
+
+    const teams = await Promise.all(
+      rawTeams.map(async (team) => {
+        const unreadCount = userId
+          ? await this.prisma.teamMessage.count({
+              where: {
+                teamId: team.id,
+                senderId: { not: userId },
+                reads: { none: { userId } },
+              },
+            })
+          : 0;
+        return {
+          ...team,
+          unreadCount,
+          lastMessage: team.teamMessages[0] || null,
+          lastMessageAt: team.teamMessages[0]?.createdAt || team.createdAt,
+        };
+      })
+    );
 
     return {
       data: teams,

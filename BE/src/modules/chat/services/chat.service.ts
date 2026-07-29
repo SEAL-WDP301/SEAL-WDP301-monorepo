@@ -111,6 +111,8 @@ export class ChatService {
 
     return {
       ...message,
+      eventId: team?.eventId,
+      teamName: team?.name,
       sender: {
         ...message.sender,
         role:

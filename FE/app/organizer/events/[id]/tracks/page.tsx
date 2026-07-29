@@ -510,7 +510,7 @@ export default function EventRoundsPage() {
         <div>
           <div className="mb-2 flex gap-2">
             <Badge variant="outline">{event.season} {event.year}</Badge>
-            <Badge variant={event.status === "draft" ? "warning" : "success"}>
+            <Badge variant={event.status === "draft" ? "warning" : "success"} className="capitalize">
               {event.status}
             </Badge>
           </div>
@@ -659,10 +659,10 @@ export default function EventRoundsPage() {
                           }
                           className="h-9 rounded-lg border border-input bg-background px-3 text-sm capitalize"
                         >
-                          <option value="not_started">Not started</option>
+                          <option value="not_started">Not Started</option>
                           <option value="open">Open</option>
                           <option value="closed">Closed</option>
-                          <option value="results_published">Results published</option>
+                          <option value="results_published">Results Published</option>
                         </select>
                       </td>
                       <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>

@@ -40,12 +40,18 @@ export default function MentorMessagesPage() {
     enabled: !!eventId,
   });
 
+  const getLatestTime = (team: any) => {
+    const msg = team.lastMessage || (team.teamMessages && team.teamMessages[0]);
+    if (msg?.createdAt) return new Date(msg.createdAt).getTime();
+    if (team.lastMessageAt) return new Date(team.lastMessageAt).getTime();
+    return 0;
+  };
+
   const sortedTeams = teams ? [...teams].sort((a: any, b: any) => {
-    if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
-    if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
-    const aDate = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : (a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt).getTime() : 0);
-    const bDate = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : (b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt).getTime() : 0);
-    return bDate - aDate;
+    const timeA = getLatestTime(a);
+    const timeB = getLatestTime(b);
+    if (timeA !== timeB) return timeB - timeA;
+    return (a.name || "").localeCompare(b.name || "");
   }) : [];
 
   const filteredTeams = sortedTeams.filter(t => 
@@ -154,11 +160,26 @@ export default function MentorMessagesPage() {
                 </div>
               )}
 
-              {team.lastMessage && (
-                <div className="text-[11px] text-muted-foreground mb-2 line-clamp-1 pr-4" title={team.lastMessage.content}>
-                  <span className="font-medium text-foreground/80">{team.lastMessage.sender?.id === user?.id ? 'You' : (team.lastMessage.sender?.name || 'System')}:</span> <span className={team.unreadCount > 0 ? "text-foreground font-bold" : ""}>{team.lastMessage.content}</span>
-                </div>
-              )}
+              {(() => {
+                const latestMsg = team.lastMessage || (team.teamMessages && team.teamMessages[0]);
+                if (!latestMsg) {
+                  return (
+                    <div className="text-[11px] text-muted-foreground/60 italic mb-2 line-clamp-1">
+                      Chưa có tin nhắn nào
+                    </div>
+                  );
+                }
+                const isOwnMsg = user?.id && Number(latestMsg.senderId || latestMsg.sender?.id) === Number(user.id);
+                const senderPrefix = isOwnMsg ? 'Bạn' : (latestMsg.sender?.name || 'Thành viên');
+                return (
+                  <div className="text-[11px] text-muted-foreground mb-2 line-clamp-1 pr-4" title={latestMsg.content}>
+                    <span className="font-medium text-foreground/80">{senderPrefix}:</span>{" "}
+                    <span className={team.unreadCount > 0 ? "text-foreground font-bold" : ""}>
+                      {latestMsg.content}
+                    </span>
+                  </div>
+                );
+              })()}
               
               <div className="flex items-center justify-between mt-1">
                 <div className="flex -space-x-1">

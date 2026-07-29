@@ -101,7 +101,8 @@ export function FloatingTeamChat({ teamId, inline = false, defaultOpen = false, 
     socket.emit("join_team_room", teamId);
 
     const handleReceiveMessage = (newMessage: TeamMessage) => {
-      if (!isOpenRef.current && newMessage.senderId !== user?.id) {
+      const isIncomingMessage = user?.id ? Number(newMessage.senderId) !== Number(user.id) : false;
+      if (!isOpenRef.current && isIncomingMessage) {
         const messageText = newMessage.content.length > 40 ? newMessage.content.substring(0, 40) + "..." : newMessage.content;
         enqueueSnackbar(
           <div 
