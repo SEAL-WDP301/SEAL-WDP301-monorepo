@@ -6,17 +6,15 @@ import { useQuery } from "@tanstack/react-query";
 import { axiosClient } from "@/lib/axios";
 import { ProfileCompletionModal } from "./profile-completion-modal";
 import { useAuthStore } from "@/lib/stores/auth.store";
-
 import { queryKeys } from "@/lib/query-keys";
 
 export function ProfileChecker() {
   const [showModal, setShowModal] = useState(false);
   const setUser = useAuthStore((state) => state.setUser);
+  const accessToken = useAuthStore((state) => state.accessToken);
 
-  // We only run this query if there is an access_token in state
-  const hasToken = !!useAuthStore.getState().accessToken;
+  const hasToken = !!accessToken;
 
-  // Always fetch fresh from API — do NOT use initialData (stale sessionStorage)
   const { data: user, isSuccess, isFetching } = useQuery({
     queryKey: queryKeys.user,
     queryFn: async () => {
@@ -30,20 +28,25 @@ export function ProfileChecker() {
     },
     enabled: hasToken,
     retry: false,
-    staleTime: 0, // always re-fetch fresh
+    staleTime: 0,
   });
 
   useEffect(() => {
-    // Wait until fetch is done (not still loading)
     if (!isSuccess || isFetching) return;
     if (!user) return;
 
-    // Skip check for admin and organizer roles
-    if (user.role === 'admin' || user.role === 'organizer') return;
+    if (user.role === "admin" || user.role === "organizer") {
+      setShowModal(false);
+      return;
+    }
 
-    // Only show modal if BOTH profiles are missing
-    if (!user.studentProfile && !user.stakeholderProfile) {
+    const hasStudent = !!(user.studentProfile || (user as any).student_profile);
+    const hasStakeholder = !!(user.stakeholderProfile || (user as any).stakeholder_profile);
+
+    if (!hasStudent && !hasStakeholder) {
       setShowModal(true);
+    } else {
+      setShowModal(false);
     }
   }, [isSuccess, isFetching, user]);
 

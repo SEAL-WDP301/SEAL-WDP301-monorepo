@@ -183,7 +183,7 @@ export function ProfileCompletionModal({ isOpen, onOpenChange }: { isOpen: boole
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save sttudent profile"}
+                  {isSubmitting ? "Saving..." : "Save student profile"}
                 </Button>
               </form>
             </Form>
@@ -258,7 +258,7 @@ export function ProfileCompletionModal({ isOpen, onOpenChange }: { isOpen: boole
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save parner profile"}
+                  {isSubmitting ? "Saving..." : "Save partner profile"}
                 </Button>
               </form>
             </Form>
