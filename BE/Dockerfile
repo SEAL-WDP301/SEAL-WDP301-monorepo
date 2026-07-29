@@ -30,6 +30,7 @@ RUN adduser --system --uid 1001 nestjs
 COPY --from=builder --chown=nestjs:nestjs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nestjs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nestjs /app/prisma ./prisma
+COPY --from=builder --chown=nestjs:nestjs /app/scripts ./scripts
 COPY --from=builder --chown=nestjs:nestjs /app/package*.json ./
 
 USER nestjs
