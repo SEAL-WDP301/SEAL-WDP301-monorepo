@@ -28,3 +28,10 @@
   gather_facts: true
   roles:
     - argocd
+
+- name: Deploy Monitoring Stack (Prometheus & Grafana)
+  hosts: master
+  gather_facts: true
+  roles:
+    - monitoring
+

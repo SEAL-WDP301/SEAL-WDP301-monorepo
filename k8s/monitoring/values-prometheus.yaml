@@ -1,0 +1,80 @@
+# Prometheus Stack Configuration for K3s Cluster (Tuned for 4GB Master)
+
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false
+    kubeApiserver: true
+    kubeStateMetrics: true
+    nodeExporter: true
+
+grafana:
+  enabled: true
+  adminPassword: "CHANGE_ME_GRAFANA_ADMIN_PASSWORD"
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - grafana.sealhackathon.site
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.sealhackathon.site
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClassName: local-path
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    retention: 3d
+    retentionSize: "3GB"
+    nodeSelector:
+      kubernetes.io/hostname: "seal-k3s-master"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          resources:
+            requests:
+              storage: 3Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 250Mi
+      limits:
+        cpu: 500m
+        memory: 1000Mi
+
+alertmanager:
+  enabled: true
+  config:
+    global:
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'phamthanhqb2005@gmail.com'
+      smtp_auth_username: 'phamthanhqb2005@gmail.com'
+      smtp_auth_password: 'CHANGE_ME_GMAIL_APP_PASSWORD'
+      smtp_require_tls: true
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: 'email-notifications'
+    receivers:
+      - name: 'email-notifications'
+        email_configs:
+          - to: 'phucpham.fullstack@gmail.com'
+            send_resolved: true
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

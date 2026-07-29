@@ -1,0 +1,21 @@
+---
+- name: Create monitoring namespace
+  shell: |
+    kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Add prometheus-community helm repo
+  shell: |
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Deploy Prometheus & Grafana stack via Helm
+  shell: |
+    helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+      --namespace monitoring \
+      -f https://raw.githubusercontent.com/SEAL-WDP301/SEAL-WDP301-monorepo/production/k8s/monitoring/values-prometheus.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
