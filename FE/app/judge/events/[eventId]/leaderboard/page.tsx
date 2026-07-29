@@ -185,13 +185,23 @@ export default function LeaderboardPage() {
       const parsed = Number(roundIdParam);
       if (eventRounds.some((r) => r.roundId === parsed)) return parsed;
     }
+    if (typeof window !== "undefined" && selectedEvent?.id) {
+      const stored = sessionStorage.getItem(`judge_round_${selectedEvent.id}`);
+      if (stored) {
+        const parsed = Number(stored);
+        if (eventRounds.some((r) => r.roundId === parsed)) return parsed;
+      }
+    }
     return eventRounds[0]?.roundId ?? null;
-  }, [eventRounds, roundIdParam]);
+  }, [eventRounds, roundIdParam, selectedEvent?.id]);
 
   const selectedRound = eventRounds.find((r) => r.roundId === selectedRoundId);
 
   useEffect(() => {
     if (!selectedEvent || !selectedRoundId) return;
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(`judge_round_${selectedEvent.id}`, String(selectedRoundId));
+    }
     if (
       eventIdParam === String(selectedEvent.id) &&
       roundIdParam === String(selectedRoundId)

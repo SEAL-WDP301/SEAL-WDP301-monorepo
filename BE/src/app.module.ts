@@ -45,6 +45,7 @@ import { IntegrationModule } from "./modules/integration/integration.module";
 import { ScheduleModule } from "@nestjs/schedule";
 import { BullModule } from "@nestjs/bullmq";
 import { RoundModule } from "./modules/round/round.module";
+import { DevE2eModule } from "./modules/dev-e2e/dev-e2e.module";
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { RoundModule } from "./modules/round/round.module";
     ChatModule,
     GithubModule,
     IntegrationModule,
+    DevE2eModule,
   ],
 })
 export class AppModule implements NestModule {

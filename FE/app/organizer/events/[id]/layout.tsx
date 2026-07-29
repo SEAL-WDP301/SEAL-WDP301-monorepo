@@ -29,6 +29,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { enqueueSnackbar } from "notistack";
 import Logo from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/layout/dashboard/theme-toggle";
+import { E2eFloatingButton } from "@/components/dev/e2e-floating-button";
 
 export default function EventDashboardLayout({
   children,
@@ -492,6 +493,9 @@ export default function EventDashboardLayout({
           </div>
         </main>
       </div>
+
+      {/* Floating E2E Test Suite Action Button (Admin Only) */}
+      <E2eFloatingButton eventId={eventId} />
     </div>
   );
 }

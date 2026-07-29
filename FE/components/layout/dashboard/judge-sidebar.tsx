@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname, useParams, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import {
     CalendarClock,
@@ -31,32 +32,38 @@ interface JudgeEventSummary {
     rounds?: JudgeEventRound[];
 }
 
-const getMenus = (eventId: string) => {
+const getMenus = (eventId: string, roundId?: string | null) => {
     const base = `/judge/events/${eventId}`;
+    const query = roundId ? `?roundId=${roundId}` : "";
     return [
         {
             label: "Overview",
-            href: `${base}/dashboard`,
+            href: `${base}/dashboard${query}`,
+            basePath: `${base}/dashboard`,
             icon: LayoutDashboard,
         },
         {
             label: "Evalution",
-            href: `${base}/evalution`,
+            href: `${base}/evalution${query}`,
+            basePath: `${base}/evalution`,
             icon: ClipboardCheck,
         },
         {
             label: "Leaderboard",
-            href: `${base}/leaderboard`,
+            href: `${base}/leaderboard${query}`,
+            basePath: `${base}/leaderboard`,
             icon: Trophy,
         },
         {
             label: "Schedule",
-            href: `${base}/schedule`,
+            href: `${base}/schedule${query}`,
+            basePath: `${base}/schedule`,
             icon: CalendarClock,
         },
         {
             label: "Profile",
             href: "/judge/profile",
+            basePath: "/judge/profile",
             icon: User,
         },
     ];
@@ -71,8 +78,27 @@ export function JudgeSidebar({
 }: DashboardSidebarProps) {
     const pathname = usePathname();
     const params = useParams();
-    const eventId = params.eventId as string || "1";
-    const menus = getMenus(eventId);
+    const searchParams = useSearchParams();
+    const eventId = (params.eventId as string) || "1";
+
+    const roundIdFromUrl = searchParams.get("roundId");
+    const [savedRoundId, setSavedRoundId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!eventId || typeof window === "undefined") return;
+        if (roundIdFromUrl) {
+            sessionStorage.setItem(`judge_round_${eventId}`, roundIdFromUrl);
+            setSavedRoundId(roundIdFromUrl);
+        } else {
+            const stored = sessionStorage.getItem(`judge_round_${eventId}`);
+            if (stored) {
+                setSavedRoundId(stored);
+            }
+        }
+    }, [eventId, roundIdFromUrl]);
+
+    const activeRoundId = roundIdFromUrl || savedRoundId;
+    const menus = getMenus(eventId, activeRoundId);
 
     const { data: event } = useQuery<JudgeEventSummary | null>({
         queryKey: ["judgeEvent", eventId],
@@ -112,7 +138,7 @@ export function JudgeSidebar({
                     {menus.map((item) => {
                         const Icon = item.icon;
 
-                        const active = pathname === item.href;
+                        const active = pathname === item.basePath;
                         const isDisabled = shouldDisable && item.label === 'Evalution';
 
                         const linkContent = (
