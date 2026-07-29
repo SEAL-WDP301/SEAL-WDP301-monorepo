@@ -51,7 +51,9 @@ export default function EventDashboardLayout({
   const { data: teams } = useQuery({
     queryKey: ["organizerTeams", eventId],
     queryFn: async () => {
-      const res = await axiosClient.get(`/organizer/teams/events/${eventId}`);
+      const res = await axiosClient.get(`/organizer/teams/events/${eventId}`, {
+        params: { status: "approved", limit: 1000 },
+      });
       return res.data.data;
     },
   });
@@ -101,26 +103,56 @@ export default function EventDashboardLayout({
   const { socket, isConnected } = useSocket("/chat");
 
   useEffect(() => {
-    if (!socket || !isConnected || !teams || teams.length === 0) return;
+    if (!socket || !isConnected) return;
 
-    teams.forEach((team: any) => {
-      socket.emit("join_team_room", team.id);
-    });
+    // Join team rooms for all approved teams in the event
+    if (teams && teams.length > 0) {
+      const teamIds = teams.map((t: any) => t.id);
+      socket.emit("join_multiple_team_rooms", teamIds);
+    }
 
     const handleReceiveMessage = (newMessage: any) => {
+      const isIncomingMessage = user?.id ? Number(newMessage.senderId) !== Number(user.id) : false;
+
       queryClient.setQueryData(["organizerTeams", eventId], (oldData: any) => {
         if (!oldData) return oldData;
         return oldData.map((t: any) => {
           if (t.id === newMessage.teamId) {
             return {
               ...t,
-              unreadCount: (t.unreadCount || 0) + (newMessage.senderId !== user?.id ? 1 : 0),
+              unreadCount: (t.unreadCount || 0) + (isIncomingMessage ? 1 : 0),
               lastMessageAt: newMessage.createdAt,
             };
           }
           return t;
         });
       });
+      queryClient.invalidateQueries({ queryKey: ["organizerTeamsMessages", eventId] });
+
+      // Show real-time Snackbar toast for incoming message if sender is not current admin
+      if (isIncomingMessage) {
+        const targetTeam = teams?.find((t: any) => t.id === newMessage.teamId);
+        const senderName = newMessage.sender?.name || newMessage.teamName || targetTeam?.name || "a team";
+        const msgSnippet = (newMessage.content || "").length > 40
+          ? (newMessage.content || "").substring(0, 40) + "..."
+          : newMessage.content;
+
+        enqueueSnackbar(
+          <div
+            className="flex flex-col gap-0.5 cursor-pointer select-none"
+            onClick={() => {
+              router.push(`/organizer/events/${eventId}/messages?teamId=${newMessage.teamId}`);
+            }}
+          >
+            <span className="font-bold text-xs">💬 New message from {senderName}</span>
+            <span className="text-xs opacity-90">{msgSnippet}</span>
+          </div>,
+          {
+            variant: "info",
+            autoHideDuration: 5000,
+          }
+        );
+      }
     };
 
     const handleMessagesReadUpdated = (updatedMessages: any[]) => {

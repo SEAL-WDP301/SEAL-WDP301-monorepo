@@ -89,10 +89,8 @@ export function Sidebar({
       {/* Logo */}
       <div
         className={cn(
-          "flex items-center border-b border-sidebar-border transition-all duration-300",
-          collapsed
-            ? "justify-center p-4"
-            : "justify-start p-6"
+          "flex h-16 lg:h-20 items-center border-b border-sidebar-border transition-all duration-300",
+          collapsed ? "justify-center px-4" : "justify-start px-6"
         )}
       >
         <Logo collapsed={collapsed} />

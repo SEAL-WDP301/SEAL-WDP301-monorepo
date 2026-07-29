@@ -38,7 +38,7 @@ export default function EventMessagesPage() {
     queryKey: ["organizerTeamsMessages", eventId],
     queryFn: async () => {
       const res = await axiosClient.get(`/organizer/teams/events/${eventId}`, {
-        params: { status: "approved", limit: 100 }
+        params: { status: "approved", limit: 1000 }
       });
       return res.data.data;
     },

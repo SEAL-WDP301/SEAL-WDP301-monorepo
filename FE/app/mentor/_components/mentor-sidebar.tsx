@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname, useParams, useRouter } from "next/navigation";
+import { enqueueSnackbar } from "notistack";
 import {
   Bell,
   ChartNoAxesCombined,
@@ -28,22 +29,31 @@ interface MentorSidebarProps {
 }
 
 interface NavItem {
+  id: string;
   label: string;
   href: string;
   icon: LucideIcon;
-  id?: string;
   badge?: string;
 }
 
 interface MentorTeamNavItem {
   id: number;
+  name: string;
   unreadCount?: number;
   lastMessageAt?: string;
 }
 
 interface ChatMessageEvent {
+  id: number;
   teamId: number;
-  createdAt?: string;
+  senderId: number;
+  content: string;
+  createdAt: string;
+  sender?: {
+    id: number;
+    name: string;
+    avatarUrl?: string;
+  };
 }
 
 interface MentorEventRound {
@@ -59,15 +69,13 @@ interface MentorEventSummary {
 const getNavItems = (eventId: string): NavItem[] => {
   const base = `/mentor/events/${eventId}`;
   return [
-    { label: "Dashboard", href: base, icon: LayoutDashboard },
-    { label: "My Teams", href: `${base}/teams`, icon: UsersRound },
+    { label: "Dashboard", href: `${base}`, icon: LayoutDashboard, id: "dashboard" },
+    { label: "Assigned Teams", href: `${base}/teams`, icon: UsersRound, id: "teams" },
+    { label: "Team Submissions", href: `${base}/submissions`, icon: FileCheck2, id: "submissions" },
+    { label: "Feedback Given", href: `${base}/feedback`, icon: ClipboardCheck, id: "feedback" },
+    { label: "Team Progress", href: `${base}/progress`, icon: ChartNoAxesCombined, id: "progress" },
+    { label: "Advisory Sessions", href: `${base}/sessions`, icon: Bell, id: "sessions" },
     { label: "Messages", href: `${base}/messages`, icon: MessageSquareText, id: "messages" },
-    { label: "Team Progress", href: `${base}/progress`, icon: ChartNoAxesCombined },
-    { label: "Feedback", href: `${base}/feedback`, icon: ClipboardCheck, id: "feedback" },
-    { label: "Submissions Review", href: `${base}/submissions`, icon: FileCheck2, id: "submissions" },
-    { label: "Notifications", href: `${base}/notifications`, icon: Bell },
-
-
   ];
 };
 
@@ -77,7 +85,16 @@ export function MentorSidebar({
 }: MentorSidebarProps) {
   const pathname = usePathname();
   const params = useParams();
+  const router = useRouter();
   const eventId = params.eventId as string || "1";
+
+  const { data: user } = useQuery({
+    queryKey: ['userProfile'],
+    queryFn: async () => {
+      const res = await axiosClient.get('/users/profile');
+      return res.data?.data;
+    },
+  });
 
   const { data: event } = useQuery<MentorEventSummary | null>({
     queryKey: ["mentorEvent", eventId],
@@ -118,25 +135,52 @@ export function MentorSidebar({
   useEffect(() => {
     if (!socket || !isConnected || !teams || teams.length === 0) return;
 
-    // Join all team rooms
+    // Join all assigned team rooms
     teams.forEach((team) => {
       socket.emit("join_team_room", team.id);
     });
 
     const handleReceiveMessage = (newMessage: ChatMessageEvent) => {
+      const isIncomingMessage = user?.id ? Number(newMessage.senderId) !== Number(user.id) : false;
+
       queryClient.setQueryData<MentorTeamNavItem[]>(["mentorTeams", eventId], (oldData) => {
         if (!oldData) return oldData;
         return oldData.map((t) => {
           if (t.id === newMessage.teamId) {
             return {
               ...t,
-              unreadCount: (t.unreadCount || 0) + 1,
+              unreadCount: (t.unreadCount || 0) + (isIncomingMessage ? 1 : 0),
               lastMessageAt: newMessage.createdAt,
             };
           }
           return t;
         });
       });
+
+      // Show real-time Snackbar toast for incoming message if sender is not current mentor
+      if (isIncomingMessage) {
+        const targetTeam = teams?.find((t) => t.id === newMessage.teamId);
+        const senderName = newMessage.sender?.name || targetTeam?.name || "a team";
+        const msgSnippet = (newMessage.content || "").length > 40
+          ? (newMessage.content || "").substring(0, 40) + "..."
+          : newMessage.content;
+
+        enqueueSnackbar(
+          <div
+            className="flex flex-col gap-0.5 cursor-pointer select-none"
+            onClick={() => {
+              router.push(`/mentor/events/${eventId}/messages?teamId=${newMessage.teamId}`);
+            }}
+          >
+            <span className="font-bold text-xs">💬 New message from {senderName}</span>
+            <span className="text-xs opacity-90">{msgSnippet}</span>
+          </div>,
+          {
+            variant: "info",
+            autoHideDuration: 5000,
+          }
+        );
+      }
     };
 
     const handleMessagesReadUpdated = (updatedMessages: ChatMessageEvent[]) => {
@@ -157,13 +201,10 @@ export function MentorSidebar({
     socket.on("messages_read_updated", handleMessagesReadUpdated);
 
     return () => {
-      teams.forEach((team) => {
-        socket.emit("leave_team_room", team.id);
-      });
       socket.off("receive_chat_message", handleReceiveMessage);
       socket.off("messages_read_updated", handleMessagesReadUpdated);
     };
-  }, [socket, isConnected, teams, queryClient, eventId]);
+  }, [socket, isConnected, teams, queryClient, eventId, user?.id, router]);
 
   const unreadMessagesCount = teams?.reduce((acc, team) => acc + ((team.unreadCount ?? 0) > 0 ? 1 : 0), 0) || 0;
 
@@ -186,8 +227,8 @@ export function MentorSidebar({
     >
       <div
         className={cn(
-          "flex items-center border-b border-sidebar-border transition-all duration-300",
-          collapsed ? "justify-center p-4" : "justify-start p-6"
+          "flex h-16 lg:h-20 items-center border-b border-sidebar-border transition-all duration-300",
+          collapsed ? "justify-center px-4" : "justify-start px-6"
         )}
       >
         <Logo collapsed={collapsed} />
