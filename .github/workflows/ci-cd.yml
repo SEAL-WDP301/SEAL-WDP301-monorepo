@@ -13,10 +13,10 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 0: Unit Tests Quality Gate (Fail-Fast DevOps Standard)
+  # JOB 0A: Parallel Backend Unit Tests Gate
   # ============================================================================
-  run-unit-tests:
-    name: Run BE & FE Unit Tests
+  test-backend:
+    name: Run Backend Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -35,6 +35,22 @@ jobs:
           npx prisma generate
           npm run test
 
+  # ============================================================================
+  # JOB 0B: Parallel Frontend Unit Tests Gate (Runs at SAME time as BE Test!)
+  # ============================================================================
+  test-frontend:
+    name: Run Frontend Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Run Frontend Unit Tests
         run: |
           cd FE
@@ -42,11 +58,11 @@ jobs:
           npm run test
 
   # ============================================================================
-  # JOB 1: Fast Parallel Build & Push for Backend (Requires Test Pass)
+  # JOB 1: Fast Parallel Build & Push for Backend (Requires BE Test Pass)
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
-    needs: [run-unit-tests]
+    needs: [test-backend]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -82,11 +98,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
   # ============================================================================
-  # JOB 2: Fast Parallel Build & Push for Frontend (Runs at the SAME time!)
+  # JOB 2: Fast Parallel Build & Push for Frontend (Requires FE Test Pass)
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
-    needs: [run-unit-tests]
+    needs: [test-frontend]
     runs-on: ubuntu-latest
     permissions:
       contents: read
