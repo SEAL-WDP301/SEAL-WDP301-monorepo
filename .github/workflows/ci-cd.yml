@@ -13,10 +13,40 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 1: Fast Parallel Build & Push for Backend
+  # JOB 0: Unit Tests Quality Gate (Fail-Fast DevOps Standard)
+  # ============================================================================
+  run-unit-tests:
+    name: Run BE & FE Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Backend Unit Tests
+        run: |
+          cd BE
+          npm ci
+          npx prisma generate
+          npm run test
+
+      - name: Run Frontend Unit Tests
+        run: |
+          cd FE
+          npm ci
+          npm run test
+
+  # ============================================================================
+  # JOB 1: Fast Parallel Build & Push for Backend (Requires Test Pass)
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
+    needs: [run-unit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,6 +86,7 @@ jobs:
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
+    needs: [run-unit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read

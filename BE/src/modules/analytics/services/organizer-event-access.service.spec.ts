@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../../database/prisma/prisma.service";
+import { PrismaService } from "../../../database/prisma/prisma.service";
 import { OrganizerEventAccessService } from "./organizer-event-access.service";
 
 describe("OrganizerEventAccessService", () => {
