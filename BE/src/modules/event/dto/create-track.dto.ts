@@ -14,12 +14,6 @@ export class CreateTrackDto {
 
   @ApiPropertyOptional()
   @IsInt()
-  @Min(1)
-  @IsOptional()
-  maxTeams?: number;
-
-  @ApiPropertyOptional()
-  @IsInt()
   @IsOptional()
   id?: number;
 

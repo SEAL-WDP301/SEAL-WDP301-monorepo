@@ -8,7 +8,6 @@ export interface OrganizerTrackInput {
   id?: number;
   name: string;
   description?: string;
-  maxTeams?: number;
   maxMembersPerTeam?: number;
 }
 
@@ -78,6 +77,7 @@ export interface OrganizerEventPayload {
   imageUrl?: string;
   season: EventSeason;
   year: number;
+  maxTeams?: number | null;
   status?: EventStatus;
   registrationDeadline?: string;
   startDate?: string;

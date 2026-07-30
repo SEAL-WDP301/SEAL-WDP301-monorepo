@@ -283,14 +283,15 @@ export class AnalyticsOrganizerService {
             submissions.map(({ teamId }) => teamId),
           ),
         ).size;
-        const capacities = event.tracks.map((track) =>
-          track.maxTeams && track.maxMembersPerTeam
-            ? track.maxTeams * track.maxMembersPerTeam
-            : null,
-        );
-        const capacity = capacities.every((value) => value !== null)
-          ? capacities.reduce<number>((sum, value) => sum + (value ?? 0), 0)
-          : null;
+        const teamSizes = event.tracks
+          .map((track) => track.maxMembersPerTeam)
+          .filter((value): value is number => value !== null);
+        const capacity =
+          event.maxTeams &&
+          teamSizes.length > 0 &&
+          teamSizes.length === event.tracks.length
+            ? event.maxTeams * Math.max(...teamSizes)
+            : null;
         return {
           eventId: event.id,
           eventName: event.name,

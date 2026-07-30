@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from "@nestjs/common";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { TeamStatus, NotificationType } from "@prisma/client";
@@ -45,7 +46,8 @@ export class TeamOrganizerService {
         teamRounds: {
           some: {
             roundId,
-            ...(roundStatus && roundStatus !== "all" && { status: roundStatus }),
+            ...(roundStatus &&
+              roundStatus !== "all" && { status: roundStatus }),
           },
         },
       }),
@@ -130,7 +132,7 @@ export class TeamOrganizerService {
           lastMessage: team.teamMessages[0] || null,
           lastMessageAt: team.teamMessages[0]?.createdAt || team.createdAt,
         };
-      })
+      }),
     );
 
     return {
@@ -204,16 +206,58 @@ export class TeamOrganizerService {
       );
     }
 
-    const updated = await this.prisma.team.update({
-      where: { id: teamId },
-      data: {
-        status: dto.status,
-        eliminationReason:
-          dto.status === TeamStatus.rejected ||
-          dto.status === TeamStatus.disqualified
-            ? dto.reason
-            : null,
-      },
+    const capacityStatuses: TeamStatus[] = [
+      TeamStatus.pending,
+      TeamStatus.approved,
+    ];
+    const occupiesNewSlot =
+      !capacityStatuses.includes(team.status) &&
+      capacityStatuses.includes(dto.status);
+
+    await this.prisma.$transaction(async (prisma) => {
+      if (occupiesNewSlot) {
+        await prisma.$queryRaw`
+          SELECT "id"
+          FROM "events"
+          WHERE "id" = ${team.eventId}
+          FOR UPDATE
+        `;
+
+        const event = await prisma.event.findUnique({
+          where: { id: team.eventId },
+          select: { maxTeams: true },
+        });
+
+        if (event?.maxTeams !== null && event?.maxTeams !== undefined) {
+          const occupiedTeams = await prisma.team.count({
+            where: {
+              eventId: team.eventId,
+              status: { in: capacityStatuses },
+            },
+          });
+
+          if (occupiedTeams >= event.maxTeams) {
+            throw new ConflictException({
+              errorCode: "EVENT_TEAM_CAPACITY_REACHED",
+              message: "Event has reached its team capacity",
+              maxTeams: event.maxTeams,
+              registeredTeams: occupiedTeams,
+            });
+          }
+        }
+      }
+
+      return prisma.team.update({
+        where: { id: teamId },
+        data: {
+          status: dto.status,
+          eliminationReason:
+            dto.status === TeamStatus.rejected ||
+            dto.status === TeamStatus.disqualified
+              ? dto.reason
+              : null,
+        },
+      });
     });
 
     if (dto.status === TeamStatus.approved) {
@@ -234,7 +278,9 @@ export class TeamOrganizerService {
           );
 
         if (githubResult.provisioned && githubResult.repoUrl) {
-          const template = NotificationTemplates[NotificationType.github_repo_created](githubResult.repoUrl);
+          const template = NotificationTemplates[
+            NotificationType.github_repo_created
+          ](githubResult.repoUrl);
           await this.notifyEntireTeam(
             team,
             NotificationType.github_repo_created,
@@ -250,7 +296,9 @@ export class TeamOrganizerService {
       }
     }
 
-    const statusTemplate = NotificationTemplates[NotificationType.team_assigned](dto.status, dto.reason);
+    const statusTemplate = NotificationTemplates[
+      NotificationType.team_assigned
+    ](dto.status, dto.reason);
     await this.notifyEntireTeam(
       team,
       NotificationType.team_assigned,

@@ -178,6 +178,7 @@ model Event {
   season               Season
   year                 Int
   status               EventStatus @default(draft)
+  maxTeams             Int?        @map("max_teams")
   registrationDeadline DateTime?   @map("registration_deadline")
   startDate            DateTime?   @map("start_date")
   endDate              DateTime?   @map("end_date")
@@ -270,7 +271,6 @@ model Track {
   eventId           Int      @map("event_id")
   name              String
   description       String?
-  maxTeams          Int?     @map("max_teams")
   maxMembersPerTeam Int?     @map("max_members_per_team")
   createdAt         DateTime @default(now()) @map("created_at")
 

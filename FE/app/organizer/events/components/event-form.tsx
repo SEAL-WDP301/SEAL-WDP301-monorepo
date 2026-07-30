@@ -231,6 +231,11 @@ const createEventSchema = (isEdit: boolean) =>
           new Date().getFullYear() + 5,
           "Year cannot exceed 5 years in the future",
         ),
+      maxTeams: z.coerce
+        .number()
+        .int("Maximum teams must be an integer")
+        .min(1, "Maximum teams must be at least 1")
+        .max(1000, "Maximum teams cannot exceed 1000"),
       status: z.enum(["draft", "active", "ongoing", "closed"]).optional(),
       registrationDeadline: z.string().optional(),
       startDate: z.string().optional(),
@@ -290,19 +295,6 @@ const createEventSchema = (isEdit: boolean) =>
             _count: z.object({ teams: z.number().optional() }).optional(),
             name: z.string().min(1, "Track name is required"),
             description: z.string().optional(),
-            maxTeams: z
-              .union([
-                z.coerce
-                  .number()
-                  .int()
-                  .min(1, "Must be >= 1")
-                  .max(1000, "Max 1000 teams"),
-                z.literal(""),
-              ])
-              .optional()
-              .transform((v) =>
-                v === "" ? undefined : (v as number | undefined),
-              ),
             maxMembersPerTeam: z
               .union([
                 z.coerce
@@ -319,9 +311,7 @@ const createEventSchema = (isEdit: boolean) =>
           }),
         )
         .min(1, "At least one track is required")
-        .default([
-          { name: "", description: "", maxTeams: 50, maxMembersPerTeam: 4 },
-        ]),
+        .default([{ name: "", description: "", maxMembersPerTeam: 4 }]),
       rounds: z
         .array(
           z.object({
@@ -531,13 +521,6 @@ const createEventSchema = (isEdit: boolean) =>
             ["tracks", index, "description"],
             "Track description",
           );
-          if (track.maxTeams === undefined) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: "Max teams is required",
-              path: ["tracks", index, "maxTeams"],
-            });
-          }
           if (track.maxMembersPerTeam === undefined) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
@@ -743,6 +726,7 @@ const eventFormSteps: Array<{
       "name",
       "season",
       "year",
+      "maxTeams",
       "registrationDeadline",
       "startDate",
       "endDate",
@@ -810,9 +794,10 @@ export default function EventForm({ initialData }: EventFormProps) {
 
   const initialLocation = useMemo(
     () =>
-      parseJsonSafe<
-        Partial<typeof defaultLocation> & StoredGoogleMeetConfig
-      >(initialData?.location, {}),
+      parseJsonSafe<Partial<typeof defaultLocation> & StoredGoogleMeetConfig>(
+        initialData?.location,
+        {},
+      ),
     [initialData?.location],
   );
   const hasExistingCalendarMeeting = Boolean(
@@ -835,6 +820,7 @@ export default function EventForm({ initialData }: EventFormProps) {
     imageUrl: initialData?.imageUrl || initialData?.image_url || "",
     season: initialData?.season || "Spring",
     year: initialData?.year || new Date().getFullYear(),
+    maxTeams: initialData?.maxTeams ?? 50,
     status: initialData?.status || "draft",
     registrationDeadline: initialData?.registrationDeadline
       ? new Date(initialData.registrationDeadline).toISOString().slice(0, 16)
@@ -877,9 +863,8 @@ export default function EventForm({ initialData }: EventFormProps) {
     tracks: initialData?.tracks?.map((track) => ({
       ...track,
       description: track.description || "",
-      maxTeams: track.maxTeams ?? 50,
       maxMembersPerTeam: track.maxMembersPerTeam ?? 4,
-    })) || [{ name: "", description: "", maxTeams: 50, maxMembersPerTeam: 4 }],
+    })) || [{ name: "", description: "", maxMembersPerTeam: 4 }],
     rounds: initialData?.rounds?.map((r) => ({
       ...r,
       submissionDeadline: r.submissionDeadline
@@ -1258,7 +1243,6 @@ export default function EventForm({ initialData }: EventFormProps) {
           id: t.id,
           name: t.name,
           description: t.description,
-          maxTeams: t.maxTeams ? Number(t.maxTeams) : undefined,
           maxMembersPerTeam: t.maxMembersPerTeam
             ? Number(t.maxMembersPerTeam)
             : undefined,
@@ -1594,7 +1578,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                     control={control}
                     name="season"
                     render={({ field }) => (
-                      <FormItem className="md:col-span-6">
+                      <FormItem className="md:col-span-4">
                         <FormLabel className="text-foreground/80 font-medium">
                           Season <span className="text-red-500">*</span>
                         </FormLabel>
@@ -1622,13 +1606,34 @@ export default function EventForm({ initialData }: EventFormProps) {
                     control={control}
                     name="year"
                     render={({ field }) => (
-                      <FormItem className="md:col-span-6">
+                      <FormItem className="md:col-span-4">
                         <FormLabel className="text-foreground/80 font-medium">
                           Year <span className="text-red-500">*</span>
                         </FormLabel>
                         <FormControl>
                           <Input
                             type="number"
+                            className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={control}
+                    name="maxTeams"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-4">
+                        <FormLabel className="text-foreground/80 font-medium">
+                          Maximum Teams <span className="text-red-500">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
                           />
@@ -2027,7 +2032,6 @@ export default function EventForm({ initialData }: EventFormProps) {
                         appendTrack({
                           name: "",
                           description: "",
-                          maxTeams: 50,
                           maxMembersPerTeam: 4,
                         })
                       }
@@ -2083,28 +2087,6 @@ export default function EventForm({ initialData }: EventFormProps) {
                                   <Input
                                     className="bg-card/50 rounded-lg"
                                     placeholder="Track focus area..."
-                                    {...field}
-                                    value={field.value ?? ""}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <div className="md:col-span-4">
-                          <FormField
-                            control={control}
-                            name={`tracks.${index}.maxTeams`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                                  Max Teams {!isEdit && "*"}
-                                </FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    className="bg-card/50 rounded-lg"
                                     {...field}
                                     value={field.value ?? ""}
                                   />
@@ -2551,9 +2533,9 @@ export default function EventForm({ initialData }: EventFormProps) {
                                       Create Google Meet automatically
                                     </FormLabel>
                                     <p className="mt-1 text-xs text-muted-foreground">
-                                      The configuration is saved now. Google Meet
-                                      is created only when the event moves to
-                                      Ongoing.
+                                      The configuration is saved now. Google
+                                      Meet is created only when the event moves
+                                      to Ongoing.
                                     </p>
                                   </div>
                                 </FormItem>
@@ -2639,7 +2621,9 @@ export default function EventForm({ initialData }: EventFormProps) {
                                             type="checkbox"
                                             className="size-4 accent-orange-500"
                                             checked={field.value}
-                                            disabled={watchedStatus !== "ongoing"}
+                                            disabled={
+                                              watchedStatus !== "ongoing"
+                                            }
                                             onChange={field.onChange}
                                           />
                                         </FormControl>
@@ -2659,7 +2643,9 @@ export default function EventForm({ initialData }: EventFormProps) {
                                             type="checkbox"
                                             className="size-4 accent-orange-500"
                                             checked={field.value}
-                                            disabled={watchedStatus !== "ongoing"}
+                                            disabled={
+                                              watchedStatus !== "ongoing"
+                                            }
                                             onChange={field.onChange}
                                           />
                                         </FormControl>
@@ -2679,7 +2665,13 @@ export default function EventForm({ initialData }: EventFormProps) {
                         control={control}
                         name="location.meetingPlatform"
                         render={({ field }) => (
-                          <FormItem className={watchedCreateGoogleMeet ? "md:col-span-6" : "md:col-span-4"}>
+                          <FormItem
+                            className={
+                              watchedCreateGoogleMeet
+                                ? "md:col-span-6"
+                                : "md:col-span-4"
+                            }
+                          >
                             <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                               Online Platform {!isEdit && "*"}
                             </FormLabel>
@@ -2689,7 +2681,11 @@ export default function EventForm({ initialData }: EventFormProps) {
                                 placeholder="Google Meet / Zoom"
                                 disabled={watchedCreateGoogleMeet}
                                 {...field}
-                                value={watchedCreateGoogleMeet ? "Google Meet" : (field.value ?? "")}
+                                value={
+                                  watchedCreateGoogleMeet
+                                    ? "Google Meet"
+                                    : (field.value ?? "")
+                                }
                               />
                             </FormControl>
                             <FormMessage />
@@ -2722,7 +2718,13 @@ export default function EventForm({ initialData }: EventFormProps) {
                         control={control}
                         name="location.mapUrl"
                         render={({ field }) => (
-                          <FormItem className={watchedCreateGoogleMeet ? "md:col-span-6" : "md:col-span-4"}>
+                          <FormItem
+                            className={
+                              watchedCreateGoogleMeet
+                                ? "md:col-span-6"
+                                : "md:col-span-4"
+                            }
+                          >
                             <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                               Map URL {!isEdit && "*"}
                             </FormLabel>

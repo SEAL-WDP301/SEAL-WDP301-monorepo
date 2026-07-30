@@ -69,6 +69,10 @@ type EventDetail = {
   registrationDeadline?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  maxTeams?: number | null;
+  registeredTeams?: number;
+  remainingTeamSlots?: number | null;
+  isTeamRegistrationFull?: boolean;
   prizes?: {
     id: number;
     name: string;
@@ -93,6 +97,7 @@ type EventDetail = {
 
 function isRegistrationOpen(event: EventDetail) {
   if (event.status?.toLowerCase() !== "active") return false;
+  if (event.isTeamRegistrationFull) return false;
 
   const now = new Date();
 
@@ -907,6 +912,15 @@ export default function EventDetailPage() {
   const renderActionButton = () => {
     // 1. Unauthenticated
     if (!user) {
+      if (event.isTeamRegistrationFull) {
+        return (
+          <Button size="lg" disabled className="w-full sm:w-auto px-8">
+            Event Full ({event.registeredTeams ?? event.maxTeams}/
+            {event.maxTeams} Teams)
+          </Button>
+        );
+      }
+
       return (
         <>
           <Link href="/login">
@@ -1037,7 +1051,12 @@ export default function EventDetailPage() {
               )}
               {(displayStatus === "rejected" ||
                 displayStatus === "disqualified") && (
-                <Link href={`/home/events/${eventId}/register`}>
+                event.isTeamRegistrationFull ? (
+                  <Button size="sm" disabled>
+                    Event Full
+                  </Button>
+                ) : (
+                  <Link href={`/home/events/${eventId}/register`}>
                   <Button
                     size="sm"
                     className="bg-orange-500 hover:bg-orange-600 text-white transition-colors"
@@ -1045,6 +1064,7 @@ export default function EventDetailPage() {
                     Register Again
                   </Button>
                 </Link>
+                )
               )}
             </div>
 

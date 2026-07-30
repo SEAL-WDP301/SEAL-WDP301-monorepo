@@ -267,8 +267,9 @@ export class AnalyticsOrganizerRepository {
       select: {
         id: true,
         name: true,
+        maxTeams: true,
         registrations: { select: { userId: true } },
-        tracks: { select: { maxTeams: true, maxMembersPerTeam: true } },
+        tracks: { select: { maxMembersPerTeam: true } },
         teams: {
           where: {
             status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },

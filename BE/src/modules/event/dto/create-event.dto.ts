@@ -9,6 +9,7 @@ import {
   IsArray,
   ValidateNested,
   ArrayMinSize,
+  Min,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Season, EventStatus } from "@prisma/client";
@@ -73,6 +74,15 @@ export class CreateEventDto {
   @ApiProperty()
   @IsInt()
   year: number;
+
+  @ApiPropertyOptional({
+    description: "Maximum number of active teams allowed in the event",
+    minimum: 1,
+  })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  maxTeams?: number;
 
   @ApiPropertyOptional({ enum: EventStatus, default: EventStatus.draft })
   @IsEnum(EventStatus)

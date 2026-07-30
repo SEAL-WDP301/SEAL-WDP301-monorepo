@@ -49,12 +49,13 @@ async function main() {
                 ]
             },
             createdById: creator.id,
+            maxTeams: 100,
 
             // Create Tracks
             tracks: {
                 create: [
-                    { name: 'AI & Data Track', description: 'Focus on AI, ML, Data Science', maxTeams: 50, maxMembersPerTeam: 5 },
-                    { name: 'Web3 & Blockchain', description: 'Focus on decentralization', maxTeams: 50, maxMembersPerTeam: 5 }
+                    { name: 'AI & Data Track', description: 'Focus on AI, ML, Data Science', maxMembersPerTeam: 5 },
+                    { name: 'Web3 & Blockchain', description: 'Focus on decentralization', maxMembersPerTeam: 5 }
                 ]
             },
         },

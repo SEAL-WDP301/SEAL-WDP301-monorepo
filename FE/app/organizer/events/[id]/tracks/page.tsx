@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { enqueueSnackbar } from "notistack";
-import { Edit2, Loader2, Plus, Save, Trash2, PlayCircle, ExternalLink, Upload } from "lucide-react";
+import { Edit2, Loader2, Plus, Save, Trash2, ExternalLink, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,6 @@ type TrackDraft = {
   id?: number;
   name: string;
   description: string;
-  maxTeams: number | string;
   maxMembersPerTeam: number | string;
 };
 
@@ -66,7 +65,6 @@ const emptyRound = (roundNumber: number): RoundDraft => ({
 const emptyTrack = (): TrackDraft => ({
   name: "",
   description: "",
-  maxTeams: 50,
   maxMembersPerTeam: 4,
 });
 
@@ -109,7 +107,6 @@ function mapTrack(track: OrganizerTrack): OrganizerTrackInput {
     id: track.id,
     name: track.name,
     description: track.description || undefined,
-    maxTeams: track.maxTeams,
     maxMembersPerTeam: track.maxMembersPerTeam,
   };
 }
@@ -124,6 +121,7 @@ function buildEventPayload(
     description: event.description || undefined,
     season: event.season,
     year: event.year,
+    maxTeams: event.maxTeams,
     status: event.status,
     registrationDeadline: event.registrationDeadline || undefined,
     startDate: event.startDate || undefined,
@@ -239,7 +237,7 @@ export default function EventRoundsPage() {
       await updateRoundProblemFile(eventId, roundId, fileUrl);
       enqueueSnackbar("Problem statement file uploaded successfully!", { variant: "success" });
       eventQuery.refetch();
-    } catch (err: any) {
+    } catch (err: unknown) {
       enqueueSnackbar(getApiMessage(err, "Failed to upload problem file"), { variant: "error" });
     } finally {
       setUploadingRoundId(null);
@@ -252,7 +250,7 @@ export default function EventRoundsPage() {
       await updateRoundProblemFile(eventId, roundId, null);
       enqueueSnackbar("Problem statement file removed.", { variant: "info" });
       eventQuery.refetch();
-    } catch (err: any) {
+    } catch (err: unknown) {
       enqueueSnackbar(getApiMessage(err, "Failed to remove problem file"), { variant: "error" });
     } finally {
       setUploadingRoundId(null);
@@ -382,7 +380,6 @@ export default function EventRoundsPage() {
       id: track.id,
       name: track.name,
       description: track.description || "",
-      maxTeams: track.maxTeams ?? "",
       maxMembersPerTeam: track.maxMembersPerTeam ?? 4,
     });
     setIsTrackDialogOpen(true);
@@ -392,20 +389,10 @@ export default function EventRoundsPage() {
     if (!event) return;
 
     const normalizedName = trackDraft.name.trim();
-    const maxTeams = optionalNumber(trackDraft.maxTeams);
     const maxMembersPerTeam = optionalNumber(trackDraft.maxMembersPerTeam);
 
     if (!normalizedName) {
       enqueueSnackbar("Track name is required.", { variant: "warning" });
-      return;
-    }
-    if (
-      maxTeams !== undefined &&
-      (!Number.isInteger(maxTeams) || maxTeams < 1)
-    ) {
-      enqueueSnackbar("Max teams must be a positive integer.", {
-        variant: "warning",
-      });
       return;
     }
     if (
@@ -434,7 +421,6 @@ export default function EventRoundsPage() {
       id: trackDraft.id,
       name: normalizedName,
       description: trackDraft.description.trim() || undefined,
-      maxTeams,
       maxMembersPerTeam,
     };
 
@@ -557,7 +543,6 @@ export default function EventRoundsPage() {
               </thead>
               <tbody>
                 {rounds.map((round) => {
-                  const track = tracks.find((item) => item.id === round.trackId);
                   const isRoundNotStarted = (round.status || "not_started") === "not_started";
                   return (
                     <tr 
@@ -764,9 +749,8 @@ export default function EventRoundsPage() {
                   </div>
                 </div>
 
-                <div className="mt-auto grid grid-cols-3 gap-3 pt-5 text-center">
+                <div className="mt-auto grid grid-cols-2 gap-3 pt-5 text-center">
                   <TrackStat label="Teams" value={track._count?.teams ?? 0} />
-                  <TrackStat label="Max teams" value={track.maxTeams ?? "∞"} />
                   <TrackStat
                     label="Team size"
                     value={track.maxMembersPerTeam ?? 5}
@@ -785,7 +769,6 @@ export default function EventRoundsPage() {
         onOpenChange={setIsRoundDialogOpen}
         draft={roundDraft}
         setDraft={setRoundDraft}
-        tracks={tracks}
         isSaving={saveStructureMutation.isPending}
         onSave={saveRound}
       />
@@ -807,7 +790,6 @@ function RoundDialog({
   onOpenChange,
   draft,
   setDraft,
-  tracks,
   isSaving,
   onSave,
 }: {
@@ -815,7 +797,6 @@ function RoundDialog({
   onOpenChange: (open: boolean) => void;
   draft: RoundDraft;
   setDraft: React.Dispatch<React.SetStateAction<RoundDraft>>;
-  tracks: OrganizerTrack[];
   isSaving: boolean;
   onSave: () => void;
 }) {
@@ -989,21 +970,7 @@ function TrackDialog({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Max teams">
-              <Input
-                type="number"
-                min={1}
-                value={draft.maxTeams}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    maxTeams: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-
+          <div>
             <Field label="Max members (3–5) *">
               <Input
                 type="number"
