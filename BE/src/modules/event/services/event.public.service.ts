@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../../database/prisma/prisma.service";
-import { EventStatus } from "@prisma/client";
+import { EventStatus, TeamStatus } from "@prisma/client";
 
 @Injectable()
 export class EventPublicService {
@@ -34,6 +34,25 @@ export class EventPublicService {
     };
   }
 
+  private withTeamCapacity<
+    T extends {
+      maxTeams?: number | null;
+      imageUrl?: string | null;
+      endDate?: Date | string | null;
+      location?: string | null;
+    },
+  >(event: T, registeredTeams: number) {
+    const maxTeams = event.maxTeams ?? null;
+
+    return {
+      ...this.withPublicAliases(event),
+      registeredTeams,
+      remainingTeamSlots:
+        maxTeams === null ? null : Math.max(0, maxTeams - registeredTeams),
+      isTeamRegistrationFull: maxTeams !== null && registeredTeams >= maxTeams,
+    };
+  }
+
   async getAllPublicEvents() {
     const events = await this.prisma.event.findMany({
       where: {
@@ -48,7 +67,25 @@ export class EventPublicService {
       orderBy: { createdAt: "desc" },
     });
 
-    return events.map((event) => this.withPublicAliases(event));
+    if (events.length === 0) {
+      return [];
+    }
+
+    const occupiedByEvent = await this.prisma.team.groupBy({
+      by: ["eventId"],
+      where: {
+        eventId: { in: events.map((event) => event.id) },
+        status: { in: [TeamStatus.pending, TeamStatus.approved] },
+      },
+      _count: { _all: true },
+    });
+    const occupiedTeamCounts = new Map(
+      occupiedByEvent.map((row) => [row.eventId, row._count._all]),
+    );
+
+    return events.map((event) =>
+      this.withTeamCapacity(event, occupiedTeamCounts.get(event.id) ?? 0),
+    );
   }
 
   async getPublicEventById(id: number) {
@@ -77,6 +114,12 @@ export class EventPublicService {
         },
       },
     });
+    const registeredTeams = await this.prisma.team.count({
+      where: {
+        eventId: id,
+        status: { in: [TeamStatus.pending, TeamStatus.approved] },
+      },
+    });
 
     const eventAchievements =
       event.status === EventStatus.closed
@@ -103,14 +146,17 @@ export class EventPublicService {
       problemFileUrl: r.status === "not_started" ? null : r.problemFileUrl,
     }));
 
-    return this.withPublicAliases({
-      ...event,
-      rounds: sanitizedRounds,
-      eventAchievements,
-      _count: {
-        teams: event._count.teams,
-        submissions: submissionCount,
+    return this.withTeamCapacity(
+      {
+        ...event,
+        rounds: sanitizedRounds,
+        eventAchievements,
+        _count: {
+          teams: event._count.teams,
+          submissions: submissionCount,
+        },
       },
-    });
+      registeredTeams,
+    );
   }
 }

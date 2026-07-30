@@ -147,6 +147,7 @@ Table events {
   season Season [not null]
   year integer [not null]
   status EventStatus [not null, default: 'draft']
+  max_teams integer
   registration_deadline timestamp(3)
   start_date timestamp(3)
   end_date timestamp(3)
@@ -169,7 +170,6 @@ Table tracks {
   event_id integer [not null]
   name text [not null]
   description text
-  max_teams integer
   max_members_per_team integer
   created_at timestamp(3) [not null, default: `now()`]
 }

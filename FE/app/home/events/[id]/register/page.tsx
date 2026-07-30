@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,10 @@ interface PublicEvent {
   registrationDeadline?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  maxTeams?: number | null;
+  registeredTeams?: number;
+  remainingTeamSlots?: number | null;
+  isTeamRegistrationFull?: boolean;
   tracks?: EventTrack[];
 }
 
@@ -48,7 +52,10 @@ function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
-function getRegistrationBlockReason(event?: PublicEvent | null) {
+function getRegistrationBlockReason(
+  event?: PublicEvent | null,
+  isEditingExistingTeam = false,
+) {
   if (!event) return 'Event information is unavailable.';
 
   const normalizedStatus = event.status?.toLowerCase();
@@ -69,6 +76,10 @@ function getRegistrationBlockReason(event?: PublicEvent | null) {
     if (!Number.isNaN(startDate.getTime()) && now >= startDate) {
       return `Registration is closed because the event started on ${formatDateTime(event.startDate)}.`;
     }
+  }
+
+  if (!isEditingExistingTeam && event.isTeamRegistrationFull) {
+    return `This event has reached its team capacity (${event.registeredTeams ?? event.maxTeams}/${event.maxTeams} teams).`;
   }
 
   return null;
@@ -102,23 +113,26 @@ export default function EventRegistrationPage() {
   });
 
   const teamStatus = studentInfo?.teamInfo?.team?.status;
-  const isEditing = !!studentInfo?.teamInfo && teamStatus !== 'rejected' && teamStatus !== 'disqualified';
+  const isEditing =
+    !!studentInfo?.teamInfo &&
+    teamStatus !== 'rejected' &&
+    teamStatus !== 'disqualified';
 
   // Pre-fill form if editing or re-registering after elimination
   useEffect(() => {
     if (studentInfo?.teamInfo?.team) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTeamName(studentInfo.teamInfo.team.name);
-       
+
       setSelectedTrack(studentInfo.teamInfo.team.trackId);
-      
+
       // Pre-fill member emails (excluding the current user / leader)
       if (studentInfo.teamInfo.team.members) {
         const otherMembers = studentInfo.teamInfo.team.members
           .filter((m: TeamMember) => m.role === 'member')
           .map((m: TeamMember) => m.user?.email)
           .filter(Boolean);
-          
+
         if (otherMembers.length > 0) {
           setMemberEmails(otherMembers);
         } else {
@@ -130,25 +144,33 @@ export default function EventRegistrationPage() {
 
   const queryClient = useQueryClient();
 
-  const registrationBlockReason = getRegistrationBlockReason(event);
+  const registrationBlockReason = getRegistrationBlockReason(event, isEditing);
   const isRegistrationBlocked = Boolean(registrationBlockReason);
   const selectedTrackData = event?.tracks?.find((t) => t.id === selectedTrack);
-  const maxAdditionalMembers = selectedTrackData?.maxMembersPerTeam ? selectedTrackData.maxMembersPerTeam - 1 : 10;
+  const maxAdditionalMembers = selectedTrackData?.maxMembersPerTeam
+    ? selectedTrackData.maxMembersPerTeam - 1
+    : 10;
 
   useEffect(() => {
-    if (selectedTrackData?.maxMembersPerTeam && memberEmails.length > maxAdditionalMembers) {
+    if (
+      selectedTrackData?.maxMembersPerTeam &&
+      memberEmails.length > maxAdditionalMembers
+    ) {
       const frame = requestAnimationFrame(() => {
-        setMemberEmails(prev => prev.slice(0, maxAdditionalMembers));
+        setMemberEmails((prev) => prev.slice(0, maxAdditionalMembers));
       });
-      enqueueSnackbar(`The member list has been shortened to fit the Track limit (${selectedTrackData.maxMembersPerTeam} menber).`, { variant: 'info' });
+      enqueueSnackbar(
+        `The member list has been shortened to fit the Track limit (${selectedTrackData.maxMembersPerTeam} menber).`,
+        { variant: 'info' },
+      );
       return () => cancelAnimationFrame(frame);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTrackData?.id]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterPayload) => {
-      const blockReason = getRegistrationBlockReason(event);
+      const blockReason = getRegistrationBlockReason(event, isEditing);
       if (blockReason) {
         throw new Error(blockReason);
       }
@@ -159,22 +181,35 @@ export default function EventRegistrationPage() {
       return axiosClient.post(`/student/teams/register/team/${eventId}`, data);
     },
     onSuccess: () => {
-      enqueueSnackbar(isEditing ? 'Team updated successfully!' : 'Team registered successfully!', { variant: 'success' });
-      queryClient.invalidateQueries({ queryKey: ['studentEventStatus', eventId] });
+      enqueueSnackbar(
+        isEditing
+          ? 'Team updated successfully!'
+          : 'Team registered successfully!',
+        { variant: 'success' },
+      );
+      queryClient.invalidateQueries({
+        queryKey: ['studentEventStatus', eventId],
+      });
       router.push(`/home/events/${eventId}`);
     },
     onError: (error: unknown) => {
-      const apiError = error as { response?: { data?: { message?: string } }; message?: string };
-      const message = apiError.response?.data?.message || apiError.message || 'Registration failed';
+      const apiError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      const message =
+        apiError.response?.data?.message ||
+        apiError.message ||
+        'Registration failed';
       enqueueSnackbar(message, { variant: 'error' });
-    }
+    },
   });
 
   const isLoading = isEventLoading || isStudentLoading;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const blockReason = getRegistrationBlockReason(event);
+    const blockReason = getRegistrationBlockReason(event, isEditing);
     if (blockReason) {
       enqueueSnackbar(blockReason, { variant: 'warning' });
       return;
@@ -184,9 +219,9 @@ export default function EventRegistrationPage() {
       enqueueSnackbar('Please select a track', { variant: 'warning' });
       return;
     }
-    
+
     // Filter out empty emails
-    const validEmails = memberEmails.filter(email => email.trim() !== '');
+    const validEmails = memberEmails.filter((email) => email.trim() !== '');
 
     registerMutation.mutate({
       trackId: selectedTrack,
@@ -202,11 +237,16 @@ export default function EventRegistrationPage() {
     }
 
     if (!selectedTrack) {
-      enqueueSnackbar('Please select a track before adding a member.', { variant: 'warning' });
+      enqueueSnackbar('Please select a track before adding a member.', {
+        variant: 'warning',
+      });
       return;
     }
     if (memberEmails.length >= maxAdditionalMembers) {
-      enqueueSnackbar(`This track has a maximum limit ${selectedTrackData?.maxMembersPerTeam} members (including you)`, { variant: 'warning' });
+      enqueueSnackbar(
+        `This track has a maximum limit ${selectedTrackData?.maxMembersPerTeam} members (including you)`,
+        { variant: 'warning' },
+      );
       return;
     }
     setMemberEmails([...memberEmails, '']);
@@ -236,52 +276,84 @@ export default function EventRegistrationPage() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      
       <main className="flex-1 container mx-auto px-4 py-12 max-w-3xl">
-        <Link href={`/home/events/${eventId}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-8">
+        <Link
+          href={`/home/events/${eventId}`}
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-8"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Event Details
         </Link>
 
         <div className="bg-card border border-border rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-orange-500/10 blur-[80px]" />
-          
+
           <div className="relative z-10">
-            <h1 className="text-3xl md:text-4xl font-black text-foreground mb-2">Team Registration</h1>
-            <p className="text-muted-foreground mb-8">Register your team for <strong>{event.name}</strong></p>
+            <h1 className="text-3xl md:text-4xl font-black text-foreground mb-2">
+              Team Registration
+            </h1>
+            <p className="text-muted-foreground mb-8">
+              Register your team for <strong>{event.name}</strong>
+            </p>
+
+            {event.maxTeams != null && (
+              <div className="mb-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm">
+                <p className="font-semibold text-foreground">
+                  Team capacity: {event.registeredTeams ?? 0}/{event.maxTeams}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  {event.isTeamRegistrationFull
+                    ? isEditing
+                      ? 'The event is full, but you can still update your existing team and invite members.'
+                      : 'The event is full and no new teams can be created.'
+                    : `${event.remainingTeamSlots ?? event.maxTeams} team slots remaining.`}
+                </p>
+              </div>
+            )}
 
             {registrationBlockReason && (
               <div className="mb-8 flex items-start gap-3 rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200">
                 <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
                 <div>
-                  <p className="font-semibold text-red-100">Registration unavailable</p>
-                  <p className="mt-1 text-red-100/80">{registrationBlockReason}</p>
+                  <p className="font-semibold text-red-100">
+                    Registration unavailable
+                  </p>
+                  <p className="mt-1 text-red-100/80">
+                    {registrationBlockReason}
+                  </p>
                 </div>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-8">
-              
               {/* Track Selection */}
               <div className="space-y-4">
-                <label className="text-sm font-semibold text-foreground">Select Competition Track *</label>
+                <label className="text-sm font-semibold text-foreground">
+                  Select Competition Track *
+                </label>
                 <div className="grid sm:grid-cols-2 gap-4">
                   {event.tracks?.map((track) => (
-                    <div 
+                    <div
                       key={track.id}
                       onClick={() => {
                         if (!isRegistrationBlocked) setSelectedTrack(track.id);
                       }}
                       className={`p-4 rounded-xl border transition-all ${
-                        isRegistrationBlocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
+                        isRegistrationBlocked
+                          ? 'cursor-not-allowed opacity-50'
+                          : 'cursor-pointer'
                       } ${
-                        selectedTrack === track.id 
-                          ? 'border-orange-500 bg-orange-500/10 ring-1 ring-orange-500' 
+                        selectedTrack === track.id
+                          ? 'border-orange-500 bg-orange-500/10 ring-1 ring-orange-500'
                           : 'border-border bg-muted/50 hover:border-orange-500/50'
                       }`}
                     >
-                      <div className="font-semibold text-foreground mb-1">{track.name}</div>
-                      <div className="text-xs text-muted-foreground">Max {track.maxMembersPerTeam || 'TBA'} members</div>
+                      <div className="font-semibold text-foreground mb-1">
+                        {track.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Max {track.maxMembersPerTeam || 'TBA'} members
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -289,9 +361,11 @@ export default function EventRegistrationPage() {
 
               {/* Team Name */}
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">Team Name *</label>
-                <input 
-                  type="text" 
+                <label className="text-sm font-semibold text-foreground">
+                  Team Name *
+                </label>
+                <input
+                  type="text"
                   required
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
@@ -304,37 +378,45 @@ export default function EventRegistrationPage() {
               {/* Member Emails */}
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <label className="text-sm font-semibold text-foreground">Invite Members (Optional)</label>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={addEmailField} 
+                  <label className="text-sm font-semibold text-foreground">
+                    Invite Members (Optional)
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addEmailField}
                     className="h-8"
-                    disabled={isRegistrationBlocked || !selectedTrack || memberEmails.length >= maxAdditionalMembers}
+                    disabled={
+                      isRegistrationBlocked ||
+                      !selectedTrack ||
+                      memberEmails.length >= maxAdditionalMembers
+                    }
                   >
                     <Plus className="h-4 w-4 mr-1" /> Add Member
                   </Button>
                 </div>
-                
+
                 <p className="text-xs text-muted-foreground">
-                  Enter the email addresses of your team members. They must have an account on SEAL. You are automatically included as the Team Leader.
+                  Enter the email addresses of your team members. They must have
+                  an account on SEAL. You are automatically included as the Team
+                  Leader.
                 </p>
 
                 <div className="space-y-3">
                   {memberEmails.map((email, index) => (
                     <div key={index} className="flex items-center gap-3">
-                      <input 
-                        type="email" 
+                      <input
+                        type="email"
                         value={email}
                         onChange={(e) => updateEmail(index, e.target.value)}
                         disabled={isRegistrationBlocked}
                         placeholder={`Member ${index + 1} Email`}
                         className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:cursor-not-allowed disabled:opacity-60"
                       />
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
+                      <Button
+                        type="button"
+                        variant="ghost"
                         size="icon"
                         onClick={() => removeEmailField(index)}
                         disabled={isRegistrationBlocked}
@@ -349,16 +431,19 @@ export default function EventRegistrationPage() {
 
               {/* Submit */}
               <div className="pt-6">
-                <Button 
-                  type="submit" 
-                  size="lg" 
+                <Button
+                  type="submit"
+                  size="lg"
                   className="w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-xl shadow-orange-500/20"
                   disabled={isRegistrationBlocked || registerMutation.isPending}
                 >
-                  {registrationBlockReason ? 'Registration Closed' : registerMutation.isPending ? 'Registering...' : 'Submit Registration'}
+                  {registrationBlockReason
+                    ? 'Registration Closed'
+                    : registerMutation.isPending
+                      ? 'Registering...'
+                      : 'Submit Registration'}
                 </Button>
               </div>
-
             </form>
           </div>
         </div>

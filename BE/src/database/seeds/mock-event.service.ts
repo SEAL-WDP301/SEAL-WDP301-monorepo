@@ -55,18 +55,17 @@ export class MockEventService {
           { question: "Do I need a team?", answer: "You can register individually, and we will help you find a team during the team-matching phase." }
         ],
         createdById: adminUser.id,
+        maxTeams: 100,
         tracks: {
           create: [
             {
               name: "Web Development",
               description: "Xây dựng ứng dụng Web",
-              maxTeams: 50,
               maxMembersPerTeam: 4,
             },
             {
               name: "AI Solutions",
               description: "Giải pháp ứng dụng Trí tuệ nhân tạo",
-              maxTeams: 50,
               maxMembersPerTeam: 4,
             },
           ],

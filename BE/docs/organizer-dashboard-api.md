@@ -14,7 +14,7 @@ scope is resolved from the authenticated user; clients must never send an
   `student_registrations` has no status column.
 - Event and round date fields are used as deadlines because there is no
   schedule table.
-- Event capacity is derived from `Track.maxTeams * Track.maxMembersPerTeam`.
+- Event capacity is derived from `Event.maxTeams * the largest Track.maxMembersPerTeam`.
 
 ## Shared query
 

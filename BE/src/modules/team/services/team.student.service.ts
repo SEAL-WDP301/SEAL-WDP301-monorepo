@@ -4,6 +4,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { PrismaService } from "../../../database/prisma/prisma.service";
@@ -11,7 +12,6 @@ import {
   TeamMemberRole,
   TeamMemberStatus,
   TeamStatus,
-  SubmissionType,
   RoundResultStatus,
   RoundStatus,
 } from "@prisma/client";
@@ -231,13 +231,59 @@ export class TeamStudentService {
     }
 
     const resultTeam = await this.prisma.$transaction(async (prisma) => {
+      await prisma.$queryRaw`
+        SELECT "id"
+        FROM "events"
+        WHERE "id" = ${eventId}
+        FOR UPDATE
+      `;
+
+      const lockedEvent = await prisma.event.findUnique({
+        where: { id: eventId },
+        select: {
+          status: true,
+          registrationDeadline: true,
+          maxTeams: true,
+        },
+      });
+
+      if (!lockedEvent || lockedEvent.status !== "active") {
+        throw new BadRequestException("Event is not active for registration");
+      }
+      if (
+        lockedEvent.registrationDeadline &&
+        lockedEvent.registrationDeadline < new Date()
+      ) {
+        throw new BadRequestException("Registration deadline has passed");
+      }
+
+      if (lockedEvent.maxTeams !== null) {
+        const occupiedTeams = await prisma.team.count({
+          where: {
+            eventId,
+            status: {
+              in: [TeamStatus.pending, TeamStatus.approved],
+            },
+          },
+        });
+
+        if (occupiedTeams >= lockedEvent.maxTeams) {
+          throw new ConflictException({
+            errorCode: "EVENT_TEAM_CAPACITY_REACHED",
+            message: "Event has reached its team capacity",
+            maxTeams: lockedEvent.maxTeams,
+            registeredTeams: occupiedTeams,
+          });
+        }
+      }
+
       const team = await prisma.team.create({
         data: {
           name: dto.teamName,
           eventId,
           trackId: dto.trackId,
           leaderId: userId,
-          status: TeamStatus.pending,
+          status: TeamStatus.approved,
         },
       });
 
@@ -395,13 +441,13 @@ export class TeamStudentService {
     if (usersToAdd.length > 0) {
       const memberIds = usersToAdd.map((m) => m.id);
       const existingMemberships = await this.prisma.teamMember.findMany({
-        where: { 
-          userId: { in: memberIds }, 
+        where: {
+          userId: { in: memberIds },
           status: { not: TeamMemberStatus.rejected },
-          team: { 
+          team: {
             eventId,
-            status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] }
-          } 
+            status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
+          },
         },
         include: { user: true },
       });

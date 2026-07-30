@@ -137,7 +137,6 @@ export class EventOrganizerService {
             .map((t) => ({
               name: t.name,
               description: t.description,
-              maxTeams: t.maxTeams,
               maxMembersPerTeam: t.maxMembersPerTeam,
             })),
           update: tracks
@@ -147,7 +146,6 @@ export class EventOrganizerService {
               data: {
                 name: t.name,
                 description: t.description,
-                maxTeams: t.maxTeams,
                 maxMembersPerTeam: t.maxMembersPerTeam,
               },
             })),

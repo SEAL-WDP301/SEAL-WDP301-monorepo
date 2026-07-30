@@ -3,6 +3,9 @@ import type { OrganizerEvent } from "@/lib/api/organizer-events.api";
 
 export type PublicEvent = OrganizerEvent & {
   imageUrl?: string | null;
+  registeredTeams?: number;
+  remainingTeamSlots?: number | null;
+  isTeamRegistrationFull?: boolean;
 };
 
 type PublicEventsResponse =

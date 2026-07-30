@@ -99,8 +99,9 @@ describe("AnalyticsOrganizerService", () => {
       {
         id: 1,
         name: "No capacity",
+        maxTeams: null,
         registrations: [],
-        tracks: [{ maxTeams: null, maxMembersPerTeam: 4 }],
+        tracks: [{ maxMembersPerTeam: 4 }],
         teams: [
           {
             id: 2,

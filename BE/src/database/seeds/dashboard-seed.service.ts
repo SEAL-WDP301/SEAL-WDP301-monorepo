@@ -213,6 +213,7 @@ export class DashboardSeedService {
     const event = await this.prisma.event.create({
       data: {
         ...config,
+        maxTeams: 20,
         description: "Seed data for Organizer Dashboard charts and KPIs.",
         location: "FPT University",
         createdById: organizerId,
@@ -224,7 +225,6 @@ export class DashboardSeedService {
           data: {
             eventId: event.id,
             name,
-            maxTeams: 10,
             maxMembersPerTeam: 4,
           },
         }),
