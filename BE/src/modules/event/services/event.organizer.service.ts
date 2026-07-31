@@ -23,7 +23,21 @@ export class EventOrganizerService {
     private readonly roundAutomationSchedulerService: RoundAutomationSchedulerService,
   ) {}
 
+  private validateTeamMemberLimits(
+    minMembersPerTeam: number,
+    maxMembersPerTeam: number,
+  ) {
+    if (minMembersPerTeam > maxMembersPerTeam) {
+      throw new BadRequestException({
+        errorCode: "INVALID_TEAM_MEMBER_LIMITS",
+        message:
+          "Maximum members per team must be greater than or equal to the minimum",
+      });
+    }
+  }
+
   async createEvent(userId: number, dto: CreateEventDto) {
+    this.validateTeamMemberLimits(dto.minMembersPerTeam, dto.maxMembersPerTeam);
     const { tracks, rounds, prizes, ...eventData } = dto;
     const { faq, ...restEventData } = eventData;
 
@@ -140,6 +154,11 @@ export class EventOrganizerService {
       );
     }
 
+    this.validateTeamMemberLimits(
+      dto.minMembersPerTeam ?? event.minMembersPerTeam,
+      dto.maxMembersPerTeam ?? event.maxMembersPerTeam,
+    );
+
     const { tracks, rounds, prizes, ...eventData } = dto;
     const { faq, ...restEventData } = eventData;
 
@@ -153,7 +172,6 @@ export class EventOrganizerService {
             .map((t) => ({
               name: t.name,
               description: t.description,
-              maxMembersPerTeam: t.maxMembersPerTeam,
             })),
           update: tracks
             .filter((t) => t.id)
@@ -162,7 +180,6 @@ export class EventOrganizerService {
               data: {
                 name: t.name,
                 description: t.description,
-                maxMembersPerTeam: t.maxMembersPerTeam,
               },
             })),
         }

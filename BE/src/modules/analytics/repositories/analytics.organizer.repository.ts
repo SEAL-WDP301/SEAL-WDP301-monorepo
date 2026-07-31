@@ -268,8 +268,8 @@ export class AnalyticsOrganizerRepository {
         id: true,
         name: true,
         maxTeams: true,
+        maxMembersPerTeam: true,
         registrations: { select: { userId: true } },
-        tracks: { select: { maxMembersPerTeam: true } },
         teams: {
           where: {
             status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
@@ -389,7 +389,7 @@ export class AnalyticsOrganizerRepository {
                     eventId: true,
                     status: true,
                     members: { select: { id: true } },
-                    track: { select: { maxMembersPerTeam: true } },
+                    event: { select: { maxMembersPerTeam: true } },
                   },
                 },
               },
@@ -414,9 +414,15 @@ export class AnalyticsOrganizerRepository {
         reviewedAt: true,
         createdAt: true,
         reviewedBy: { select: { id: true, name: true, email: true } },
-        track: { select: { id: true, name: true, maxMembersPerTeam: true } },
+        track: { select: { id: true, name: true } },
         event: {
-          select: { id: true, name: true, season: true, year: true },
+          select: {
+            id: true,
+            name: true,
+            season: true,
+            year: true,
+            maxMembersPerTeam: true,
+          },
         },
         user: {
           select: {
@@ -455,7 +461,6 @@ export class AnalyticsOrganizerRepository {
                         avatarUrl: true,
                       },
                     },
-                    track: { select: { maxMembersPerTeam: true } },
                     members: {
                       orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
                       select: {

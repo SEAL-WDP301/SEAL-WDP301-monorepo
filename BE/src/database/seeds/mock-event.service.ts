@@ -31,12 +31,16 @@ export class MockEventService {
     const event = await this.prisma.event.create({
       data: {
         name: "FPT Hackathon 2026",
-        description: "Giải đấu Hackathon lớn nhất 2026 dành cho sinh viên IT trên toàn quốc. Thử thách giải quyết các vấn đề thực tiễn bằng công nghệ AI và Web3.",
-        imageUrl: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=2070",
+        description:
+          "Giải đấu Hackathon lớn nhất 2026 dành cho sinh viên IT trên toàn quốc. Thử thách giải quyết các vấn đề thực tiễn bằng công nghệ AI và Web3.",
+        imageUrl:
+          "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&q=80&w=2070",
         season: Season.Spring,
         year: 2026,
         status: EventStatus.active,
-        registrationDeadline: new Date(new Date().getTime() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+        registrationDeadline: new Date(
+          new Date().getTime() + 15 * 24 * 60 * 60 * 1000,
+        ), // 15 days from now
         startDate: new Date(new Date().getTime() + 20 * 24 * 60 * 60 * 1000), // 20 days from now
         endDate: new Date(new Date().getTime() + 22 * 24 * 60 * 60 * 1000), // 22 days from now
         githubOrgUrl: "https://github.com/fpt-hackathon-2026",
@@ -44,29 +48,45 @@ export class MockEventService {
         contact: JSON.stringify([
           { type: "Email", value: "hackathon@fpt.edu.vn" },
           { type: "Phone", value: "024 1234 5678" },
-          { type: "Website", value: "https://fpt.edu.vn" }
+          { type: "Website", value: "https://fpt.edu.vn" },
         ]),
         rules: JSON.stringify([
-          { title: "General Eligibility", itemsText: "Must be a university student.\nEach team can have 3-4 members.\nParticipants must follow the code of conduct." },
-          { title: "Project Requirements", itemsText: "Code must be written during the hackathon.\nAll projects must be open source.\nTeams must submit a short video demo." }
+          {
+            title: "General Eligibility",
+            itemsText:
+              "Must be a university student.\nEach team can have 3-4 members.\nParticipants must follow the code of conduct.",
+          },
+          {
+            title: "Project Requirements",
+            itemsText:
+              "Code must be written during the hackathon.\nAll projects must be open source.\nTeams must submit a short video demo.",
+          },
         ]),
         faq: [
-          { question: "Is this event free?", answer: "Yes, participation is 100% free for all university students." },
-          { question: "Do I need a team?", answer: "You can register individually, and we will help you find a team during the team-matching phase." }
+          {
+            question: "Is this event free?",
+            answer:
+              "Yes, participation is 100% free for all university students.",
+          },
+          {
+            question: "Do I need a team?",
+            answer:
+              "You can register individually, and we will help you find a team during the team-matching phase.",
+          },
         ],
         createdById: adminUser.id,
         maxTeams: 100,
+        minMembersPerTeam: 3,
+        maxMembersPerTeam: 4,
         tracks: {
           create: [
             {
               name: "Web Development",
               description: "Xây dựng ứng dụng Web",
-              maxMembersPerTeam: 4,
             },
             {
               name: "AI Solutions",
               description: "Giải pháp ứng dụng Trí tuệ nhân tạo",
-              maxMembersPerTeam: 4,
             },
           ],
         },

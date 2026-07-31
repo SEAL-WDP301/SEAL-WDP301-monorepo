@@ -38,16 +38,53 @@ describe("TeamStudentService event capacity", () => {
       id: 3,
       status: "active",
       registrationDeadline: null,
+      minMembersPerTeam: 1,
+      maxMembersPerTeam: 5,
     });
     prisma.track.findUnique.mockResolvedValue({
       id: 7,
       eventId: 3,
       name: "AI",
-      maxMembersPerTeam: 5,
     });
     prisma.user.findMany.mockResolvedValue([]);
     prisma.teamMember.findMany.mockResolvedValue([]);
     transactionClient.$queryRaw.mockResolvedValue([{ id: 3 }]);
+  });
+
+  it("rejects a team outside the event member limits", async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 3,
+      status: "active",
+      registrationDeadline: null,
+      minMembersPerTeam: 2,
+      maxMembersPerTeam: 3,
+    });
+
+    await expect(
+      service.registerTeam(11, 3, {
+        trackId: 7,
+        teamName: "Solo Team",
+        memberEmails: [],
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        errorCode: "TEAM_MEMBER_LIMIT_VIOLATION",
+        minMembersPerTeam: 2,
+        maxMembersPerTeam: 3,
+      },
+    });
+
+    await expect(
+      service.registerTeam(11, 3, {
+        trackId: 7,
+        teamName: "Large Team",
+        memberEmails: ["a@test.dev", "b@test.dev", "c@test.dev"],
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        errorCode: "TEAM_MEMBER_LIMIT_VIOLATION",
+      },
+    });
   });
 
   it("rejects a new team when pending and approved teams fill the event", async () => {

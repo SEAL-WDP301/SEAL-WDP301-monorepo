@@ -179,6 +179,8 @@ model Event {
   year                 Int
   status               EventStatus @default(draft)
   maxTeams             Int?        @map("max_teams")
+  minMembersPerTeam    Int         @default(1) @map("min_members_per_team")
+  maxMembersPerTeam    Int         @default(4) @map("max_members_per_team")
   registrationDeadline DateTime?   @map("registration_deadline")
   startDate            DateTime?   @map("start_date")
   endDate              DateTime?   @map("end_date")
@@ -267,12 +269,11 @@ model EventPrize {
 }
 
 model Track {
-  id                Int      @id @default(autoincrement())
-  eventId           Int      @map("event_id")
-  name              String
-  description       String?
-  maxMembersPerTeam Int?     @map("max_members_per_team")
-  createdAt         DateTime @default(now()) @map("created_at")
+  id          Int      @id @default(autoincrement())
+  eventId     Int      @map("event_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
 
   event            Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
   criteria         Criterion[]

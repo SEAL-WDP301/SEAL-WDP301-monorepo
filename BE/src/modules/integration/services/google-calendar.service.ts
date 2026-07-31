@@ -154,7 +154,6 @@ export class GoogleCalendarService {
       );
     }
 
-    const calendar = await this.createCalendarClient(userId);
     const existing = event.calendarMeeting;
     const meetingStartDate = dto.meetingStartDate
       ? new Date(dto.meetingStartDate)
@@ -167,6 +166,12 @@ export class GoogleCalendarService {
         "Meeting end time must be after meeting start time",
       );
     }
+    if (meetingEndDate > event.endDate) {
+      throw new BadRequestException(
+        "Meeting end time must not be after the event end time",
+      );
+    }
+    const calendar = await this.createCalendarClient(userId);
     const timeZone = dto.timeZone ?? existing?.timeZone ?? "Asia/Ho_Chi_Minh";
     const registeredStudentEmails =
       await this.getRegisteredStudentEmails(eventId);

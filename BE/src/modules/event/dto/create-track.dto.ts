@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min } from "class-validator";
+import { IsString, IsNotEmpty, IsOptional, IsInt } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateTrackDto {
@@ -16,10 +16,4 @@ export class CreateTrackDto {
   @IsInt()
   @IsOptional()
   id?: number;
-
-  @ApiPropertyOptional()
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  maxMembersPerTeam?: number;
 }

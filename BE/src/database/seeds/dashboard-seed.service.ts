@@ -214,6 +214,8 @@ export class DashboardSeedService {
       data: {
         ...config,
         maxTeams: 20,
+        minMembersPerTeam: 3,
+        maxMembersPerTeam: 4,
         description: "Seed data for Organizer Dashboard charts and KPIs.",
         location: "FPT University",
         createdById: organizerId,
@@ -225,7 +227,6 @@ export class DashboardSeedService {
           data: {
             eventId: event.id,
             name,
-            maxMembersPerTeam: 4,
           },
         }),
       ),
