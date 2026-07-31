@@ -4,9 +4,17 @@ on:
   push:
     branches:
       - production
+    paths:
+      - 'BE/**'
+      - 'FE/**'
+      - '.github/workflows/ci-cd.yml'
   pull_request:
     branches:
       - production
+    paths:
+      - 'BE/**'
+      - 'FE/**'
+      - '.github/workflows/ci-cd.yml'
 
 env:
   REGISTRY: ghcr.io
@@ -17,6 +25,7 @@ jobs:
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,10 +61,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
   # ============================================================================
-  # JOB 2: Fast Parallel Build & Push for Frontend (Runs at the SAME time!)
+  # JOB 2: Build & Push Frontend Docker Image (ONLY ON PUSH MERGE)
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
