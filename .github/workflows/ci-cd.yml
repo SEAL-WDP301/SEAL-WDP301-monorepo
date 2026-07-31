@@ -21,10 +21,46 @@ env:
 
 jobs:
   # ============================================================================
+  # JOB 0: Unit Tests & TypeCheck Quality Gate (Runs on PR & Push)
+  # ============================================================================
+  run-unit-tests:
+    name: TypeCheck & Unit Tests Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: |
+            BE/package-lock.json
+            FE/package-lock.json
+
+      - name: Run Backend TypeCheck & Unit Tests
+        run: |
+          cd BE
+          npm ci
+          npx prisma generate
+          npx tsc --noEmit
+          npm run test
+
+      - name: Run Frontend TypeCheck & Unit Tests
+        run: |
+          cd FE
+          npm ci
+          npx tsc --noEmit
+          npm run test
+
+  # ============================================================================
   # JOB 1: Fast Parallel Build & Push for Backend
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
+    needs: [run-unit-tests]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -65,6 +101,7 @@ jobs:
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
+    needs: [run-unit-tests]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
