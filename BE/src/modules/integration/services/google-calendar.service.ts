@@ -79,9 +79,22 @@ export class GoogleCalendarService {
     const existing = await this.prisma.googleCalendarConnection.findUnique({
       where: { userId: oauthState.userId },
     });
-    const encryptedRefreshToken = tokens.refresh_token
-      ? this.encrypt(tokens.refresh_token)
-      : existing?.refreshTokenEncrypted;
+    let encryptedRefreshToken: string | undefined;
+    if (tokens.refresh_token) {
+      encryptedRefreshToken = this.encrypt(tokens.refresh_token);
+    } else if (existing) {
+      try {
+        this.decrypt(existing.refreshTokenEncrypted);
+        encryptedRefreshToken = existing.refreshTokenEncrypted;
+      } catch {
+        await this.prisma.googleCalendarConnection.delete({
+          where: { userId: oauthState.userId },
+        });
+        throw new BadRequestException(
+          "The stored Google connection was unreadable and has been reset. Please connect Google Calendar again.",
+        );
+      }
+    }
     if (!encryptedRefreshToken) {
       throw new BadRequestException(
         "Google did not return a refresh token. Revoke the previous grant and connect again.",
@@ -205,11 +218,23 @@ export class GoogleCalendarService {
             requestBody,
           });
     } catch (err: any) {
-      const gError = err?.response?.data?.error_description || err?.response?.data?.error?.message || err?.message || "";
-      if (gError.toLowerCase().includes("invalid_grant") || gError.toLowerCase().includes("token") || gError.toLowerCase().includes("credentials")) {
-        throw new BadRequestException("Tài khoản Google Calendar của bạn đã hết hạn hoặc chưa liên kết. Vui lòng bấm Kết nối Google Calendar trước.");
+      const gError =
+        err?.response?.data?.error_description ||
+        err?.response?.data?.error?.message ||
+        err?.message ||
+        "";
+      if (
+        gError.toLowerCase().includes("invalid_grant") ||
+        gError.toLowerCase().includes("token") ||
+        gError.toLowerCase().includes("credentials")
+      ) {
+        throw new BadRequestException(
+          "Tài khoản Google Calendar của bạn đã hết hạn hoặc chưa liên kết. Vui lòng bấm Kết nối Google Calendar trước.",
+        );
       }
-      throw new BadRequestException(`Google Calendar error: ${gError || "Failed to create Google Meet event"}`);
+      throw new BadRequestException(
+        `Google Calendar error: ${gError || "Failed to create Google Meet event"}`,
+      );
     }
 
     if (!response.data.id) {
@@ -338,7 +363,10 @@ export class GoogleCalendarService {
 
   private async getOwnedEvent(userId: number, eventId: number) {
     const [user, event] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } }),
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, role: true },
+      }),
       this.prisma.event.findUnique({
         where: { id: eventId },
         include: { calendarMeeting: true },
@@ -374,17 +402,24 @@ export class GoogleCalendarService {
       where: { userId },
     });
     if (!connection) {
-      throw new BadRequestException("Connect Google Calendar first in Settings / Integrations.");
+      throw new BadRequestException(
+        "Connect Google Calendar first in Settings / Integrations.",
+      );
     }
+    let refreshToken: string;
     try {
-      const auth = this.createOAuthClient();
-      auth.setCredentials({
-        refresh_token: this.decrypt(connection.refreshTokenEncrypted),
-      });
-      return google.calendar({ version: "v3", auth });
+      refreshToken = this.decrypt(connection.refreshTokenEncrypted);
     } catch {
-      throw new BadRequestException("Stored Google token is invalid. Please reconnect your Google account.");
+      await this.prisma.googleCalendarConnection.delete({
+        where: { userId },
+      });
+      throw new BadRequestException(
+        "The stored Google connection was unreadable and has been reset. Please connect Google Calendar again.",
+      );
     }
+    const auth = this.createOAuthClient();
+    auth.setCredentials({ refresh_token: refreshToken });
+    return google.calendar({ version: "v3", auth });
   }
 
   private createOAuthClient() {
