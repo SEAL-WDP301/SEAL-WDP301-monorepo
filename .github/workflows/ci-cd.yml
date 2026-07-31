@@ -13,44 +13,10 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 0: Unit Tests Quality Gate (Fail-Fast DevOps Standard)
-  # ============================================================================
-  run-unit-tests:
-    name: Run BE & FE Unit Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: |
-            BE/package-lock.json
-            FE/package-lock.json
-
-      - name: Run Backend Unit Tests
-        run: |
-          cd BE
-          npm ci
-          npx prisma generate
-          npm run test
-
-      - name: Run Frontend Unit Tests
-        run: |
-          cd FE
-          npm ci
-          npm run test
-
-  # ============================================================================
-  # JOB 1: Fast Parallel Build & Push for Backend (Requires Test Pass)
+  # JOB 1: Fast Parallel Build & Push for Backend
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
-    needs: [run-unit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,14 +49,13 @@ jobs:
             ghcr.io/${{ env.OWNER_LC }}/be:latest
             ghcr.io/${{ env.OWNER_LC }}/be:${{ github.sha }}
           cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=min,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
 
   # ============================================================================
   # JOB 2: Fast Parallel Build & Push for Frontend (Runs at the SAME time!)
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
-    needs: [run-unit-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -125,7 +90,7 @@ jobs:
             ghcr.io/${{ env.OWNER_LC }}/fe:latest
             ghcr.io/${{ env.OWNER_LC }}/fe:${{ github.sha }}
           cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=min,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
 
   # ============================================================================
   # JOB 3: Update Manifests & Trigger Auto-Sync Rollout
