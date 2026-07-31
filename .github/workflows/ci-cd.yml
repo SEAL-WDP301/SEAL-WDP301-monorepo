@@ -4,19 +4,80 @@ on:
   push:
     branches:
       - production
+    paths:
+      - 'BE/**'
+      - 'FE/**'
+      - '.github/workflows/ci-cd.yml'
   pull_request:
     branches:
       - production
+    paths:
+      - 'BE/**'
+      - 'FE/**'
+      - '.github/workflows/ci-cd.yml'
 
 env:
   REGISTRY: ghcr.io
 
 jobs:
   # ============================================================================
-  # JOB 1: Fast Parallel Build & Push for Backend
+  # JOB 0A: Parallel Backend TypeCheck & Unit Tests (Runs on PR & Push)
+  # ============================================================================
+  test-backend:
+    name: BE TypeCheck & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: BE/package-lock.json
+
+      - name: Run Backend TypeCheck & Unit Tests
+        run: |
+          cd BE
+          npm ci --prefer-offline
+          npx prisma generate
+          npx tsc --noEmit
+          npm run test
+
+  # ============================================================================
+  # JOB 0B: Parallel Frontend TypeCheck & Unit Tests (Runs on PR & Push)
+  # ============================================================================
+  test-frontend:
+    name: FE TypeCheck & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: FE/package-lock.json
+
+      - name: Run Frontend TypeCheck & Unit Tests
+        run: |
+          cd FE
+          npm ci --prefer-offline
+          npx tsc --noEmit
+          npm run test
+
+  # ============================================================================
+  # JOB 1: Build & Push Backend Docker Image (ONLY ON PUSH MERGE)
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
+    needs: [test-backend]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,10 +113,12 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
   # ============================================================================
-  # JOB 2: Fast Parallel Build & Push for Frontend (Runs at the SAME time!)
+  # JOB 2: Build & Push Frontend Docker Image (ONLY ON PUSH MERGE)
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
+    needs: [test-frontend]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
