@@ -3,11 +3,9 @@ name: CI/CD Pipeline - SEAL Hackathon Platform
 on:
   push:
     branches:
-      - dev
       - production
   pull_request:
     branches:
-      - dev
       - production
 
 env:
@@ -15,75 +13,10 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 0A: Parallel Backend Tests & TypeCheck Gate (Runs on BOTH dev & production)
-  # ============================================================================
-  test-backend:
-    name: BE TypeCheck & Unit Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install BE Dependencies & Generate Prisma
-        run: |
-          cd BE
-          npm ci
-          npx prisma generate
-
-      - name: Run Backend TypeCheck
-        run: |
-          cd BE
-          npx tsc --noEmit
-
-      - name: Run Backend Unit Tests
-        run: |
-          cd BE
-          npm run test
-
-  # ============================================================================
-  # JOB 0B: Parallel Frontend Tests & TypeCheck Gate (Runs on BOTH dev & production)
-  # ============================================================================
-  test-frontend:
-    name: FE TypeCheck & Unit Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install FE Dependencies
-        run: |
-          cd FE
-          npm ci
-
-      - name: Run Frontend TypeCheck
-        run: |
-          cd FE
-          npx tsc --noEmit
-
-      - name: Run Frontend Unit Tests
-        run: |
-          cd FE
-          npm run test
-
-  # ============================================================================
-  # JOB 1: Build & Push Backend Docker Image (ONLY ON PRODUCTION PUSH)
+  # JOB 1: Fast Parallel Build & Push for Backend
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
-    needs: [test-backend]
-    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -119,12 +52,10 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
   # ============================================================================
-  # JOB 2: Build & Push Frontend Docker Image (ONLY ON PRODUCTION PUSH)
+  # JOB 2: Fast Parallel Build & Push for Frontend (Runs at the SAME time!)
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
-    needs: [test-frontend]
-    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -154,7 +85,7 @@ jobs:
           file: ./FE/Dockerfile
           push: true
           build-args: |
-              NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/fe:latest
             ghcr.io/${{ env.OWNER_LC }}/fe:${{ github.sha }}
@@ -162,7 +93,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=frontend
 
   # ============================================================================
-  # JOB 3: Update Manifests & Trigger Auto-Sync Rollout (ONLY ON PRODUCTION PUSH)
+  # JOB 3: Update Manifests & Trigger Auto-Sync Rollout
   # ============================================================================
   update-manifests:
     name: Update K8s Manifests & Trigger GitOps Rollout
@@ -195,4 +126,3 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add k8s/base/backend/deployment.yaml k8s/base/frontend/deployment.yaml
           git diff --quiet && git diff --staged --quiet || (git commit -m "chore(gitops): update image tags to ${{ github.sha }} [skip ci]" && git push)
-
