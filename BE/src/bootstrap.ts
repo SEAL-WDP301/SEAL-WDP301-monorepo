@@ -8,6 +8,7 @@ import { WINSTON_MODULE_NEST_PROVIDER } from "nest-winston";
 import { AppModule } from "./app.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
+import { RedisIoAdapter } from "./core/redis/redis-io.adapter";
 
 /**
  * bootstrap — NestJS application setup function.
@@ -34,21 +35,15 @@ export async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 1. LOGGER — Override with Winston
-  // Must be set before any logging occurs
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Enable Redis Pub/Sub Adapter for multi-pod Socket.IO scaling
+  const redisIoAdapter = new RedisIoAdapter(app, configService);
+  await redisIoAdapter.connectToRedis();
+  app.useWebSocketAdapter(redisIoAdapter);
+
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 2. SECURITY MIDDLEWARE
-  // Middleware layer — runs first in the lifecycle before Guards
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  // Helmet — sets security HTTP headers (XSS protection, content type options, etc.)
   app.use((helmet as any).default());
 
-  // CORS — restrict which origins can access this API
   const frontendUrl = configService.get<string>("app.frontendUrl");
   const corsOrigins = [
     frontendUrl,
@@ -64,26 +59,14 @@ export async function bootstrap() {
     allowedHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
   });
 
-  // cookie-parser — parses Cookie header into req.cookies
-  // Required for reading the HttpOnly refresh token cookie
   app.use(cookieParser(configService.get<string>("app.cookieSecret")));
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 3. GLOBAL API PREFIX
-  // ─────────────────────────────────────────────────────────────────────────────
   const prefix = configService.get<string>("app.prefix") || "api";
   app.setGlobalPrefix(prefix);
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 4. GLOBAL PIPES — ValidationPipe
-  // Pipe layer: validates and transforms incoming request data using class-validator
-  // Applied AFTER guard layer in the lifecycle
-  // ─────────────────────────────────────────────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
-      // Strip properties not in DTO (prevent extra field injection)
       whitelist: true,
-
       // Throw error if non-whitelisted properties are sent
       forbidNonWhitelisted: true,
 
@@ -97,26 +80,12 @@ export async function bootstrap() {
     }),
   );
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 5. GLOBAL FILTERS — AllExceptionsFilter
-  // Filter layer: catches ALL unhandled exceptions
-  // Runs when an exception escapes the handler or is thrown in guards/pipes
-  // ─────────────────────────────────────────────────────────────────────────────
   app.useGlobalFilters(
     new AllExceptionsFilter(app.get(WINSTON_MODULE_NEST_PROVIDER)),
   );
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 6. GLOBAL INTERCEPTORS — TransformInterceptor
-  // Interceptor layer: wraps all success responses in unified format
-  // Runs around the handler — before (entering) and after (exiting)
-  // ─────────────────────────────────────────────────────────────────────────────
   app.useGlobalInterceptors(new TransformInterceptor());
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // 7. SWAGGER DOCUMENTATION
-  // Available at: /api/docs
-  // ─────────────────────────────────────────────────────────────────────────────
   const swaggerConfig = new DocumentBuilder()
     .setTitle("SEAL – Hackathon Management API")
     .setDescription(

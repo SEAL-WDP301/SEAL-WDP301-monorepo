@@ -3,9 +3,11 @@ name: CI/CD Pipeline - SEAL Hackathon Platform
 on:
   push:
     branches:
+      - dev
       - production
   pull_request:
     branches:
+      - dev
       - production
 
 env:
@@ -13,10 +15,10 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 0A: Parallel Backend Unit Tests Gate
+  # JOB 0A: Parallel Backend Tests & TypeCheck Gate (Runs on BOTH dev & production)
   # ============================================================================
   test-backend:
-    name: Run Backend Unit Tests
+    name: BE TypeCheck & Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -28,18 +30,27 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run Backend Unit Tests
+      - name: Install BE Dependencies & Generate Prisma
         run: |
           cd BE
           npm ci
           npx prisma generate
+
+      - name: Run Backend TypeCheck
+        run: |
+          cd BE
+          npx tsc --noEmit
+
+      - name: Run Backend Unit Tests
+        run: |
+          cd BE
           npm run test
 
   # ============================================================================
-  # JOB 0B: Parallel Frontend Unit Tests Gate (Runs at SAME time as BE Test!)
+  # JOB 0B: Parallel Frontend Tests & TypeCheck Gate (Runs on BOTH dev & production)
   # ============================================================================
   test-frontend:
-    name: Run Frontend Unit Tests
+    name: FE TypeCheck & Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -51,18 +62,28 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run Frontend Unit Tests
+      - name: Install FE Dependencies
         run: |
           cd FE
           npm ci
+
+      - name: Run Frontend TypeCheck
+        run: |
+          cd FE
+          npx tsc --noEmit
+
+      - name: Run Frontend Unit Tests
+        run: |
+          cd FE
           npm run test
 
   # ============================================================================
-  # JOB 1: Fast Parallel Build & Push for Backend (Requires BE Test Pass)
+  # JOB 1: Build & Push Backend Docker Image (ONLY ON PRODUCTION PUSH)
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
     needs: [test-backend]
+    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -98,11 +119,12 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend
 
   # ============================================================================
-  # JOB 2: Fast Parallel Build & Push for Frontend (Requires FE Test Pass)
+  # JOB 2: Build & Push Frontend Docker Image (ONLY ON PRODUCTION PUSH)
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
     needs: [test-frontend]
+    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -140,7 +162,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=frontend
 
   # ============================================================================
-  # JOB 3: Update Manifests & Trigger Auto-Sync Rollout
+  # JOB 3: Update Manifests & Trigger Auto-Sync Rollout (ONLY ON PRODUCTION PUSH)
   # ============================================================================
   update-manifests:
     name: Update K8s Manifests & Trigger GitOps Rollout
