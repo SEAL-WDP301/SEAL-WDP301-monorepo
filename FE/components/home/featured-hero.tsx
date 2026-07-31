@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { getPublicEvents, isAutomationEvent } from "@/lib/api/public-events.api";
+import { TeamCapacity } from "@/components/events/team-capacity";
 
 function getLocationLabel(location: unknown) {
     if (!location) return "Online";
@@ -119,6 +120,11 @@ export default function FeaturedHero() {
                             <MapPin className="size-4 text-orange-500" />
                             <span>{getLocationLabel(latestEvent.location)}</span>
                         </div>
+                        <TeamCapacity
+                            compact
+                            registeredTeams={latestEvent.registeredTeams}
+                            maxTeams={latestEvent.maxTeams}
+                        />
                     </div>
 
                     {/* CTA */}

@@ -8,6 +8,7 @@ import Image from "next/image";
 import { Plus, Search, Calendar, CalendarClock, Users, Trophy, Trash2, Loader2, Pencil } from "lucide-react";
 import { format } from "date-fns"
 import { enqueueSnackbar } from "notistack";
+import { TeamCapacity } from "@/components/events/team-capacity";
 
 import {
     deleteOrganizerEvent,
@@ -197,6 +198,12 @@ export default function OrganizerEventsPage() {
                                         <span>{event.tracks?.length || 0} Tracks</span>
                                     </div>
                                 </div>
+
+                                <TeamCapacity
+                                    className="mt-5"
+                                    registeredTeams={event.registeredTeams}
+                                    maxTeams={event.maxTeams}
+                                />
                             </div>
                             
                             <div className="border-t border-border p-4 bg-muted/30 flex justify-between items-center">
