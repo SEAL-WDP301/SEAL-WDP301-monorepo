@@ -6,8 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { CalendarDays, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
-import { getPublicEvents, isAutomationEvent } from "@/lib/api/public-events.api";
+import { getPublicEvents } from "@/lib/api/public-events.api";
 import type { OrganizerEvent } from "@/lib/api/organizer-events.api";
+import { TeamCapacity } from "@/components/events/team-capacity";
 
 const EVENT_SEASONS = ["All", "Spring", "Summer", "Fall"];
 
@@ -140,6 +141,12 @@ export default function PastEvents() {
                                             <span className="truncate">End: {event.endDate ? format(new Date(event.endDate), 'MMM dd, yyyy') : 'TBA'}</span>
                                         </div>
                                     </div>
+
+                                    <TeamCapacity
+                                        className="mb-6"
+                                        registeredTeams={event.registeredTeams}
+                                        maxTeams={event.maxTeams}
+                                    />
 
                                     {/* Footer Card */}
                                     <div className="mt-auto flex items-center justify-between border-t border-border pt-4">

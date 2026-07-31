@@ -125,6 +125,7 @@ export interface OrganizerEvent extends Omit<
   tracks?: OrganizerTrack[];
   rounds?: OrganizerRound[];
   prizes?: OrganizerPrize[];
+  registeredTeams?: number;
   calendarMeeting?: EventCalendarMeeting | null;
   _count?: {
     teams?: number;
