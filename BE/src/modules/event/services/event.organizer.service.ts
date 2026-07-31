@@ -8,7 +8,7 @@ import {
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { CreateEventDto } from "../dto/create-event.dto";
 import { UpdateEventDto } from "../dto/update-event.dto";
-import { EventStatus, Prisma, RoundStatus } from "@prisma/client";
+import { EventStatus, Prisma, RoundStatus, TeamStatus } from "@prisma/client";
 import { TeamGithubService } from "../../team/services/team-github.service";
 
 import { RoundAutomationSchedulerService } from "../../round/services/round-automation-scheduler.service";
@@ -59,14 +59,30 @@ export class EventOrganizerService {
   }
 
   async getAllEvents(userId: number, includeAll = false) {
-    return this.prisma.event.findMany({
+    const events = await this.prisma.event.findMany({
       where: includeAll ? undefined : { createdById: userId },
       include: {
         tracks: true,
         prizes: true,
+        _count: {
+          select: {
+            teams: {
+              where: {
+                status: {
+                  in: [TeamStatus.pending, TeamStatus.approved],
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
+
+    return events.map((event) => ({
+      ...event,
+      registeredTeams: event._count.teams,
+    }));
   }
 
   async getEventById(id: number) {
