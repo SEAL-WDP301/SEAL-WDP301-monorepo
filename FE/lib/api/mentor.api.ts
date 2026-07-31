@@ -27,8 +27,13 @@ export interface MentorTeam {
   name: string;
   status?: string;
   createdAt?: string;
-  event?: { id?: number; name?: string };
-  track?: { id?: number; name?: string; maxMembersPerTeam?: number };
+  event?: {
+    id?: number;
+    name?: string;
+    minMembersPerTeam?: number;
+    maxMembersPerTeam?: number;
+  };
+  track?: { id?: number; name?: string };
   leader?: { id?: number; name?: string | null; email?: string | null };
   members?: MentorTeamMember[];
   teamRounds?: MentorTeamRound[];
@@ -198,7 +203,7 @@ export async function getMentorNotifications() {
 }
 
 export async function updateMentorProfile(
-  payload: NonNullable<MentorProfile["stakeholderProfile"]>
+  payload: NonNullable<MentorProfile["stakeholderProfile"]>,
 ) {
   const response = await axiosClient.put("/users/profile/stakeholder", payload);
   return unwrapData<MentorProfile>(response);
@@ -218,9 +223,9 @@ export async function getMentorTeam(teamId: string | number) {
 export async function getMentorTeamSubmissions(teamId: string | number) {
   const response = await axiosClient.get(`/mentor/teams/${teamId}/submissions`);
   const data =
-    unwrapData<Array<MentorSubmission & { mentorFeedbacks?: MentorFeedback[] }>>(
-      response
-    ) || [];
+    unwrapData<
+      Array<MentorSubmission & { mentorFeedbacks?: MentorFeedback[] }>
+    >(response) || [];
   return data.map((sub) => ({
     ...sub,
     feedback: sub.mentorFeedbacks?.[0] || sub.feedback || null,
@@ -228,7 +233,9 @@ export async function getMentorTeamSubmissions(teamId: string | number) {
 }
 
 export async function getMentorSubmissions(eventId?: string | number) {
-  const url = eventId ? `/mentor/submissions?eventId=${eventId}` : "/mentor/submissions";
+  const url = eventId
+    ? `/mentor/submissions?eventId=${eventId}`
+    : "/mentor/submissions";
   const response = await axiosClient.get(url);
   return unwrapData<MentorSubmission[]>(response) || [];
 }
@@ -239,7 +246,9 @@ export async function getMentorSubmission(submissionId: string | number) {
 }
 
 export async function getMentorFeedback(eventId?: string | number) {
-  const url = eventId ? `/mentor/feedback?eventId=${eventId}` : "/mentor/feedback";
+  const url = eventId
+    ? `/mentor/feedback?eventId=${eventId}`
+    : "/mentor/feedback";
   const response = await axiosClient.get(url);
   return unwrapData<MentorFeedback[]>(response) || [];
 }
@@ -278,7 +287,13 @@ export function getAssignedMentorTeams(profile?: MentorProfile | null) {
     .filter((team): team is MentorTeam => Boolean(team));
 }
 
-export async function updateStudentMentorFeedbackStatus(feedbackId: number | string, status: "unread" | "acknowledged" | "completed") {
-  const response = await axiosClient.patch(`/student/teams/my-team/feedbacks/${feedbackId}/status`, { status });
+export async function updateStudentMentorFeedbackStatus(
+  feedbackId: number | string,
+  status: "unread" | "acknowledged" | "completed",
+) {
+  const response = await axiosClient.patch(
+    `/student/teams/my-team/feedbacks/${feedbackId}/status`,
+    { status },
+  );
   return response.data;
 }

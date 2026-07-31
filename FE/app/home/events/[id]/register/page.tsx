@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { axiosClient } from '@/lib/axios';
-import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { enqueueSnackbar } from 'notistack';
-import Link from 'next/link';
-import { AlertCircle, ArrowLeft, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { axiosClient } from "@/lib/axios";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { enqueueSnackbar } from "notistack";
+import Link from "next/link";
+import { AlertCircle, ArrowLeft, Plus, Trash2 } from "lucide-react";
 
 interface PublicEvent {
   id: number;
@@ -17,6 +17,8 @@ interface PublicEvent {
   startDate?: string | null;
   endDate?: string | null;
   maxTeams?: number | null;
+  minMembersPerTeam?: number;
+  maxMembersPerTeam?: number;
   registeredTeams?: number;
   remainingTeamSlots?: number | null;
   isTeamRegistrationFull?: boolean;
@@ -26,7 +28,6 @@ interface PublicEvent {
 interface EventTrack {
   id: number;
   name: string;
-  maxMembersPerTeam?: number | null;
 }
 
 interface TeamMember {
@@ -46,9 +47,9 @@ function formatDateTime(value?: string | null) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
   }).format(date);
 }
 
@@ -56,11 +57,11 @@ function getRegistrationBlockReason(
   event?: PublicEvent | null,
   isEditingExistingTeam = false,
 ) {
-  if (!event) return 'Event information is unavailable.';
+  if (!event) return "Event information is unavailable.";
 
   const normalizedStatus = event.status?.toLowerCase();
-  if (normalizedStatus !== 'active') {
-    return 'Registration is closed because this event is not active.';
+  if (normalizedStatus !== "active") {
+    return "Registration is closed because this event is not active.";
   }
 
   const now = new Date();
@@ -90,13 +91,13 @@ export default function EventRegistrationPage() {
   const router = useRouter();
   const eventId = params.id as string;
 
-  const [teamName, setTeamName] = useState('');
+  const [teamName, setTeamName] = useState("");
   const [selectedTrack, setSelectedTrack] = useState<number | null>(null);
-  const [memberEmails, setMemberEmails] = useState<string[]>(['']);
+  const [memberEmails, setMemberEmails] = useState<string[]>([""]);
 
   // Fetch Event Details to get Tracks
   const { data: event, isLoading: isEventLoading } = useQuery({
-    queryKey: ['publicEvent', eventId],
+    queryKey: ["publicEvent", eventId],
     queryFn: async () => {
       const res = await axiosClient.get(`/public/events/${eventId}`);
       return res.data.data as PublicEvent;
@@ -105,7 +106,7 @@ export default function EventRegistrationPage() {
 
   // Fetch Student Registration Status
   const { data: studentInfo, isLoading: isStudentLoading } = useQuery({
-    queryKey: ['studentEventStatus', eventId],
+    queryKey: ["studentEventStatus", eventId],
     queryFn: async () => {
       const res = await axiosClient.get(`/student/teams/status/${eventId}`);
       return res.data.data;
@@ -115,8 +116,8 @@ export default function EventRegistrationPage() {
   const teamStatus = studentInfo?.teamInfo?.team?.status;
   const isEditing =
     !!studentInfo?.teamInfo &&
-    teamStatus !== 'rejected' &&
-    teamStatus !== 'disqualified';
+    teamStatus !== "rejected" &&
+    teamStatus !== "disqualified";
 
   // Pre-fill form if editing or re-registering after elimination
   useEffect(() => {
@@ -129,14 +130,14 @@ export default function EventRegistrationPage() {
       // Pre-fill member emails (excluding the current user / leader)
       if (studentInfo.teamInfo.team.members) {
         const otherMembers = studentInfo.teamInfo.team.members
-          .filter((m: TeamMember) => m.role === 'member')
+          .filter((m: TeamMember) => m.role === "member")
           .map((m: TeamMember) => m.user?.email)
           .filter(Boolean);
 
         if (otherMembers.length > 0) {
           setMemberEmails(otherMembers);
         } else {
-          setMemberEmails(['']);
+          setMemberEmails([""]);
         }
       }
     }
@@ -146,27 +147,23 @@ export default function EventRegistrationPage() {
 
   const registrationBlockReason = getRegistrationBlockReason(event, isEditing);
   const isRegistrationBlocked = Boolean(registrationBlockReason);
-  const selectedTrackData = event?.tracks?.find((t) => t.id === selectedTrack);
-  const maxAdditionalMembers = selectedTrackData?.maxMembersPerTeam
-    ? selectedTrackData.maxMembersPerTeam - 1
-    : 10;
+  const minMembersPerTeam = event?.minMembersPerTeam ?? 1;
+  const maxMembersPerTeam = event?.maxMembersPerTeam ?? 4;
+  const maxAdditionalMembers = maxMembersPerTeam - 1;
 
   useEffect(() => {
-    if (
-      selectedTrackData?.maxMembersPerTeam &&
-      memberEmails.length > maxAdditionalMembers
-    ) {
+    if (memberEmails.length > maxAdditionalMembers) {
       const frame = requestAnimationFrame(() => {
         setMemberEmails((prev) => prev.slice(0, maxAdditionalMembers));
       });
       enqueueSnackbar(
-        `The member list has been shortened to fit the Track limit (${selectedTrackData.maxMembersPerTeam} menber).`,
-        { variant: 'info' },
+        `The member list has been shortened to fit the event limit (${maxMembersPerTeam} members).`,
+        { variant: "info" },
       );
       return () => cancelAnimationFrame(frame);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTrackData?.id]);
+  }, [maxMembersPerTeam]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterPayload) => {
@@ -183,12 +180,12 @@ export default function EventRegistrationPage() {
     onSuccess: () => {
       enqueueSnackbar(
         isEditing
-          ? 'Team updated successfully!'
-          : 'Team registered successfully!',
-        { variant: 'success' },
+          ? "Team updated successfully!"
+          : "Team registered successfully!",
+        { variant: "success" },
       );
       queryClient.invalidateQueries({
-        queryKey: ['studentEventStatus', eventId],
+        queryKey: ["studentEventStatus", eventId],
       });
       router.push(`/home/events/${eventId}`);
     },
@@ -200,8 +197,8 @@ export default function EventRegistrationPage() {
       const message =
         apiError.response?.data?.message ||
         apiError.message ||
-        'Registration failed';
-      enqueueSnackbar(message, { variant: 'error' });
+        "Registration failed";
+      enqueueSnackbar(message, { variant: "error" });
     },
   });
 
@@ -211,17 +208,28 @@ export default function EventRegistrationPage() {
     e.preventDefault();
     const blockReason = getRegistrationBlockReason(event, isEditing);
     if (blockReason) {
-      enqueueSnackbar(blockReason, { variant: 'warning' });
+      enqueueSnackbar(blockReason, { variant: "warning" });
       return;
     }
 
     if (!selectedTrack) {
-      enqueueSnackbar('Please select a track', { variant: 'warning' });
+      enqueueSnackbar("Please select a track", { variant: "warning" });
       return;
     }
 
     // Filter out empty emails
-    const validEmails = memberEmails.filter((email) => email.trim() !== '');
+    const validEmails = memberEmails.filter((email) => email.trim() !== "");
+    const requestedTeamSize = validEmails.length + 1;
+    if (
+      requestedTeamSize < minMembersPerTeam ||
+      requestedTeamSize > maxMembersPerTeam
+    ) {
+      enqueueSnackbar(
+        `A team must have between ${minMembersPerTeam} and ${maxMembersPerTeam} members, including the leader.`,
+        { variant: "warning" },
+      );
+      return;
+    }
 
     registerMutation.mutate({
       trackId: selectedTrack,
@@ -232,24 +240,24 @@ export default function EventRegistrationPage() {
 
   const addEmailField = () => {
     if (isRegistrationBlocked) {
-      enqueueSnackbar(registrationBlockReason, { variant: 'warning' });
+      enqueueSnackbar(registrationBlockReason, { variant: "warning" });
       return;
     }
 
     if (!selectedTrack) {
-      enqueueSnackbar('Please select a track before adding a member.', {
-        variant: 'warning',
+      enqueueSnackbar("Please select a track before adding a member.", {
+        variant: "warning",
       });
       return;
     }
     if (memberEmails.length >= maxAdditionalMembers) {
       enqueueSnackbar(
-        `This track has a maximum limit ${selectedTrackData?.maxMembersPerTeam} members (including you)`,
-        { variant: 'warning' },
+        `This event allows at most ${maxMembersPerTeam} members per team, including you.`,
+        { variant: "warning" },
       );
       return;
     }
-    setMemberEmails([...memberEmails, '']);
+    setMemberEmails([...memberEmails, ""]);
   };
   const removeEmailField = (index: number) => {
     const newEmails = [...memberEmails];
@@ -304,12 +312,20 @@ export default function EventRegistrationPage() {
                 <p className="mt-1 text-muted-foreground">
                   {event.isTeamRegistrationFull
                     ? isEditing
-                      ? 'The event is full, but you can still update your existing team and invite members.'
-                      : 'The event is full and no new teams can be created.'
+                      ? "The event is full, but you can still update your existing team and invite members."
+                      : "The event is full and no new teams can be created."
                     : `${event.remainingTeamSlots ?? event.maxTeams} team slots remaining.`}
                 </p>
               </div>
             )}
+
+            <div className="mb-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm">
+              <p className="font-semibold text-foreground">Team size</p>
+              <p className="mt-1 text-muted-foreground">
+                Each team must have {minMembersPerTeam}–{maxMembersPerTeam}{" "}
+                members, including the leader.
+              </p>
+            </div>
 
             {registrationBlockReason && (
               <div className="mb-8 flex items-start gap-3 rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200">
@@ -340,19 +356,20 @@ export default function EventRegistrationPage() {
                       }}
                       className={`p-4 rounded-xl border transition-all ${
                         isRegistrationBlocked
-                          ? 'cursor-not-allowed opacity-50'
-                          : 'cursor-pointer'
+                          ? "cursor-not-allowed opacity-50"
+                          : "cursor-pointer"
                       } ${
                         selectedTrack === track.id
-                          ? 'border-orange-500 bg-orange-500/10 ring-1 ring-orange-500'
-                          : 'border-border bg-muted/50 hover:border-orange-500/50'
+                          ? "border-orange-500 bg-orange-500/10 ring-1 ring-orange-500"
+                          : "border-border bg-muted/50 hover:border-orange-500/50"
                       }`}
                     >
                       <div className="font-semibold text-foreground mb-1">
                         {track.name}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Max {track.maxMembersPerTeam || 'TBA'} members
+                        Event team policy: {minMembersPerTeam}–
+                        {maxMembersPerTeam} members
                       </div>
                     </div>
                   ))}
@@ -438,10 +455,10 @@ export default function EventRegistrationPage() {
                   disabled={isRegistrationBlocked || registerMutation.isPending}
                 >
                   {registrationBlockReason
-                    ? 'Registration Closed'
+                    ? "Registration Closed"
                     : registerMutation.isPending
-                      ? 'Registering...'
-                      : 'Submit Registration'}
+                      ? "Registering..."
+                      : "Submit Registration"}
                 </Button>
               </div>
             </form>

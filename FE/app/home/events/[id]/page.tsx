@@ -47,7 +47,6 @@ type EventTrack = {
   id: number | string;
   name: string;
   description?: string | null;
-  maxMembersPerTeam?: number | null;
 };
 
 type EventAchievement = {
@@ -70,6 +69,8 @@ type EventDetail = {
   startDate?: string | null;
   endDate?: string | null;
   maxTeams?: number | null;
+  minMembersPerTeam?: number;
+  maxMembersPerTeam?: number;
   registeredTeams?: number;
   remainingTeamSlots?: number | null;
   isTeamRegistrationFull?: boolean;
@@ -884,8 +885,7 @@ export default function EventDetailPage() {
       studentOnlineMeeting ||
       (eventLocation?.meetingUrl
         ? {
-            platform:
-              eventLocation.meetingPlatform || eventLocation.platform,
+            platform: eventLocation.meetingPlatform || eventLocation.platform,
             meetUrl: eventLocation.meetingUrl,
           }
         : null)
@@ -895,7 +895,8 @@ export default function EventDetailPage() {
       return {
         ...(eventLocation || {}),
         meetingPlatform: onlineMeeting.platform || "Google Meet",
-        meetingUrl: onlineMeeting.meetUrl || onlineMeeting.htmlLink || undefined,
+        meetingUrl:
+          onlineMeeting.meetUrl || onlineMeeting.htmlLink || undefined,
       };
     }
 
@@ -1050,24 +1051,22 @@ export default function EventDetailPage() {
                 </Link>
               )}
               {(displayStatus === "rejected" ||
-                displayStatus === "disqualified") && (
-                event.isTeamRegistrationFull ? (
+                displayStatus === "disqualified") &&
+                (event.isTeamRegistrationFull ? (
                   <Button size="sm" disabled>
                     Event Full
                   </Button>
                 ) : (
                   <Link href={`/home/events/${eventId}/register`}>
-                  <Button
-                    size="sm"
-                    className="bg-orange-500 hover:bg-orange-600 text-white transition-colors"
-                  >
-                    Register Again
-                  </Button>
-                </Link>
-                )
-              )}
+                    <Button
+                      size="sm"
+                      className="bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                    >
+                      Register Again
+                    </Button>
+                  </Link>
+                ))}
             </div>
-
 
             {event.githubOrgUrl && (
               <a
@@ -1095,7 +1094,9 @@ export default function EventDetailPage() {
                   size="sm"
                   className="group relative inline-flex h-10 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 px-5 text-sm font-bold text-white shadow-md shadow-orange-500/25 transition-all duration-300 hover:from-orange-600 hover:to-amber-600 hover:shadow-lg hover:shadow-orange-500/40 hover:scale-[1.02] active:scale-[0.98] sm:w-auto"
                 >
-                  <span>{canEnterWorkspace ? "Workspace" : "View Workspace"}</span>
+                  <span>
+                    {canEnterWorkspace ? "Workspace" : "View Workspace"}
+                  </span>
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
                 </Button>
               </Link>
@@ -1521,7 +1522,8 @@ export default function EventDetailPage() {
                 <div className="flex justify-between items-center text-sm font-medium bg-muted/50 p-3 rounded-lg border border-border/50">
                   <span className="text-muted-foreground">Team Size:</span>
                   <span className="text-foreground">
-                    Max {track.maxMembersPerTeam || "TBA"} members
+                    {event.minMembersPerTeam ?? 1}–
+                    {event.maxMembersPerTeam ?? 4} members
                   </span>
                 </div>
               </div>
