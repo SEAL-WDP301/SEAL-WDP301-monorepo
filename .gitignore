@@ -41,6 +41,7 @@ vietnamese_lines.txt
 # ==========================================
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea/
 # ==========================================
 # Dependencies & Build Output
