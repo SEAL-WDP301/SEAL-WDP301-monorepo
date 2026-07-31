@@ -21,10 +21,10 @@ env:
 
 jobs:
   # ============================================================================
-  # JOB 0: Unit Tests & TypeCheck Quality Gate (Runs on PR & Push)
+  # JOB 0A: Parallel Backend TypeCheck & Unit Tests (Runs on PR & Push)
   # ============================================================================
-  run-unit-tests:
-    name: TypeCheck & Unit Tests Gate
+  test-backend:
+    name: BE TypeCheck & Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -36,31 +36,47 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
-          cache-dependency-path: |
-            BE/package-lock.json
-            FE/package-lock.json
+          cache-dependency-path: BE/package-lock.json
 
       - name: Run Backend TypeCheck & Unit Tests
         run: |
           cd BE
-          npm ci
+          npm ci --prefer-offline
           npx prisma generate
           npx tsc --noEmit
           npm run test
 
+  # ============================================================================
+  # JOB 0B: Parallel Frontend TypeCheck & Unit Tests (Runs on PR & Push)
+  # ============================================================================
+  test-frontend:
+    name: FE TypeCheck & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: FE/package-lock.json
+
       - name: Run Frontend TypeCheck & Unit Tests
         run: |
           cd FE
-          npm ci
+          npm ci --prefer-offline
           npx tsc --noEmit
           npm run test
 
   # ============================================================================
-  # JOB 1: Fast Parallel Build & Push for Backend
+  # JOB 1: Build & Push Backend Docker Image (ONLY ON PUSH MERGE)
   # ============================================================================
   build-backend:
     name: Build & Push Backend Docker Image
-    needs: [run-unit-tests]
+    needs: [test-backend]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
@@ -101,7 +117,7 @@ jobs:
   # ============================================================================
   build-frontend:
     name: Build & Push Frontend Docker Image
-    needs: [run-unit-tests]
+    needs: [test-frontend]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
