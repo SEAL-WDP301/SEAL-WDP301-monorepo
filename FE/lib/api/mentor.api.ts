@@ -297,3 +297,64 @@ export async function updateStudentMentorFeedbackStatus(
   );
   return response.data;
 }
+
+export type MentorAiReadiness =
+  | "strong"
+  | "needs_work"
+  | "at_risk"
+  | "no_submission";
+
+export interface MentorAiDraftResult {
+  submissionId: number;
+  teamId: number;
+  teamName: string;
+  source: "file" | "github_link";
+  contextSummary: string;
+  overview: string;
+  readiness: MentorAiReadiness;
+  strengths: string[];
+  risks: string[];
+  questionsToAsk: string[];
+  focusNext: string;
+  draftFeedback: string;
+}
+
+export interface MentorAiOverviewTeam {
+  teamId: number;
+  teamName: string;
+  trackName: string | null;
+  priority: "high" | "medium" | "low";
+  reason: string;
+  focus: string;
+  readiness: MentorAiReadiness;
+  latestSubmissionId: number | null;
+  latestRoundName: string | null;
+  hasFeedback: boolean;
+  unreadChatCount: number;
+}
+
+export interface MentorAiOverviewResult {
+  summary: string;
+  stats: {
+    totalTeams: number;
+    withSubmission: number;
+    missingFeedback: number;
+    noSubmission: number;
+    highPriority: number;
+  };
+  priorityTeams: MentorAiOverviewTeam[];
+}
+
+export async function generateMentorAiOverview(eventId: string | number) {
+  const response = await axiosClient.post(
+    `/mentor/events/${eventId}/ai-overview`,
+  );
+  return unwrapData<MentorAiOverviewResult>(response);
+}
+
+export async function generateMentorAiDraft(submissionId: string | number) {
+  const response = await axiosClient.post(
+    `/mentor/submissions/${submissionId}/ai-draft`,
+  );
+  return unwrapData<MentorAiDraftResult>(response);
+}

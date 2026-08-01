@@ -2,28 +2,50 @@
 
 import Link from "next/link";
 import { Bell, UsersRound } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
+import { useState } from "react";
+import { enqueueSnackbar } from "notistack";
 
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import {
+  generateMentorAiOverview,
   getMentorNotifications,
   getMentorProfile,
   getMentorTeams,
+  type MentorAiOverviewResult,
 } from "@/lib/api/mentor.api";
 import { MentorPageHeader } from "@/app/mentor/_components/mentor-page-header";
 import { MentorEmptyState, MentorErrorState, MentorLoadingState } from "@/app/mentor/_components/mentor-query-state";
 import { PublicEventOnlineMeetingCard } from "@/components/events/public-event-online-meeting-card";
+import { AiMentorOverviewPanel } from "./components/ai-mentor-overview-panel";
 
 export default function MentorDashboardPage() {
   const params = useParams();
+  const eventId = params.eventId as string;
+  const [aiOverview, setAiOverview] = useState<MentorAiOverviewResult | null>(null);
+
   const profileQuery = useQuery({ queryKey: ["mentorProfile"], queryFn: getMentorProfile });
   const teamsQuery = useQuery({ 
-    queryKey: ["mentorTeams", params.eventId], 
-    queryFn: () => getMentorTeams(params.eventId as string) 
+    queryKey: ["mentorTeams", eventId], 
+    queryFn: () => getMentorTeams(eventId) 
   });
   const notificationsQuery = useQuery({ queryKey: ["userNotifications"], queryFn: getMentorNotifications });
+
+  const overviewMutation = useMutation({
+    mutationFn: () => generateMentorAiOverview(eventId),
+    onSuccess: (data) => {
+      setAiOverview(data);
+      enqueueSnackbar("AI mentoring overview ready", { variant: "success" });
+    },
+    onError: (error: any) => {
+      enqueueSnackbar(
+        error?.response?.data?.message || "Failed to generate AI overview",
+        { variant: "error" },
+      );
+    },
+  });
 
   if (
     profileQuery.isLoading ||
@@ -57,9 +79,19 @@ export default function MentorDashboardPage() {
       <MentorPageHeader
         title={`Welcome${profileQuery.data?.name ? `, ${profileQuery.data.name}` : ""}`}
         subtitle="Monitor teams assigned to you by the organizer."
-        actions={<Button asChild variant="outline"><Link href={`/mentor/events/${params.eventId}/teams`}>View teams</Link></Button>}
+        actions={<Button asChild variant="outline"><Link href={`/mentor/events/${eventId}/teams`}>View teams</Link></Button>}
       />
-      <PublicEventOnlineMeetingCard eventId={params.eventId as string} />
+      <PublicEventOnlineMeetingCard eventId={eventId} />
+
+      {teams.length > 0 && (
+        <AiMentorOverviewPanel
+          eventId={eventId}
+          overview={aiOverview}
+          isLoading={overviewMutation.isPending}
+          onGenerate={() => overviewMutation.mutate()}
+        />
+      )}
+
       <section className="grid gap-4 md:grid-cols-3">
         {stats.map(({ label, value, icon: Icon }) => (
           <GlassCard key={label} className="rounded-[22px] bg-card p-5">
@@ -76,7 +108,7 @@ export default function MentorDashboardPage() {
             {teams.length === 0 ? (
               <MentorEmptyState title="No teams assigned" description="An organizer must assign this mentor account to a team." />
             ) : teams.map((team) => (
-              <Link key={team.id} href={`/mentor/events/${params.eventId}/teams/${team.id}`} className="block rounded-2xl border border-border bg-muted/40 p-4 hover:border-orange-500/40">
+              <Link key={team.id} href={`/mentor/events/${eventId}/teams/${team.id}`} className="block rounded-2xl border border-border bg-muted/40 p-4 hover:border-orange-500/40">
                 <p className="font-semibold">{team.name}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{team.event?.name || "Event unavailable"} · {team.track?.name || "Track unavailable"}</p>
               </Link>
