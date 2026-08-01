@@ -14,6 +14,15 @@ import { enqueueSnackbar } from "notistack";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FaGithub, FaSnowflake } from "react-icons/fa";
+import {
+  GithubCommitCard,
+  GithubSummaryBar,
+  normalizeGithubCommitsPayload,
+  type GithubCommitSummary,
+  type GithubRepoInsights,
+} from "@/components/github/github-activity-stats";
+import { TeamGithubAnalyticsDialog } from "@/components/github/team-github-analytics-dialog";
+import { EventGithubDashboard } from "@/components/github/event-github-dashboard";
 
 function formatForDatetimeLocal(dateInput?: string | Date | null) {
   if (!dateInput) return "";
@@ -45,6 +54,10 @@ export default function EventSubmissionsPage() {
   const [selectedTeamForStatus, setSelectedTeamForStatus] = useState<number | null>(null);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [selectedTeamFilterForLogs, setSelectedTeamFilterForLogs] = useState<string>("all");
+  const [analyticsTeam, setAnalyticsTeam] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const PAGE_SIZE = 10;
   const queryClient = useQueryClient();
 
@@ -79,6 +92,29 @@ export default function EventSubmissionsPage() {
       return res.data;
     },
     enabled: isGithubRound,
+  });
+
+  const { commits: eventCommitsList, summary: eventCommitSummary } =
+    normalizeGithubCommitsPayload(eventCommits);
+
+  const selectedInsightsTeamId =
+    selectedTeamFilterForLogs !== "all"
+      ? Number(selectedTeamFilterForLogs)
+      : null;
+
+  const { data: selectedTeamInsights } = useQuery({
+    queryKey: ["githubRepoInsights", selectedInsightsTeamId],
+    queryFn: async () => {
+      const res = await axiosClient.get(
+        `/github/repos/${selectedInsightsTeamId}/insights`,
+      );
+      return (res.data?.data || null) as {
+        insights?: GithubRepoInsights | null;
+        commitSummary?: GithubCommitSummary | null;
+      } | null;
+    },
+    enabled: isGithubRound && !!selectedInsightsTeamId,
+    staleTime: 60_000,
   });
 
   const { data: collabStatus, isLoading: isLoadingStatus } = useQuery({
@@ -122,18 +158,27 @@ export default function EventSubmissionsPage() {
     }
   });
 
+  const [syncingTeamId, setSyncingTeamId] = useState<number | null>(null);
+
   const syncCommitsMutation = useMutation({
-    mutationFn: async () => {
-      const res = await axiosClient.post(`/github/repos/sync-event/${eventId}`);
-      return res.data;
+    mutationFn: async (teamId: number) => {
+      setSyncingTeamId(teamId);
+      const res = await axiosClient.post(`/github/repos/sync/${teamId}`);
+      return res.data?.data || res.data;
     },
     onSuccess: (data) => {
-      enqueueSnackbar(data.message || "Commits synced successfully", { variant: "success" });
+      enqueueSnackbar(data.message || "Synced selected team only", { variant: "success" });
       queryClient.invalidateQueries({ queryKey: ["eventCommits", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["eventGithubDashboard", eventId] });
+      if (data?.teamId) {
+        queryClient.invalidateQueries({ queryKey: ["githubTeamAnalytics", data.teamId] });
+        queryClient.invalidateQueries({ queryKey: ["teamRepoInsights", data.teamId] });
+      }
     },
     onError: (error: any) => {
-      enqueueSnackbar(error.response?.data?.message || "Failed to sync commits", { variant: "error" });
-    }
+      enqueueSnackbar(error.response?.data?.message || "Failed to sync team commits", { variant: "error" });
+    },
+    onSettled: () => setSyncingTeamId(null),
   });
 
   const { socket, isConnected } = useAdminSocket({ eventId, roundId });
@@ -156,18 +201,30 @@ export default function EventSubmissionsPage() {
       
       // Update cache instantly
       const updateFn = (oldData: any) => {
-        const currentList = oldData ? (Array.isArray(oldData) ? oldData : (oldData.data || [])) : [];
+        const { commits: currentList, summary } =
+          normalizeGithubCommitsPayload(oldData);
         const newCommit = {
           id: data.commitHash || Date.now(),
           teamId: data.teamId,
           team: { name: data.teamName },
-          commitHash: data.commitHash || data.commitUrl?.split('/').pop(),
+          commitHash: data.commitHash || data.commitUrl?.split("/").pop(),
           message: data.message,
           pusher: data.pusher,
           url: data.commitUrl,
           timestamp: data.timestamp || new Date().toISOString(),
+          additions: data.additions ?? null,
+          deletions: data.deletions ?? null,
+          changedFiles: data.changedFiles ?? null,
+          files: data.files ?? null,
+          authorLogin: data.authorLogin ?? null,
         };
-        return [newCommit, ...currentList];
+        return {
+          success: true,
+          data: {
+            commits: [newCommit, ...currentList],
+            summary,
+          },
+        };
       };
 
       // Try both string and number just in case
@@ -411,7 +468,7 @@ export default function EventSubmissionsPage() {
         {isGithubRound && (
           <TabsList className="mb-6 bg-muted/50 p-1 rounded-xl">
             <TabsTrigger value="submissions" className="rounded-lg px-6">Submissions</TabsTrigger>
-            <TabsTrigger value="activity" className="rounded-lg px-6">Global Activity Log</TabsTrigger>
+            <TabsTrigger value="activity" className="rounded-lg px-6">Repo Dashboard</TabsTrigger>
           </TabsList>
         )}
 
@@ -652,81 +709,30 @@ export default function EventSubmissionsPage() {
       </GlassCard>
       </TabsContent>
 
-      {isGithubRound && (() => {
-        const commitsList = eventCommits ? (Array.isArray(eventCommits) ? eventCommits : (eventCommits.data || [])) : [];
-        const filteredCommits = commitsList.filter((c: any) => selectedTeamFilterForLogs === "all" || c.teamId?.toString() === selectedTeamFilterForLogs || String(c.teamId) === String(selectedTeamFilterForLogs));
-        const teamsMap = Array.from(new Map(commitsList.map((commit: any) => [commit.teamId, commit.team?.name])).entries());
-
-        return (
+      {isGithubRound && (
           <TabsContent value="activity" className="mt-0">
-            <GlassCard className="p-6 rounded-[24px]">
-              <div className="flex items-center justify-between mb-4 border-b border-border pb-4">
-                <h3 className="font-semibold text-lg flex items-center gap-2">
-                  <FaGithub className="h-5 w-5 text-orange-500" />
-                  Global Activity Log (All Teams)
-                </h3>
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 border-blue-500/20 text-blue-600 hover:bg-blue-50"
-                    onClick={() => syncCommitsMutation.mutate()}
-                    disabled={syncCommitsMutation.isPending}
-                  >
-                    {syncCommitsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-                    Sync Missed Commits
-                  </Button>
-                  {teamsMap.length > 0 && (
-                    <select
-                      value={selectedTeamFilterForLogs}
-                      onChange={(e) => setSelectedTeamFilterForLogs(e.target.value)}
-                      className="bg-background border border-border text-foreground text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 min-w-[150px]"
-                    >
-                      <option value="all">All Teams</option>
-                      {teamsMap.map(([teamId, teamName]) => (
-                        <option key={String(teamId)} value={String(teamId)}>{(teamName as string) || `Team ${teamId}`}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 mt-4">
-                {filteredCommits.length > 0 ? (
-                  <div className="relative border-l-2 border-border/60 ml-2 pl-5 space-y-6 py-2">
-                    {filteredCommits.map((commit: any, index: number) => {
-                      const isLatest = index === 0;
-                      return (
-                        <div key={commit.id || commit.commitHash || index} className="relative flex gap-4 text-sm">
-                          <div className={`absolute -left-[27px] top-1 h-3 w-3 rounded-full ring-4 ring-background ${isLatest ? 'bg-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,0.15)]' : 'bg-muted-foreground/30'}`} />
-                          <div className="flex-1 opacity-100 transition-opacity duration-300 bg-muted/20 p-4 rounded-xl border border-border/50 hover:bg-muted/40">
-                            <p className="font-semibold text-foreground/90">
-                              <span className="text-blue-500 mr-2">[{commit.team?.name || 'Team'}]</span>
-                              <a href={commit.url} target="_blank" rel="noreferrer" className="hover:text-orange-500 transition-colors">
-                                {commit.message}
-                              </a>
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
-                              <Clock className="h-3 w-3" />
-                              {new Date(commit.timestamp).toLocaleString()} 
-                              <span className="mx-1">•</span>
-                              <span className="font-medium text-orange-500">{commit.pusher}</span>
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3 text-muted-foreground justify-center p-8 border border-dashed rounded-xl border-border/50">
-                    <Clock className="h-5 w-5" />
-                    <p className="text-sm">No commits pushed yet for this round.</p>
-                  </div>
-                )}
-              </div>
+            <GlassCard
+              glow
+              className="p-0 rounded-[24px] overflow-hidden border-orange-500/25 bg-gradient-to-b from-orange-500/[0.06] via-background to-background"
+            >
+              <EventGithubDashboard
+                eventId={eventId}
+                syncingTeamId={syncingTeamId}
+                onOpenTeam={(team) => setAnalyticsTeam(team)}
+                onSyncTeam={(teamId) => syncCommitsMutation.mutate(teamId)}
+              />
             </GlassCard>
+
+            <TeamGithubAnalyticsDialog
+              teamId={analyticsTeam?.id ?? null}
+              teamName={analyticsTeam?.name}
+              open={!!analyticsTeam}
+              onOpenChange={(open) => {
+                if (!open) setAnalyticsTeam(null);
+              }}
+            />
           </TabsContent>
-        );
-      })()}
+      )}
       </Tabs>
 
       {/* Bulk Reminder Modal */}

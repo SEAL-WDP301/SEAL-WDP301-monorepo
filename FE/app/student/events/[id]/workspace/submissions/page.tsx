@@ -36,6 +36,14 @@ import { useWorkspaceAccess } from "../workspace-access";
 import { useAdminSocket } from "@/hooks/use-admin-socket";
 import { axiosClient } from "@/lib/axios";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
+import {
+  GithubCommitCard,
+  GithubSummaryBar,
+  normalizeGithubCommitsPayload,
+  type GithubCommitSummary,
+  type GithubRepoInsights,
+} from "@/components/github/github-activity-stats";
+import { TeamGithubAnalyticsDialog } from "@/components/github/team-github-analytics-dialog";
 
 interface SubmissionHistoryEntry {
   action: string;
@@ -132,8 +140,22 @@ export default function SubmissionsPage() {
     enabled: (isGithubRound || !!assignedRepoUrl) && !!workspaceData?.team?.id,
   });
 
+  const { data: repoInsights } = useQuery({
+    queryKey: ["githubRepoInsights", workspaceData?.team?.id],
+    queryFn: async () => {
+      const res = await axiosClient.get(
+        `/github/repos/${workspaceData?.team?.id}/insights`,
+      );
+      return (res.data?.data?.insights || res.data?.insights || null) as GithubRepoInsights | null;
+    },
+    enabled: (isGithubRound || !!assignedRepoUrl) && !!workspaceData?.team?.id,
+    staleTime: 60_000,
+  });
+
   const [liveCommits, setLiveCommits] = useState<any[]>([]);
+  const [commitSummary, setCommitSummary] = useState<GithubCommitSummary | null>(null);
   const [isSyncingCommits, setIsSyncingCommits] = useState(false);
+  const [openTeamAnalytics, setOpenTeamAnalytics] = useState(false);
 
   const totalCommits = liveCommits.length;
   const totalCommitPages = Math.ceil(totalCommits / COMMITS_PER_PAGE) || 1;
@@ -141,8 +163,9 @@ export default function SubmissionsPage() {
 
   useEffect(() => {
     if (commitsData) {
-      const normalized = Array.isArray(commitsData) ? commitsData : (commitsData.data || []);
-      setLiveCommits(normalized);
+      const { commits, summary } = normalizeGithubCommitsPayload(commitsData);
+      setLiveCommits(commits);
+      setCommitSummary(summary || null);
     }
   }, [commitsData]);
 
@@ -178,16 +201,22 @@ export default function SubmissionsPage() {
       setLiveCommits((prev) => {
         const newCommit = {
           id: data.commitHash || Date.now(),
-          commitHash: data.commitHash || data.commitUrl?.split('/').pop(),
+          commitHash: data.commitHash || data.commitUrl?.split("/").pop(),
           message: data.message,
           pusher: data.pusher,
           url: data.commitUrl,
           timestamp: data.timestamp || new Date().toISOString(),
+          additions: data.additions ?? null,
+          deletions: data.deletions ?? null,
+          changedFiles: data.changedFiles ?? null,
+          files: data.files ?? null,
+          authorLogin: data.authorLogin ?? null,
         };
         return [newCommit, ...prev];
       });
 
       queryClient.invalidateQueries({ queryKey: ["githubCommits", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["githubRepoInsights", teamId] });
     };
 
     socket.on('github.commit.new', handleNewCommit);
@@ -201,9 +230,14 @@ export default function SubmissionsPage() {
     if (!teamId) return;
     try {
       setIsSyncingCommits(true);
-      await axiosClient.post(`/github/repos/sync-event/${eventId}`);
+      const res = await axiosClient.post(`/github/repos/sync/${teamId}`);
+      const payload = res.data?.data || res.data;
       await refetchCommits();
-      enqueueSnackbar("Synced team commits successfully", { variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["githubTeamAnalytics", teamId] });
+      enqueueSnackbar(
+        payload?.message || "Synced your team only (saved GitHub quota)",
+        { variant: "success" },
+      );
     } catch (err: any) {
       enqueueSnackbar(err.response?.data?.message || "Failed to sync commits", { variant: "error" });
     } finally {
@@ -938,46 +972,52 @@ export default function SubmissionsPage() {
         {/* Full-width Realtime Activity Log (for Teams with GitHub Repo) */}
         {(isGithubRound || !!assignedRepoUrl) && (
           <GlassCard className="p-6 rounded-[24px] mt-6 w-full">
-            <div className="flex items-center justify-between mb-4 border-b border-border pb-4">
+            <div className="flex items-center justify-between mb-4 border-b border-border pb-4 gap-3 flex-wrap">
               <h3 className="font-semibold text-lg flex items-center gap-2">
                 <FaGithub className="h-5 w-5 text-orange-500" />
                 Team Realtime Activity Log (GitHub)
               </h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2 border-blue-500/20 text-blue-600 hover:bg-blue-50"
-                onClick={handleSyncCommits}
-                disabled={isSyncingCommits || isLoadingCommits}
-              >
-                {isSyncingCommits ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-                Sync Missed Commits
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="orange"
+                  size="sm"
+                  onClick={() => setOpenTeamAnalytics(true)}
+                  disabled={!workspaceData?.team?.id}
+                >
+                  Xem dashboard chi tiết
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-blue-500/20 text-blue-600 hover:bg-blue-50"
+                  onClick={handleSyncCommits}
+                  disabled={isSyncingCommits || isLoadingCommits}
+                >
+                  {isSyncingCommits ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+                  Sync team này
+                </Button>
+              </div>
             </div>
+            <GithubSummaryBar summary={commitSummary} insights={repoInsights || undefined} />
+            <TeamGithubAnalyticsDialog
+              teamId={workspaceData?.team?.id ?? null}
+              teamName={workspaceData?.team?.name}
+              open={openTeamAnalytics}
+              onOpenChange={setOpenTeamAnalytics}
+            />
             {paginatedCommits.length > 0 ? (
               <div className="space-y-4 pr-2">
                 <div className="relative border-l-2 border-border/60 ml-2 pl-5 space-y-6 py-2">
                   {paginatedCommits.map((commit, index) => {
                     const isLatest = commitPage === 1 && index === 0;
                     return (
-                      <div key={commit.id || index} className="relative flex gap-4 text-sm">
-                        <div className={`absolute -left-[27px] top-1 h-3 w-3 rounded-full ring-4 ring-background ${isLatest ? "bg-orange-500 shadow-[0_0_0_4px_rgba(249,115,22,0.15)]" : "bg-muted-foreground/30"}`} />
-                        <div className="flex-1 opacity-100 transition-opacity duration-300 bg-muted/20 p-4 rounded-xl border border-border/50 hover:bg-muted/40">
-                          <p className="font-semibold text-foreground/90">
-                            <a href={commit.url} target="_blank" rel="noreferrer" className="hover:text-orange-500 transition-colors">
-                              {commit.message}
-                            </a>
-                            {isLatest && <span className="ml-2 text-[10px] bg-orange-500/10 text-orange-500 px-1.5 py-0.5 rounded font-medium uppercase tracking-wider border border-orange-500/20">Latest</span>}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
-                            <Clock className="h-3 w-3" />
-                            {new Date(commit.timestamp).toLocaleString()} 
-                            <span className="mx-1">•</span>
-                            <span className="font-medium text-orange-500">{commit.pusher}</span>
-                          </p>
-                        </div>
-                      </div>
+                      <GithubCommitCard
+                        key={commit.id || commit.commitHash || index}
+                        commit={commit}
+                        isLatest={isLatest}
+                      />
                     );
                   })}
                 </div>
