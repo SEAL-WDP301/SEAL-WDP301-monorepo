@@ -14,8 +14,13 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
+    // Query logging on a remote DO DB + parallel requests makes every page feel slow.
+    // Opt-in: PRISMA_LOG_QUERIES=1
+    const logQueries = process.env.PRISMA_LOG_QUERIES === "1";
     super({
-      log: ["query", "info", "warn", "error"],
+      log: logQueries
+        ? ["query", "info", "warn", "error"]
+        : ["warn", "error"],
     });
   }
 
