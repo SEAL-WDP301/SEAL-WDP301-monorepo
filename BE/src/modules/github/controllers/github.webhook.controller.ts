@@ -60,6 +60,20 @@ export class GithubWebhookController {
     return this.webhookService.getEventCommits(Number(eventId));
   }
 
+  @Get('repos/event/:eventId/dashboard')
+  async getEventReposDashboard(@Param('eventId') eventId: string) {
+    const data = await this.webhookService.getEventReposDashboard(
+      Number(eventId),
+    );
+    return { data };
+  }
+
+  @Get('repos/:teamId/insights')
+  async getRepoInsights(@Param('teamId') teamId: string) {
+    const data = await this.webhookService.getTeamRepoInsights(Number(teamId));
+    return { data };
+  }
+
   @Get('repos/:teamId/collaborator-status')
   async getCollaboratorStatus(@Param('teamId') teamId: string) {
     const status = await this.webhookService.getTeamCollaboratorStatus(Number(teamId));
@@ -79,6 +93,11 @@ export class GithubWebhookController {
   @Post('repos/unfreeze-event/:eventId')
   async unfreezeEventRepos(@Param('eventId') eventId: string) {
     return this.webhookService.unfreezeEventRepos(Number(eventId));
+  }
+
+  @Post('repos/sync/:teamId')
+  async syncTeamCommits(@Param('teamId') teamId: string) {
+    return this.webhookService.syncTeamCommits(Number(teamId));
   }
 
   @Post('repos/sync-event/:eventId')

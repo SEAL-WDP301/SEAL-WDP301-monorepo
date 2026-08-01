@@ -72,32 +72,45 @@ export function RoleGuard({ allowedRoles, children }: RoleGuardProps) {
     staleTime: 60 * 1000,
   });
 
+  const effectiveUser = user || storeUser;
+
   useEffect(() => {
-    if (hasToken === null) return;
+    if (!mounted) return;
 
     if (!hasToken) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
       return;
     }
 
-    if (isError) {
+    // Only kick to login if profile fetch failed AND we have no cached user from sign-in
+    if (isError && !storeUser) {
       router.replace("/login");
       return;
     }
 
-    if (!isLoading && user) {
-      const role = user.role?.toLowerCase();
+    if (!isLoading && effectiveUser) {
+      const role = effectiveUser.role?.toLowerCase();
       if (!role || !allowedRoles.includes(role as AppRole)) {
         router.replace(getRoleHomePath(role));
       }
     }
-  }, [allowedRoles, hasToken, isError, isLoading, pathname, router, user]);
+  }, [
+    allowedRoles,
+    effectiveUser,
+    hasToken,
+    isError,
+    isLoading,
+    mounted,
+    pathname,
+    router,
+    storeUser,
+  ]);
 
-  if (!mounted || !hasToken || (isLoading && !user) || isError) {
+  if (!mounted || !hasToken || (isLoading && !effectiveUser) || (isError && !effectiveUser)) {
     return <RoleGuardFallback />;
   }
 
-  const normalizedUserRole = user?.role?.toLowerCase();
+  const normalizedUserRole = effectiveUser?.role?.toLowerCase();
   if (!normalizedUserRole || !allowedRoles.includes(normalizedUserRole as AppRole)) {
     return <RoleGuardFallback />;
   }
