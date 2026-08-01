@@ -71,6 +71,10 @@ import {
   getEventMapUrl,
 } from "@/lib/events/location";
 import { shouldSyncGoogleCalendarMeeting } from "@/lib/events/calendar-meeting";
+import {
+  calculatePrizePoolTotals,
+  formatPrizeAmount,
+} from "@/lib/events/prizes";
 
 const defaultLocation = {
   venueName: "FPT University Ho Chi Minh City",
@@ -274,29 +278,54 @@ const createEventSchema = (isEdit: boolean) =>
               .transform((v) =>
                 v === "" ? undefined : (v as number | undefined),
               ),
+            amount: z.coerce
+              .number()
+              .int("Prize amount must be an integer")
+              .min(0, "Prize amount cannot be negative")
+              .default(0),
+            placement: z
+              .union([z.literal(1), z.literal(2), z.literal(3), z.null()])
+              .optional()
+              .default(null),
+            currency: z
+              .string()
+              .regex(/^[A-Z]{3}$/, "Use a three-letter currency code")
+              .default("VND"),
           }),
         )
         .optional()
         .default([
           {
             name: "Champion (First Prize)",
-            description: "$10,000 + Gold Trophy",
+            description: "Gold Trophy",
             quantity: 1,
+            amount: 10_000_000,
+            placement: 1,
+            currency: "VND",
           },
           {
             name: "Second Prize (Runner-up)",
-            description: "$5,000 + Silver Trophy",
+            description: "Silver Trophy",
             quantity: 1,
+            amount: 5_000_000,
+            placement: 2,
+            currency: "VND",
           },
           {
             name: "Third Prize",
-            description: "$2,500 + Bronze Trophy",
+            description: "Bronze Trophy",
             quantity: 1,
+            amount: 2_500_000,
+            placement: 3,
+            currency: "VND",
           },
           {
             name: "Honorable Mention",
-            description: "$1,000 + Certificate",
+            description: "Certificate",
             quantity: 1,
+            amount: 1_000_000,
+            placement: null,
+            currency: "VND",
           },
         ]),
       tracks: z
@@ -684,6 +713,54 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
+      const primaryPrizes = new Map<
+        number,
+        (typeof data.prizes)[number] & { index: number }
+      >();
+      data.prizes.forEach((prize, index) => {
+        if (prize.placement == null) return;
+        const existing = primaryPrizes.get(prize.placement);
+        if (existing) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Placement ${prize.placement} is already assigned`,
+            path: ["prizes", index, "placement"],
+          });
+          return;
+        }
+        primaryPrizes.set(prize.placement, { ...prize, index });
+      });
+
+      const rankedPrizes = [1, 2, 3]
+        .map((placement) => primaryPrizes.get(placement))
+        .filter((prize) => Boolean(prize));
+      if (new Set(rankedPrizes.map((prize) => prize?.currency)).size > 1) {
+        rankedPrizes.forEach((prize) => {
+          if (!prize) return;
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "First, second, and third prizes must use one currency",
+            path: ["prizes", prize.index, "currency"],
+          });
+        });
+      }
+
+      ([
+        [1, 2],
+        [2, 3],
+      ] as const).forEach(([higherPlacement, lowerPlacement]) => {
+        const higher = primaryPrizes.get(higherPlacement);
+        const lower = primaryPrizes.get(lowerPlacement);
+        if (higher && lower && higher.amount <= lower.amount) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Prize amounts must follow: first prize > second prize > third prize",
+            path: ["prizes", lower.index, "amount"],
+          });
+        }
+      });
+
       data.rounds.forEach((round, idx) => {
         if (round.submissionDeadline) {
           const roundDate = new Date(round.submissionDeadline);
@@ -853,26 +930,41 @@ export default function EventForm({ initialData }: EventFormProps) {
       name: prize.name,
       description: prize.description || "",
       quantity: prize.quantity ?? 1,
+      amount: prize.amount ?? 0,
+      placement: prize.placement ?? null,
+      currency: prize.currency || "VND",
     })) || [
       {
         name: "Champion (First Prize)",
-        description: "$10,000 + Gold Trophy",
+        description: "Gold Trophy",
         quantity: 1,
+        amount: 10_000_000,
+        placement: 1,
+        currency: "VND",
       },
       {
         name: "Second Prize (Runner-up)",
-        description: "$5,000 + Silver Trophy",
+        description: "Silver Trophy",
         quantity: 1,
+        amount: 5_000_000,
+        placement: 2,
+        currency: "VND",
       },
       {
         name: "Third Prize",
-        description: "$2,500 + Bronze Trophy",
+        description: "Bronze Trophy",
         quantity: 1,
+        amount: 2_500_000,
+        placement: 3,
+        currency: "VND",
       },
       {
         name: "Honorable Mention",
-        description: "$1,000 + Certificate",
+        description: "Certificate",
         quantity: 1,
+        amount: 1_000_000,
+        placement: null,
+        currency: "VND",
       },
     ],
     tracks: initialData?.tracks?.map((track) => ({
@@ -962,6 +1054,14 @@ export default function EventForm({ initialData }: EventFormProps) {
     control: form.control,
     name: "endDate",
   });
+  const watchedPrizes = useWatch({
+    control: form.control,
+    name: "prizes",
+  });
+  const prizePoolTotals = useMemo(
+    () => calculatePrizePoolTotals(watchedPrizes),
+    [watchedPrizes],
+  );
 
   const canModifyStructure =
     !isEdit ||
@@ -1256,6 +1356,9 @@ export default function EventForm({ initialData }: EventFormProps) {
           name: p.name,
           description: p.description,
           quantity: p.quantity ? Number(p.quantity) : 1,
+          amount: Number(p.amount),
+          placement: p.placement ?? null,
+          currency: p.currency,
         })),
         tracks: data.tracks?.map((t) => ({
           id: t.id,
@@ -1963,7 +2066,14 @@ export default function EventForm({ initialData }: EventFormProps) {
                   <Button
                     type="button"
                     onClick={() =>
-                      appendPrize({ name: "", description: "", quantity: 1 })
+                      appendPrize({
+                        name: "",
+                        description: "",
+                        quantity: 1,
+                        amount: 0,
+                        placement: null,
+                        currency: "VND",
+                      })
                     }
                     variant="outline"
                     className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 rounded-xl"
@@ -1983,7 +2093,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                         control={control}
                         name={`prizes.${index}.name`}
                         render={({ field }) => (
-                          <FormItem className="md:col-span-4">
+                          <FormItem className="md:col-span-3">
                             <FormLabel className="text-foreground/80 font-medium">
                               Prize Name
                             </FormLabel>
@@ -2001,16 +2111,57 @@ export default function EventForm({ initialData }: EventFormProps) {
 
                       <FormField
                         control={control}
-                        name={`prizes.${index}.description`}
+                        name={`prizes.${index}.placement`}
                         render={({ field }) => (
-                          <FormItem className="md:col-span-5">
+                          <FormItem className="md:col-span-2">
                             <FormLabel className="text-foreground/80 font-medium">
-                              Rewards
+                              Placement
+                            </FormLabel>
+                            <Select
+                              value={
+                                field.value == null
+                                  ? "special"
+                                  : String(field.value)
+                              }
+                              onValueChange={(value) =>
+                                field.onChange(
+                                  value === "special" ? null : Number(value),
+                                )
+                              }
+                            >
+                              <FormControl>
+                                <SelectTrigger className="bg-background/50 rounded-xl">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="1">First Prize</SelectItem>
+                                <SelectItem value="2">Second Prize</SelectItem>
+                                <SelectItem value="3">Third Prize</SelectItem>
+                                <SelectItem value="special">
+                                  Special Prize
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={control}
+                        name={`prizes.${index}.amount`}
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-3">
+                            <FormLabel className="text-foreground/80 font-medium">
+                              Amount per prize
                             </FormLabel>
                             <FormControl>
                               <Input
+                                type="number"
+                                min="0"
+                                step="1"
                                 className="bg-background/50 rounded-xl"
-                                placeholder="E.g. $10,000 + Trophy"
                                 {...field}
                               />
                             </FormControl>
@@ -2021,9 +2172,36 @@ export default function EventForm({ initialData }: EventFormProps) {
 
                       <FormField
                         control={control}
-                        name={`prizes.${index}.quantity`}
+                        name={`prizes.${index}.currency`}
                         render={({ field }) => (
                           <FormItem className="md:col-span-2">
+                            <FormLabel className="text-foreground/80 font-medium">
+                              Currency
+                            </FormLabel>
+                            <Select
+                              value={field.value}
+                              onValueChange={field.onChange}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="bg-background/50 rounded-xl">
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="VND">VND</SelectItem>
+                                <SelectItem value="USD">USD</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={control}
+                        name={`prizes.${index}.quantity`}
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-1">
                             <FormLabel className="text-foreground/80 font-medium">
                               Quantity
                             </FormLabel>
@@ -2051,6 +2229,26 @@ export default function EventForm({ initialData }: EventFormProps) {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+
+                      <FormField
+                        control={control}
+                        name={`prizes.${index}.description`}
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-12">
+                            <FormLabel className="text-foreground/80 font-medium">
+                              Other rewards
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                className="bg-background/50 rounded-xl"
+                                placeholder="E.g. Gold Trophy and certificate"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   ))}
                   {prizeFields.length === 0 && (
@@ -2058,6 +2256,23 @@ export default function EventForm({ initialData }: EventFormProps) {
                       <p className="text-muted-foreground">
                         No prizes added yet.
                       </p>
+                    </div>
+                  )}
+                  {prizePoolTotals.length > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4">
+                      <span className="font-semibold text-foreground">
+                        Total prize pool
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {prizePoolTotals.map((total) => (
+                          <span
+                            key={total.currency}
+                            className="rounded-lg bg-background/70 px-3 py-1.5 font-bold text-amber-600"
+                          >
+                            {formatPrizeAmount(total.amount, total.currency)}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

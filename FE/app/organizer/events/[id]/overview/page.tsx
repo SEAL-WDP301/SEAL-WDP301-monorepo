@@ -14,6 +14,10 @@ import {
   isOnlineMeetingPublished,
   OnlineMeetingCard,
 } from "@/components/events/online-meeting-card";
+import {
+  formatPrizeAmount,
+  getPrizePlacementLabel,
+} from "@/lib/events/prizes";
 
 import {
   createGoogleCalendarMeeting,
@@ -21,6 +25,8 @@ import {
   getOrganizerEvent,
   updateOrganizerEventStatus,
   type EventStatus,
+  type OrganizerEventContact,
+  type OrganizerEventRuleGroup,
 } from "@/lib/api/organizer-events.api";
 import {
   Dialog,
@@ -47,7 +53,7 @@ export default function EventOverviewPage() {
     mutationFn: async (newStatus: EventStatus) => {
       const updatedEvent = await updateOrganizerEventStatus(eventId, newStatus);
       let meetingCreated = false;
-      let meetingCreationFailed = false;
+      let meetingCreationFailed: string | false = false;
 
       if (newStatus === "ongoing" && !event?.calendarMeeting) {
         const storedLocation = (() => {
@@ -77,8 +83,11 @@ export default function EventOverviewPage() {
               timeZone: storedLocation.timeZone || "Asia/Ho_Chi_Minh",
             });
             meetingCreated = true;
-          } catch (err: any) {
-            meetingCreationFailed = err.response?.data?.message || "Check your Google Calendar connection in Settings and try again.";
+          } catch (error: unknown) {
+            meetingCreationFailed =
+              (error as { response?: { data?: { message?: string } } })
+                .response?.data?.message ||
+              "Check your Google Calendar connection in Settings and try again.";
           }
         }
       }
@@ -139,14 +148,19 @@ export default function EventOverviewPage() {
     );
   }
 
-  const parseJSON = (str: any) => {
-    if (typeof str !== 'string') return str;
-    try { return JSON.parse(str); } catch { return null; }
+  const parseJSON = <T,>(value: unknown): T | null => {
+    if (typeof value !== "string") return (value as T) ?? null;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
   };
 
-  const loc = parseJSON(event.location);
-  const contacts = parseJSON(event.contact) || [];
-  const rules = parseJSON(event.rules) || [];
+  const loc = parseJSON<Record<string, string>>(event.location);
+  const contacts =
+    parseJSON<OrganizerEventContact[]>(event.contact) || [];
+  const rules = parseJSON<OrganizerEventRuleGroup[]>(event.rules) || [];
   const imageUrl = event.imageUrl || event.image_url || null;
   const eventMapUrl = getEventMapUrl(loc);
   const meetingIsPublished = isOnlineMeetingPublished(event.status);
@@ -287,7 +301,18 @@ export default function EventOverviewPage() {
           { title: "Total Teams", value: String(event._count?.teams ?? 0), icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
           { title: "Submissions", value: String(event._count?.submissions ?? 0), icon: FileText, color: "text-green-500", bg: "bg-green-500/10" },
           { title: "Tracks", value: String(event.tracks?.length ?? 0), icon: GitMerge, color: "text-purple-500", bg: "bg-purple-500/10" },
-          { title: "Prize Pool", value: "🏆", icon: Trophy, color: "text-orange-500", bg: "bg-orange-500/10" },
+          {
+            title: "Prize Pool",
+            value:
+              event.prizePoolTotals
+                ?.map((total) =>
+                  formatPrizeAmount(total.amount, total.currency),
+                )
+                .join(" + ") || "—",
+            icon: Trophy,
+            color: "text-orange-500",
+            bg: "bg-orange-500/10",
+          },
         ].map((stat, i) => (
           <motion.div
             key={stat.title}
@@ -375,7 +400,7 @@ export default function EventOverviewPage() {
                 Rules & Guidelines
               </h3>
               <div className="space-y-6">
-                {rules.map((ruleGroup: any, idx: number) => (
+                {rules.map((ruleGroup, idx: number) => (
                   <div key={idx}>
                     <h4 className="font-bold text-foreground mb-3">{ruleGroup.title || ruleGroup.name || `Rule Group ${idx + 1}`}</h4>
                     <ul className="space-y-2">
@@ -423,18 +448,16 @@ export default function EventOverviewPage() {
             </h3>
             <div className="space-y-3">
               {event.prizes && event.prizes.length > 0 ? (
-                event.prizes.map((prize: any, idx: number) => {
+                event.prizes.map((prize, idx: number) => {
                   let colors = "from-muted/30 to-transparent border-border/30 text-foreground";
                   let titleColor = "text-muted-foreground";
-                  const nameLower = prize.name.toLowerCase();
-                  
-                  if (nameLower.includes("1st") || nameLower.includes("first")) {
+                  if (prize.placement === 1) {
                     colors = "from-yellow-500/10 to-transparent border-yellow-500/20 text-foreground";
                     titleColor = "text-yellow-600";
-                  } else if (nameLower.includes("2nd") || nameLower.includes("second")) {
+                  } else if (prize.placement === 2) {
                     colors = "from-slate-400/10 to-transparent border-slate-400/20 text-foreground";
                     titleColor = "text-slate-500";
-                  } else if (nameLower.includes("3rd") || nameLower.includes("third")) {
+                  } else if (prize.placement === 3) {
                     colors = "from-orange-700/10 to-transparent border-orange-700/20 text-foreground";
                     titleColor = "text-orange-600";
                   }
@@ -442,9 +465,17 @@ export default function EventOverviewPage() {
                   return (
                     <div key={idx} className={`p-4 rounded-xl bg-gradient-to-r border ${colors}`}>
                       <p className={`text-xs font-bold uppercase tracking-wider mb-1 flex justify-between ${titleColor}`}>
-                        {prize.name} <Trophy className="h-3 w-3" />
+                        {getPrizePlacementLabel(prize.placement)} <Trophy className="h-3 w-3" />
                       </p>
-                      <p className="font-bold text-lg">{prize.description || `${prize.quantity} winner(s)`}</p>
+                      <p className="font-bold text-lg">{prize.name}</p>
+                      <p className="mt-1 font-semibold text-foreground">
+                        {formatPrizeAmount(prize.amount, prize.currency)}
+                      </p>
+                      {prize.description && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {prize.description}
+                        </p>
+                      )}
                     </div>
                   );
                 })
@@ -463,7 +494,7 @@ export default function EventOverviewPage() {
                 Contact Info
               </h3>
               <div className="space-y-4">
-                {contacts.map((contact: any, idx: number) => (
+                {contacts.map((contact, idx: number) => (
                   <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/30 text-sm">
                     <p className="font-bold text-foreground mb-2">{contact.label || contact.name}</p>
                     {contact.email && (

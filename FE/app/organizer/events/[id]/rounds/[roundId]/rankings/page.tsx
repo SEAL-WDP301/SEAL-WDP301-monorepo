@@ -12,7 +12,7 @@ import {
   Award, Crown, Medal, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, TrendingUp, TrendingDown, Minus, Star, Heart,
   BarChart3, Users, Loader2, Gavel, Send, Globe, Trophy,
-  Sparkles, type LucideIcon
+  Sparkles
 } from "lucide-react";
 import {
   HoverCard,
@@ -30,6 +30,7 @@ import {
   OrganizerPrize
 } from "@/lib/api/organizer-events.api";
 import { format } from "date-fns";
+import { formatPrizeAmount } from "@/lib/events/prizes";
 
 const ANOMALY_THRESHOLD = 1.5;
 
@@ -124,7 +125,11 @@ const RANK_PRESENTATION: Record<1 | 2 | 3, {
 function getAwardPresentation(award?: OrganizerPrize | null, allPrizes?: OrganizerPrize[]) {
   if (!award) return null;
 
-  // 1. Match by name keywords for precise icon & style mapping
+  if (award.placement === 1) return AWARD_PRESENTATION_STYLES[0];
+  if (award.placement === 2) return AWARD_PRESENTATION_STYLES[1];
+  if (award.placement === 3) return AWARD_PRESENTATION_STYLES[2];
+
+  // Backward-compatible fallback for prize records created before placement existed.
   const name = (award.name || "").toLowerCase();
   if (name.includes("champion") || name.includes("first") || name.includes("gold") || name.includes("nhất")) {
     return AWARD_PRESENTATION_STYLES[0]; // Gold Crown 👑
@@ -155,7 +160,9 @@ function getRankPresentation(rank: number) {
 }
 
 function getAwardPriority(award?: OrganizerPrize | null) {
-  return award ? (award.id || Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+  return award
+    ? (award.placement ?? award.id ?? Number.POSITIVE_INFINITY)
+    : Number.POSITIVE_INFINITY;
 }
 
 function RankBadge({ rank, award }: { rank: number; award?: OrganizerPrize | null }) {
@@ -357,7 +364,7 @@ function TeamRow({
                  const isFull = !isCurrentSelection && assignedCount >= maxQty;
                  return (
                    <option key={prize.id} value={prize.id} disabled={isFull}>
-                     {prize.name} ({assignedCount}/{maxQty}){isFull ? " — FULL" : ""}
+                     {prize.name} · {formatPrizeAmount(prize.amount, prize.currency)} ({assignedCount}/{maxQty}){isFull ? " — FULL" : ""}
                    </option>
                  );
                })}
