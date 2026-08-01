@@ -283,14 +283,9 @@ export class AnalyticsOrganizerService {
             submissions.map(({ teamId }) => teamId),
           ),
         ).size;
-        const teamSizes = event.tracks
-          .map((track) => track.maxMembersPerTeam)
-          .filter((value): value is number => value !== null);
         const capacity =
-          event.maxTeams &&
-          teamSizes.length > 0 &&
-          teamSizes.length === event.tracks.length
-            ? event.maxTeams * Math.max(...teamSizes)
+          event.maxTeams && event.maxMembersPerTeam
+            ? event.maxTeams * event.maxMembersPerTeam
             : null;
         return {
           eventId: event.id,
@@ -509,7 +504,7 @@ export class AnalyticsOrganizerService {
                 team?.status === TeamStatus.disqualified
               ? "REJECTED"
               : "PENDING";
-        const maxMembers = team?.track.maxMembersPerTeam ?? null;
+        const maxMembers = team?.event.maxMembersPerTeam ?? null;
         const teamStatus = !row.hasTeam
           ? "NO_TEAM"
           : team?.status === TeamStatus.rejected ||

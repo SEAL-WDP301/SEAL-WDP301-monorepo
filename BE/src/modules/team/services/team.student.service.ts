@@ -183,9 +183,17 @@ export class TeamStudentService {
       throw new NotFoundException("Track not found for this event");
     }
 
-    const maxMembers = track.maxMembersPerTeam || 4;
-    if (dto.memberEmails.length + 1 > maxMembers) {
-      throw new BadRequestException(`Maximum members allowed is ${maxMembers}`);
+    const requestedTeamSize = dto.memberEmails.length + 1;
+    if (
+      requestedTeamSize < event.minMembersPerTeam ||
+      requestedTeamSize > event.maxMembersPerTeam
+    ) {
+      throw new BadRequestException({
+        errorCode: "TEAM_MEMBER_LIMIT_VIOLATION",
+        message: `A team must have between ${event.minMembersPerTeam} and ${event.maxMembersPerTeam} members`,
+        minMembersPerTeam: event.minMembersPerTeam,
+        maxMembersPerTeam: event.maxMembersPerTeam,
+      });
     }
 
     const members = await this.prisma.user.findMany({
@@ -405,9 +413,18 @@ export class TeamStudentService {
     });
     if (!track || track.eventId !== eventId)
       throw new NotFoundException("Track not found");
-    const maxMembers = track.maxMembersPerTeam || 4;
-    if (dto.memberEmails.length + 1 > maxMembers)
-      throw new BadRequestException(`Max members allowed is ${maxMembers}`);
+    const requestedTeamSize = dto.memberEmails.length + 1;
+    if (
+      requestedTeamSize < event.minMembersPerTeam ||
+      requestedTeamSize > event.maxMembersPerTeam
+    ) {
+      throw new BadRequestException({
+        errorCode: "TEAM_MEMBER_LIMIT_VIOLATION",
+        message: `A team must have between ${event.minMembersPerTeam} and ${event.maxMembersPerTeam} members`,
+        minMembersPerTeam: event.minMembersPerTeam,
+        maxMembersPerTeam: event.maxMembersPerTeam,
+      });
+    }
 
     const members = await this.prisma.user.findMany({
       where: { email: { in: dto.memberEmails } },

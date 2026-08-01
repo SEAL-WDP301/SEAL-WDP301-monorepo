@@ -78,7 +78,7 @@ export class RegistrationsOrganizerService {
     const acceptedMembers = team.members.filter(
       (member) => member.status === TeamMemberStatus.accepted,
     );
-    const maxMembers = team.track.maxMembersPerTeam;
+    const maxMembers = registration.event.maxMembersPerTeam;
     const status =
       team.status === TeamStatus.rejected ||
       team.status === TeamStatus.disqualified

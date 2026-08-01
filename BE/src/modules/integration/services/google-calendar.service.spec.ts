@@ -15,6 +15,8 @@ describe("GoogleCalendarService OAuth callback", () => {
       delete: jest.fn(),
       upsert: jest.fn(),
     },
+    user: { findUnique: jest.fn() },
+    event: { findUnique: jest.fn() },
   };
   const config = {
     get: jest.fn((key: string) => {
@@ -92,5 +94,26 @@ describe("GoogleCalendarService OAuth callback", () => {
     expect(prisma.googleCalendarConnection.delete).toHaveBeenCalledWith({
       where: { userId: 42 },
     });
+  });
+
+  it("rejects a meeting that ends after the event", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 42, role: "organizer" });
+    prisma.event.findUnique.mockResolvedValue({
+      id: 7,
+      name: "SEAL Event",
+      createdById: 42,
+      startDate: new Date("2026-08-10T01:00:00.000Z"),
+      endDate: new Date("2026-08-10T10:00:00.000Z"),
+      calendarMeeting: null,
+    });
+
+    await expect(
+      service.syncMeeting(42, 7, {
+        meetingStartDate: "2026-08-10T08:00:00.000Z",
+        meetingEndDate: "2026-08-10T11:00:00.000Z",
+      }),
+    ).rejects.toThrow("Meeting end time must not be after the event end time");
+
+    expect(prisma.googleCalendarConnection.findUnique).not.toHaveBeenCalled();
   });
 });

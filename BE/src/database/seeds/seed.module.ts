@@ -4,7 +4,6 @@ import appConfig from "../../config/app.config";
 import databaseConfig from "../../config/database.config";
 import { PrismaModule } from "../prisma/prisma.module";
 import { SeedService } from "./seed.service";
-import { MockEventService } from "./mock-event.service";
 import { MockTeamsService } from "./mock-teams.service";
 import { MockStakeholdersService } from "./mock-stakeholders.service";
 import { DashboardSeedService } from "./dashboard-seed.service";
@@ -21,7 +20,6 @@ import { DashboardSeedService } from "./dashboard-seed.service";
   ],
   providers: [
     SeedService,
-    MockEventService,
     MockTeamsService,
     MockStakeholdersService,
     DashboardSeedService,

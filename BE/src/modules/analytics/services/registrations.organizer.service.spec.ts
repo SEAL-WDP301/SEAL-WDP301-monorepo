@@ -22,8 +22,14 @@ describe("RegistrationsOrganizerService", () => {
     reviewedAt: null,
     createdAt: new Date("2026-07-01T08:00:00.000Z"),
     reviewedBy: null,
-    track: { id: 4, name: "Web", maxMembersPerTeam: 4 },
-    event: { id: 3, name: "SEAL", season: "Summer", year: 2026 },
+    track: { id: 4, name: "Web" },
+    event: {
+      id: 3,
+      name: "SEAL",
+      season: "Summer",
+      year: 2026,
+      maxMembersPerTeam: 4,
+    },
     user: {
       id: 7,
       name: "Student One",
@@ -55,7 +61,6 @@ describe("RegistrationsOrganizerService", () => {
               email: "student@example.com",
               avatarUrl: null,
             },
-            track: { maxMembersPerTeam: 4 },
             members: [
               {
                 id: 30,

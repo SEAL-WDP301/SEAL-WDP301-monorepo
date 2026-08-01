@@ -10,6 +10,7 @@ import {
   ValidateNested,
   ArrayMinSize,
   Min,
+  Max,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Season, EventStatus } from "@prisma/client";
@@ -83,6 +84,28 @@ export class CreateEventDto {
   @Min(1)
   @IsOptional()
   maxTeams?: number;
+
+  @ApiProperty({
+    description: "Minimum number of members required per team",
+    minimum: 1,
+    maximum: 20,
+    default: 3,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  minMembersPerTeam: number;
+
+  @ApiProperty({
+    description: "Maximum number of members allowed per team",
+    minimum: 1,
+    maximum: 20,
+    default: 5,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  maxMembersPerTeam: number;
 
   @ApiPropertyOptional({ enum: EventStatus, default: EventStatus.draft })
   @IsEnum(EventStatus)

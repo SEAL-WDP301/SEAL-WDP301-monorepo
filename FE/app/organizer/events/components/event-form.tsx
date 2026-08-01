@@ -70,6 +70,7 @@ import {
   buildGoogleMapsSearchUrl,
   getEventMapUrl,
 } from "@/lib/events/location";
+import { shouldSyncGoogleCalendarMeeting } from "@/lib/events/calendar-meeting";
 
 const defaultLocation = {
   venueName: "FPT University Ho Chi Minh City",
@@ -236,6 +237,16 @@ const createEventSchema = (isEdit: boolean) =>
         .int("Maximum teams must be an integer")
         .min(1, "Maximum teams must be at least 1")
         .max(1000, "Maximum teams cannot exceed 1000"),
+      minMembersPerTeam: z.coerce
+        .number()
+        .int("Minimum members must be an integer")
+        .min(1, "Minimum members must be at least 1")
+        .max(20, "Minimum members cannot exceed 20"),
+      maxMembersPerTeam: z.coerce
+        .number()
+        .int("Maximum members must be an integer")
+        .min(1, "Maximum members must be at least 1")
+        .max(20, "Maximum members cannot exceed 20"),
       status: z.enum(["draft", "active", "ongoing", "closed"]).optional(),
       registrationDeadline: z.string().optional(),
       startDate: z.string().optional(),
@@ -295,23 +306,10 @@ const createEventSchema = (isEdit: boolean) =>
             _count: z.object({ teams: z.number().optional() }).optional(),
             name: z.string().min(1, "Track name is required"),
             description: z.string().optional(),
-            maxMembersPerTeam: z
-              .union([
-                z.coerce
-                  .number()
-                  .int()
-                  .min(1, "Must be >= 1")
-                  .max(20, "Max 20 members"),
-                z.literal(""),
-              ])
-              .optional()
-              .transform((v) =>
-                v === "" ? undefined : (v as number | undefined),
-              ),
           }),
         )
         .min(1, "At least one track is required")
-        .default([{ name: "", description: "", maxMembersPerTeam: 4 }]),
+        .default([{ name: "", description: "" }]),
       rounds: z
         .array(
           z.object({
@@ -401,6 +399,15 @@ const createEventSchema = (isEdit: boolean) =>
     })
     .superRefine((data, ctx) => {
       const now = new Date();
+
+      if (data.minMembersPerTeam > data.maxMembersPerTeam) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Maximum members must be greater than or equal to minimum members",
+          path: ["maxMembersPerTeam"],
+        });
+      }
 
       if (!isEdit) {
         const requireText = (
@@ -521,13 +528,6 @@ const createEventSchema = (isEdit: boolean) =>
             ["tracks", index, "description"],
             "Track description",
           );
-          if (track.maxMembersPerTeam === undefined) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: "Max members is required",
-              path: ["tracks", index, "maxMembersPerTeam"],
-            });
-          }
         });
 
         data.rounds.forEach((round, index) => {
@@ -578,6 +578,17 @@ const createEventSchema = (isEdit: boolean) =>
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "Meeting end time must be after meeting start time",
+            path: ["calendarMeetingEnd"],
+          });
+        }
+        if (
+          meetingEnd &&
+          data.endDate &&
+          new Date(meetingEnd) > new Date(data.endDate)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Meeting end time must not be after event end time",
             path: ["calendarMeetingEnd"],
           });
         }
@@ -727,6 +738,8 @@ const eventFormSteps: Array<{
       "season",
       "year",
       "maxTeams",
+      "minMembersPerTeam",
+      "maxMembersPerTeam",
       "registrationDeadline",
       "startDate",
       "endDate",
@@ -821,6 +834,8 @@ export default function EventForm({ initialData }: EventFormProps) {
     season: initialData?.season || "Spring",
     year: initialData?.year || new Date().getFullYear(),
     maxTeams: initialData?.maxTeams ?? 50,
+    minMembersPerTeam: initialData?.minMembersPerTeam ?? 3,
+    maxMembersPerTeam: initialData?.maxMembersPerTeam ?? 5,
     status: initialData?.status || "draft",
     registrationDeadline: initialData?.registrationDeadline
       ? new Date(initialData.registrationDeadline).toISOString().slice(0, 16)
@@ -863,8 +878,7 @@ export default function EventForm({ initialData }: EventFormProps) {
     tracks: initialData?.tracks?.map((track) => ({
       ...track,
       description: track.description || "",
-      maxMembersPerTeam: track.maxMembersPerTeam ?? 4,
-    })) || [{ name: "", description: "", maxMembersPerTeam: 4 }],
+    })) || [{ name: "", description: "" }],
     rounds: initialData?.rounds?.map((r) => ({
       ...r,
       submissionDeadline: r.submissionDeadline
@@ -943,6 +957,10 @@ export default function EventForm({ initialData }: EventFormProps) {
   const watchedCreateGoogleMeet = useWatch({
     control: form.control,
     name: "createGoogleMeet",
+  });
+  const watchedEventEndDate = useWatch({
+    control: form.control,
+    name: "endDate",
   });
 
   const canModifyStructure =
@@ -1243,9 +1261,6 @@ export default function EventForm({ initialData }: EventFormProps) {
           id: t.id,
           name: t.name,
           description: t.description,
-          maxMembersPerTeam: t.maxMembersPerTeam
-            ? Number(t.maxMembersPerTeam)
-            : undefined,
         })),
         rounds: data.rounds?.map((r) => ({
           id: r.id,
@@ -1319,7 +1334,13 @@ export default function EventForm({ initialData }: EventFormProps) {
           ? await updateOrganizerEvent(initialData.id, payload)
           : await createOrganizerEvent(payload);
 
-      if (createGoogleMeet && watchedStatus === "ongoing") {
+      if (
+        shouldSyncGoogleCalendarMeeting({
+          createGoogleMeet,
+          eventStatus: watchedStatus,
+          hasExistingMeeting: hasExistingCalendarMeeting,
+        })
+      ) {
         try {
           const attendeeEmails = Array.from(
             new Set(
@@ -1634,6 +1655,52 @@ export default function EventForm({ initialData }: EventFormProps) {
                           <Input
                             type="number"
                             min={1}
+                            className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={control}
+                    name="minMembersPerTeam"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-4">
+                        <FormLabel className="text-foreground/80 font-medium">
+                          Minimum Members per Team{" "}
+                          <span className="text-red-500">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={20}
+                            className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={control}
+                    name="maxMembersPerTeam"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-4">
+                        <FormLabel className="text-foreground/80 font-medium">
+                          Maximum Members per Team{" "}
+                          <span className="text-red-500">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={20}
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
                           />
@@ -2032,7 +2099,6 @@ export default function EventForm({ initialData }: EventFormProps) {
                         appendTrack({
                           name: "",
                           description: "",
-                          maxMembersPerTeam: 4,
                         })
                       }
                     >
@@ -2096,29 +2162,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                             )}
                           />
                         </div>
-                        <div className="md:col-span-4">
-                          <FormField
-                            control={control}
-                            name={`tracks.${index}.maxMembersPerTeam`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                                  Max Members {!isEdit && "*"}
-                                </FormLabel>
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    className="bg-card/50 rounded-lg"
-                                    {...field}
-                                    value={field.value ?? ""}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                        <div className="md:col-span-4 flex justify-end items-end">
+                        <div className="md:col-span-12 flex justify-end items-end">
                           {trackFields.length > 1 && canModifyStructure && (
                             <Button
                               type="button"
@@ -2553,6 +2597,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                         <FormControl>
                                           <Input
                                             type="datetime-local"
+                                            max={watchedEventEndDate || undefined}
                                             {...field}
                                             value={field.value ?? ""}
                                           />
@@ -2570,6 +2615,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                         <FormControl>
                                           <Input
                                             type="datetime-local"
+                                            max={watchedEventEndDate || undefined}
                                             {...field}
                                             value={field.value ?? ""}
                                           />

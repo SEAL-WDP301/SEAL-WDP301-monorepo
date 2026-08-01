@@ -4,7 +4,15 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { enqueueSnackbar } from "notistack";
-import { Edit2, Loader2, Plus, Save, Trash2, ExternalLink, Upload } from "lucide-react";
+import {
+  Edit2,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  ExternalLink,
+  Upload,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,7 +57,6 @@ type TrackDraft = {
   id?: number;
   name: string;
   description: string;
-  maxMembersPerTeam: number | string;
 };
 
 const emptyRound = (roundNumber: number): RoundDraft => ({
@@ -65,7 +72,6 @@ const emptyRound = (roundNumber: number): RoundDraft => ({
 const emptyTrack = (): TrackDraft => ({
   name: "",
   description: "",
-  maxMembersPerTeam: 4,
 });
 
 function getApiMessage(error: unknown, fallback: string) {
@@ -81,12 +87,6 @@ function toDateTimeInput(value?: string) {
   if (!value) return "";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 16);
-}
-
-function optionalNumber(value: number | string) {
-  if (value === "") return undefined;
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : undefined;
 }
 
 function mapRound(round: OrganizerRound): OrganizerRoundInput {
@@ -107,14 +107,13 @@ function mapTrack(track: OrganizerTrack): OrganizerTrackInput {
     id: track.id,
     name: track.name,
     description: track.description || undefined,
-    maxMembersPerTeam: track.maxMembersPerTeam,
   };
 }
 
 function buildEventPayload(
   event: OrganizerEvent,
   tracks: OrganizerTrackInput[],
-  rounds: OrganizerRoundInput[]
+  rounds: OrganizerRoundInput[],
 ): OrganizerEventPayload {
   return {
     name: event.name,
@@ -122,6 +121,8 @@ function buildEventPayload(
     season: event.season,
     year: event.year,
     maxTeams: event.maxTeams,
+    minMembersPerTeam: event.minMembersPerTeam,
+    maxMembersPerTeam: event.maxMembersPerTeam,
     status: event.status,
     registrationDeadline: event.registrationDeadline || undefined,
     startDate: event.startDate || undefined,
@@ -156,14 +157,16 @@ export default function EventRoundsPage() {
 
   const event = eventQuery.data;
   const rounds = useMemo(
-    () => [...(event?.rounds || [])].sort((a, b) => a.roundNumber - b.roundNumber),
-    [event?.rounds]
+    () =>
+      [...(event?.rounds || [])].sort((a, b) => a.roundNumber - b.roundNumber),
+    [event?.rounds],
   );
   const tracks = useMemo(() => event?.tracks || [], [event?.tracks]);
 
   const canModifyStructure =
     event?.status === "draft" &&
-    (!event.registrationDeadline || new Date(event.registrationDeadline) > new Date());
+    (!event.registrationDeadline ||
+      new Date(event.registrationDeadline) > new Date());
 
   const saveStructureMutation = useMutation({
     mutationFn: ({
@@ -175,11 +178,13 @@ export default function EventRoundsPage() {
     }) => {
       if (!event) throw new Error("Event is not loaded.");
       if (!canModifyStructure) {
-        throw new Error("Rounds and tracks can only be changed before registration closes.");
+        throw new Error(
+          "Rounds and tracks can only be changed before registration closes.",
+        );
       }
       return updateOrganizerEvent(
         eventId,
-        buildEventPayload(event, nextTracks, nextRounds)
+        buildEventPayload(event, nextTracks, nextRounds),
       );
     },
     onSuccess: (updatedEvent) => {
@@ -187,9 +192,12 @@ export default function EventRoundsPage() {
       queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
     },
     onError: (error) => {
-      enqueueSnackbar(getApiMessage(error, "Failed to update event structure"), {
-        variant: "error",
-      });
+      enqueueSnackbar(
+        getApiMessage(error, "Failed to update event structure"),
+        {
+          variant: "error",
+        },
+      );
     },
   });
 
@@ -203,16 +211,20 @@ export default function EventRoundsPage() {
     }) => {
       const response = await axiosClient.patch(
         `/organizer/events/${eventId}/rounds/${roundId}/status`,
-        { status }
+        { status },
       );
       return response.data;
     },
     onSuccess: (_, variables) => {
       enqueueSnackbar("Round status updated", { variant: "success" });
       queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
-      queryClient.invalidateQueries({ queryKey: ["detailedRankings", eventId, String(variables.roundId)] });
+      queryClient.invalidateQueries({
+        queryKey: ["detailedRankings", eventId, String(variables.roundId)],
+      });
       queryClient.invalidateQueries({ queryKey: ["organizerTeams", eventId] });
-      queryClient.invalidateQueries({ queryKey: ["organizerSubmissions", eventId, String(variables.roundId)] });
+      queryClient.invalidateQueries({
+        queryKey: ["organizerSubmissions", eventId, String(variables.roundId)],
+      });
     },
     onError: (error) => {
       enqueueSnackbar(getApiMessage(error, "Failed to update round status"), {
@@ -235,10 +247,14 @@ export default function EventRoundsPage() {
       if (!fileUrl) throw new Error("Upload failed: No file URL returned");
 
       await updateRoundProblemFile(eventId, roundId, fileUrl);
-      enqueueSnackbar("Problem statement file uploaded successfully!", { variant: "success" });
+      enqueueSnackbar("Problem statement file uploaded successfully!", {
+        variant: "success",
+      });
       eventQuery.refetch();
     } catch (err: unknown) {
-      enqueueSnackbar(getApiMessage(err, "Failed to upload problem file"), { variant: "error" });
+      enqueueSnackbar(getApiMessage(err, "Failed to upload problem file"), {
+        variant: "error",
+      });
     } finally {
       setUploadingRoundId(null);
     }
@@ -251,7 +267,9 @@ export default function EventRoundsPage() {
       enqueueSnackbar("Problem statement file removed.", { variant: "info" });
       eventQuery.refetch();
     } catch (err: unknown) {
-      enqueueSnackbar(getApiMessage(err, "Failed to remove problem file"), { variant: "error" });
+      enqueueSnackbar(getApiMessage(err, "Failed to remove problem file"), {
+        variant: "error",
+      });
     } finally {
       setUploadingRoundId(null);
     }
@@ -259,7 +277,9 @@ export default function EventRoundsPage() {
 
   const openCreateRound = () => {
     const nextRoundNumber =
-      rounds.length === 0 ? 1 : Math.max(...rounds.map((round) => round.roundNumber)) + 1;
+      rounds.length === 0
+        ? 1
+        : Math.max(...rounds.map((round) => round.roundNumber)) + 1;
     setRoundDraft(emptyRound(nextRoundNumber));
     setIsRoundDialogOpen(true);
   };
@@ -307,7 +327,7 @@ export default function EventRoundsPage() {
         (round) =>
           round.id !== roundDraft.id &&
           (round.roundNumber === roundNumber ||
-            round.name.trim().toLowerCase() === normalizedName.toLowerCase())
+            round.name.trim().toLowerCase() === normalizedName.toLowerCase()),
       )
     ) {
       enqueueSnackbar("Round number and name must be unique.", {
@@ -329,7 +349,9 @@ export default function EventRoundsPage() {
     };
 
     const nextRounds = roundDraft.id
-      ? rounds.map((round) => (round.id === roundDraft.id ? savedRound : mapRound(round)))
+      ? rounds.map((round) =>
+          round.id === roundDraft.id ? savedRound : mapRound(round),
+        )
       : [...rounds.map(mapRound), savedRound];
 
     saveStructureMutation.mutate(
@@ -344,16 +366,19 @@ export default function EventRoundsPage() {
           });
           setIsRoundDialogOpen(false);
         },
-      }
+      },
     );
   };
 
   const deleteRound = (round: OrganizerRound) => {
     const submissionCount = round._count?.submissions ?? 0;
     if (submissionCount > 0) {
-      enqueueSnackbar("This round cannot be deleted because it has submissions.", {
-        variant: "error",
-      });
+      enqueueSnackbar(
+        "This round cannot be deleted because it has submissions.",
+        {
+          variant: "error",
+        },
+      );
       return;
     }
     if (!window.confirm(`Delete round "${round.name}"?`)) return;
@@ -366,7 +391,7 @@ export default function EventRoundsPage() {
       {
         onSuccess: () =>
           enqueueSnackbar("Round deleted", { variant: "success" }),
-      }
+      },
     );
   };
 
@@ -380,7 +405,6 @@ export default function EventRoundsPage() {
       id: track.id,
       name: track.name,
       description: track.description || "",
-      maxMembersPerTeam: track.maxMembersPerTeam ?? 4,
     });
     setIsTrackDialogOpen(true);
   };
@@ -389,28 +413,16 @@ export default function EventRoundsPage() {
     if (!event) return;
 
     const normalizedName = trackDraft.name.trim();
-    const maxMembersPerTeam = optionalNumber(trackDraft.maxMembersPerTeam);
 
     if (!normalizedName) {
       enqueueSnackbar("Track name is required.", { variant: "warning" });
       return;
     }
     if (
-      maxMembersPerTeam === undefined ||
-      !Number.isInteger(maxMembersPerTeam) ||
-      maxMembersPerTeam < 3 ||
-      maxMembersPerTeam > 5
-    ) {
-      enqueueSnackbar("Team size must be between 3 and 5 members.", {
-        variant: "warning",
-      });
-      return;
-    }
-    if (
       tracks.some(
         (track) =>
           track.id !== trackDraft.id &&
-          track.name.trim().toLowerCase() === normalizedName.toLowerCase()
+          track.name.trim().toLowerCase() === normalizedName.toLowerCase(),
       )
     ) {
       enqueueSnackbar("Track name must be unique.", { variant: "warning" });
@@ -421,11 +433,12 @@ export default function EventRoundsPage() {
       id: trackDraft.id,
       name: normalizedName,
       description: trackDraft.description.trim() || undefined,
-      maxMembersPerTeam,
     };
 
     const nextTracks = trackDraft.id
-      ? tracks.map((track) => (track.id === trackDraft.id ? savedTrack : mapTrack(track)))
+      ? tracks.map((track) =>
+          track.id === trackDraft.id ? savedTrack : mapTrack(track),
+        )
       : [...tracks.map(mapTrack), savedTrack];
 
     saveStructureMutation.mutate(
@@ -440,7 +453,7 @@ export default function EventRoundsPage() {
           });
           setIsTrackDialogOpen(false);
         },
-      }
+      },
     );
   };
 
@@ -470,7 +483,7 @@ export default function EventRoundsPage() {
       {
         onSuccess: () =>
           enqueueSnackbar("Track deleted", { variant: "success" }),
-      }
+      },
     );
   };
 
@@ -495,8 +508,13 @@ export default function EventRoundsPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <div className="mb-2 flex gap-2">
-            <Badge variant="outline">{event.season} {event.year}</Badge>
-            <Badge variant={event.status === "draft" ? "warning" : "success"} className="capitalize">
+            <Badge variant="outline">
+              {event.season} {event.year}
+            </Badge>
+            <Badge
+              variant={event.status === "draft" ? "warning" : "success"}
+              className="capitalize"
+            >
               {event.status}
             </Badge>
           </div>
@@ -512,12 +530,20 @@ export default function EventRoundsPage() {
           title="Event Rounds"
           description={`${rounds.length} configured round${rounds.length === 1 ? "" : "s"}`}
           action={
-            <div title={!canModifyStructure ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open." : undefined}>
+            <div
+              title={
+                !canModifyStructure
+                  ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open."
+                  : undefined
+              }
+            >
               <Button
                 type="button"
                 size="sm"
                 className="gap-2 bg-blue-600 hover:bg-blue-700"
-                disabled={!canModifyStructure || saveStructureMutation.isPending}
+                disabled={
+                  !canModifyStructure || saveStructureMutation.isPending
+                }
                 onClick={openCreateRound}
               >
                 <Plus className="h-4 w-4" />
@@ -538,17 +564,24 @@ export default function EventRoundsPage() {
                   <th className="px-5 py-4 font-semibold">Submission</th>
                   <th className="px-5 py-4 font-semibold">Problem File</th>
                   <th className="px-5 py-4 font-semibold">Status</th>
-                  <th className="px-5 py-4 text-right font-semibold">Actions</th>
+                  <th className="px-5 py-4 text-right font-semibold">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {rounds.map((round) => {
-                  const isRoundNotStarted = (round.status || "not_started") === "not_started";
+                  const isRoundNotStarted =
+                    (round.status || "not_started") === "not_started";
                   return (
-                    <tr 
-                      key={round.id} 
+                    <tr
+                      key={round.id}
                       className="border-t border-border hover:bg-white/[0.02] cursor-pointer transition-colors"
-                      onClick={() => router.push(`/organizer/events/${eventId}/rounds/${round.id}/teams`)}
+                      onClick={() =>
+                        router.push(
+                          `/organizer/events/${eventId}/rounds/${round.id}/teams`,
+                        )
+                      }
                     >
                       <td className="px-5 py-4">
                         <div className="font-semibold">{round.name}</div>
@@ -576,12 +609,25 @@ export default function EventRoundsPage() {
                           Max {round.maxFileSizeMb ?? 20} MB
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-xs" onClick={(e) => e.stopPropagation()}>
+                      <td
+                        className="px-5 py-4 text-xs"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {round.problemFileUrl ? (
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" asChild className="h-8 gap-1.5 text-xs">
-                              <a href={round.problemFileUrl} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-3.5 w-3.5 text-orange-500" /> Topic File
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild
+                              className="h-8 gap-1.5 text-xs"
+                            >
+                              <a
+                                href={round.problemFileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 text-orange-500" />{" "}
+                                Topic File
                               </a>
                             </Button>
                             {isRoundNotStarted ? (
@@ -590,7 +636,9 @@ export default function EventRoundsPage() {
                                 size="icon-sm"
                                 title="Remove Problem File"
                                 disabled={uploadingRoundId === round.id}
-                                onClick={() => handleRemoveProblemFile(round.id)}
+                                onClick={() =>
+                                  handleRemoveProblemFile(round.id)
+                                }
                               >
                                 <Trash2 className="h-3.5 w-3.5 text-red-500" />
                               </Button>
@@ -603,36 +651,37 @@ export default function EventRoundsPage() {
                               </span>
                             )}
                           </div>
+                        ) : isRoundNotStarted ? (
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
+                            {uploadingRoundId === round.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />
+                            ) : (
+                              <Upload className="h-3.5 w-3.5 text-orange-500" />
+                            )}
+                            <span>Upload Topic</span>
+                            <input
+                              type="file"
+                              className="hidden"
+                              disabled={uploadingRoundId === round.id}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleProblemFileUpload(round.id, f);
+                              }}
+                            />
+                          </label>
                         ) : (
-                          isRoundNotStarted ? (
-                            <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
-                              {uploadingRoundId === round.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />
-                              ) : (
-                                <Upload className="h-3.5 w-3.5 text-orange-500" />
-                              )}
-                              <span>Upload Topic</span>
-                              <input
-                                type="file"
-                                className="hidden"
-                                disabled={uploadingRoundId === round.id}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (f) handleProblemFileUpload(round.id, f);
-                                }}
-                              />
-                            </label>
-                          ) : (
-                            <span
-                              title="Locked: Problem file can only be modified when round status is Not Started"
-                              className="text-xs text-muted-foreground italic cursor-help"
-                            >
-                              No File (Locked)
-                            </span>
-                          )
+                          <span
+                            title="Locked: Problem file can only be modified when round status is Not Started"
+                            className="text-xs text-muted-foreground italic cursor-help"
+                          >
+                            No File (Locked)
+                          </span>
                         )}
                       </td>
-                      <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
+                      <td
+                        className="px-5 py-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <select
                           value={round.status || "not_started"}
                           disabled={updateRoundStatusMutation.isPending}
@@ -647,20 +696,32 @@ export default function EventRoundsPage() {
                           <option value="not_started">Not Started</option>
                           <option value="open">Open</option>
                           <option value="closed">Closed</option>
-                          <option value="results_published">Results Published</option>
+                          <option value="results_published">
+                            Results Published
+                          </option>
                         </select>
                       </td>
-                      <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
-                        <div 
+                      <td
+                        className="px-5 py-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div
                           className="flex justify-end gap-2"
-                          title={!canModifyStructure ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open." : undefined}
+                          title={
+                            !canModifyStructure
+                              ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open."
+                              : undefined
+                          }
                         >
                           <Button
                             type="button"
                             variant="outline"
                             size="icon-sm"
                             title="Edit round"
-                            disabled={!canModifyStructure || saveStructureMutation.isPending}
+                            disabled={
+                              !canModifyStructure ||
+                              saveStructureMutation.isPending
+                            }
                             onClick={() => openEditRound(round)}
                           >
                             <Edit2 className="h-4 w-4" />
@@ -670,7 +731,10 @@ export default function EventRoundsPage() {
                             variant="ghost"
                             size="icon-sm"
                             title="Delete round"
-                            disabled={!canModifyStructure || saveStructureMutation.isPending}
+                            disabled={
+                              !canModifyStructure ||
+                              saveStructureMutation.isPending
+                            }
                             onClick={() => deleteRound(round)}
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
@@ -693,12 +757,20 @@ export default function EventRoundsPage() {
           title="Event Tracks"
           description={`${tracks.length} configured track${tracks.length === 1 ? "" : "s"}`}
           action={
-            <div title={!canModifyStructure ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open." : undefined}>
+            <div
+              title={
+                !canModifyStructure
+                  ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open."
+                  : undefined
+              }
+            >
               <Button
                 type="button"
                 size="sm"
                 className="gap-2 bg-orange-600 hover:bg-orange-700"
-                disabled={!canModifyStructure || saveStructureMutation.isPending}
+                disabled={
+                  !canModifyStructure || saveStructureMutation.isPending
+                }
                 onClick={openCreateTrack}
               >
                 <Plus className="h-4 w-4" />
@@ -722,16 +794,22 @@ export default function EventRoundsPage() {
                       {track.description || "No description provided."}
                     </p>
                   </div>
-                  <div 
+                  <div
                     className="flex shrink-0 gap-1"
-                    title={!canModifyStructure ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open." : undefined}
+                    title={
+                      !canModifyStructure
+                        ? "Tracks and rounds are read-only. They can only be changed while the event is draft and registration is still open."
+                        : undefined
+                    }
                   >
                     <Button
                       type="button"
                       variant="outline"
                       size="icon-sm"
                       title="Edit track"
-                      disabled={!canModifyStructure || saveStructureMutation.isPending}
+                      disabled={
+                        !canModifyStructure || saveStructureMutation.isPending
+                      }
                       onClick={() => openEditTrack(track)}
                     >
                       <Edit2 className="h-4 w-4" />
@@ -741,7 +819,9 @@ export default function EventRoundsPage() {
                       variant="ghost"
                       size="icon-sm"
                       title="Delete track"
-                      disabled={!canModifyStructure || saveStructureMutation.isPending}
+                      disabled={
+                        !canModifyStructure || saveStructureMutation.isPending
+                      }
                       onClick={() => deleteTrack(track)}
                     >
                       <Trash2 className="h-4 w-4 text-red-500" />
@@ -753,7 +833,7 @@ export default function EventRoundsPage() {
                   <TrackStat label="Teams" value={track._count?.teams ?? 0} />
                   <TrackStat
                     label="Team size"
-                    value={track.maxMembersPerTeam ?? 5}
+                    value={`${event.minMembersPerTeam}–${event.maxMembersPerTeam}`}
                   />
                 </div>
               </div>
@@ -830,7 +910,10 @@ function RoundDialog({
               value={draft.name}
               placeholder="Preliminary Round"
               onChange={(event) =>
-                setDraft((current) => ({ ...current, name: event.target.value }))
+                setDraft((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
               }
             />
           </Field>
@@ -879,8 +962,6 @@ function RoundDialog({
             />
           </Field>
 
-
-
           <label className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-4 text-sm md:col-span-2">
             <input
               type="checkbox"
@@ -896,14 +977,19 @@ function RoundDialog({
             <span>
               <strong>Track-specific round</strong>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Disable this option for a shared final round that applies to all tracks.
+                Disable this option for a shared final round that applies to all
+                tracks.
               </span>
             </span>
           </label>
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button type="button" disabled={isSaving} onClick={onSave}>
@@ -951,7 +1037,10 @@ function TrackDialog({
               value={draft.name}
               placeholder="AI & Machine Learning"
               onChange={(event) =>
-                setDraft((current) => ({ ...current, name: event.target.value }))
+                setDraft((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
               }
             />
           </Field>
@@ -969,27 +1058,14 @@ function TrackDialog({
               }
             />
           </Field>
-
-          <div>
-            <Field label="Max members (3–5) *">
-              <Input
-                type="number"
-                min={3}
-                max={5}
-                value={draft.maxMembersPerTeam}
-                onChange={(event) =>
-                  setDraft((current) => ({
-                    ...current,
-                    maxMembersPerTeam: event.target.value,
-                  }))
-                }
-              />
-            </Field>
-          </div>
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
             Cancel
           </Button>
           <Button type="button" disabled={isSaving} onClick={onSave}>
@@ -1045,7 +1121,13 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function TrackStat({ label, value }: { label: string; value: string | number }) {
+function TrackStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
   return (
     <div className="rounded-xl bg-muted/40 px-3 py-2">
       <div className="text-base font-bold">{value}</div>
