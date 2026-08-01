@@ -17,8 +17,10 @@ import {
   ArrowRight,
   Award,
   BellRing,
+  Building2,
   Calendar,
   ChevronDown,
+  CircleHelp,
   Clock,
   ExternalLink,
   FileText,
@@ -494,10 +496,12 @@ function SupportLocationSection({
   location,
   contacts,
   mentorNote,
+  hasFaq,
 }: {
   location: ApiLocation | null;
   contacts: ApiContact[];
   mentorNote?: string | null;
+  hasFaq: boolean;
 }) {
   if (!location && contacts.length === 0 && !mentorNote) return null;
   const venueName = location?.venueName || location?.name;
@@ -511,56 +515,85 @@ function SupportLocationSection({
 
   return (
     <section className="mb-12">
-      <div className="rounded-3xl border border-white/10 bg-card/70 p-6 shadow-lg shadow-black/10 md:p-8">
+      <div className="rounded-3xl border border-border bg-card/70 p-6 shadow-lg shadow-black/10 md:p-8">
         <SectionHeader
           eyebrow="Help Desk"
           title="Event Support & Location"
-          subtitle="Know where the event happens and who to contact when you need help."
+          subtitle="Access venue details and connect with event support contacts before and during the competition."
         />
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid items-stretch gap-6 lg:grid-cols-[0.85fr_1.15fr]">
           {location ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-2xl border border-orange-500/20 bg-orange-500/10 text-orange-400">
+            <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card/80">
+              <header className="flex items-center gap-4 border-b border-border px-5 py-5 sm:px-6">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-orange-500/10 text-orange-400">
                   <MapPin className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">
-                    Location / Venue
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-foreground">
+                    Venue Details
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Hybrid-ready event information
+                    {location.type
+                      ? `${location.type.charAt(0).toUpperCase()}${location.type.slice(1)} event location`
+                      : "Event location information"}
                   </p>
                 </div>
-              </div>
+              </header>
 
-              <div className="space-y-4 text-sm">
+              <div className="flex flex-1 flex-col p-5 sm:p-6">
                 {hasVenueInfo ? (
-                  <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+                  <dl className="space-y-5">
                     {venueName ? (
-                      <p className="font-semibold text-foreground">
-                        {venueName}
-                      </p>
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-orange-400">
+                          <Building2 className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-400">
+                            Venue
+                          </dt>
+                          <dd className="mt-1 font-semibold leading-6 text-foreground">
+                            {venueName}
+                          </dd>
+                        </div>
+                      </div>
                     ) : null}
                     {room ? (
-                      <p className="mt-1 text-muted-foreground">{room}</p>
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-orange-400">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-400">
+                            Room / Hall
+                          </dt>
+                          <dd className="mt-1 font-semibold leading-6 text-foreground">
+                            {room}
+                          </dd>
+                        </div>
+                      </div>
                     ) : null}
                     {location.address ? (
-                      <p className="mt-1 text-muted-foreground">
-                        {location.address}
-                      </p>
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-muted text-orange-400">
+                          <MapPin className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-orange-400">
+                            Address
+                          </dt>
+                          <dd className="mt-1 leading-6 text-muted-foreground">
+                            {location.address}
+                          </dd>
+                        </div>
+                      </div>
                     ) : null}
-                    {location.note ? (
-                      <p className="mt-2 text-muted-foreground">
-                        {location.note}
-                      </p>
-                    ) : null}
-                  </div>
+                  </dl>
                 ) : null}
 
                 {hasOnlineInfo ? (
-                  <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+                  <div className="mt-5 rounded-xl border border-border bg-muted/30 p-4 text-sm">
                     <div className="mb-2 flex items-center gap-2 font-semibold text-foreground">
                       <Video className="h-4 w-4 text-orange-400" />
                       Online Event Access
@@ -581,53 +614,99 @@ function SupportLocationSection({
                   </div>
                 ) : null}
 
-                {mapUrl ? (
-                  <Button
-                    asChild
-                    variant="outline"
-                    size="sm"
-                    className="rounded-full border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
-                  >
-                    <a href={mapUrl} target="_blank" rel="noreferrer">
-                      View Map
-                    </a>
-                  </Button>
+                {location.note ? (
+                  <div className="mt-5 border-l-4 border-orange-400 bg-orange-500/5 px-4 py-3 text-sm leading-6 text-muted-foreground">
+                    {location.note}
+                  </div>
                 ) : null}
-              </div>
-            </div>
-          ) : null}
 
-          {contacts.length > 0 || mentorNote ? (
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <div className="mb-5 flex items-center gap-3">
-                <div className="grid h-10 w-10 place-items-center rounded-2xl border border-orange-500/20 bg-orange-500/10 text-orange-400">
-                  <Headphones className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">
-                    Contact Support
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Organizer, technical, and mentor channels
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {contacts.map((contact, index) => (
-                  <ContactRow
-                    key={`${contact.email || contact.phone || contact.name || contact.title}-${index}`}
-                    contact={contact}
-                  />
-                ))}
-
-                {mentorNote ? (
-                  <div className="rounded-2xl border border-orange-500/20 bg-orange-500/10 p-4 text-sm text-orange-100">
-                    {mentorNote}
+                {mapUrl ? (
+                  <div className="mt-auto pt-8">
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
+                    >
+                      <a href={mapUrl} target="_blank" rel="noreferrer">
+                        View Venue Map
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </a>
+                    </Button>
                   </div>
                 ) : null}
               </div>
-            </div>
+            </article>
+          ) : null}
+
+          {contacts.length > 0 || mentorNote ? (
+            <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card/80">
+              <header className="flex items-center gap-4 border-b border-border px-5 py-5 sm:px-6">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-orange-500/10 text-orange-400">
+                  <Headphones className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-foreground">
+                    Contact Support
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Dedicated organizer and technical assistance
+                  </p>
+                </div>
+              </header>
+
+              <div className="flex flex-1 flex-col p-5 sm:p-6">
+                {contacts.length > 0 ? (
+                  <div className="grid items-stretch gap-4 sm:grid-cols-2">
+                    {contacts.map((contact, index) => (
+                      <ContactRow
+                        key={`${contact.email || contact.phone || contact.name || contact.title}-${index}`}
+                        contact={contact}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+
+                {mentorNote ? (
+                  <div className="mt-4 rounded-xl border border-orange-500/20 bg-orange-500/10 p-4 text-sm leading-6 text-foreground">
+                    {mentorNote}
+                  </div>
+                ) : null}
+
+                {hasFaq ? (
+                  <div className="mt-auto pt-6">
+                    <div className="flex flex-col gap-5 rounded-xl border border-border bg-background/70 p-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <CircleHelp className="mt-0.5 h-6 w-6 shrink-0 text-orange-400" />
+                        <div>
+                          <p className="font-semibold text-foreground">
+                            Need immediate help?
+                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Check the frequently asked questions first.
+                          </p>
+                        </div>
+                      </div>
+                      <Button asChild variant="secondary" className="shrink-0">
+                        <a
+                          href="#event-faq"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            document
+                              .getElementById("event-faq")
+                              ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                              });
+                          }}
+                        >
+                          View FAQ
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </article>
           ) : null}
         </div>
       </div>
@@ -643,18 +722,21 @@ function ContactRow({ contact }: { contact: ApiContact }) {
     .join(" · ");
 
   return (
-    <div className="rounded-2xl border border-border/70 bg-muted/25 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <article className="flex h-full flex-col rounded-xl border border-border bg-muted/25 p-5">
+      <div className="mb-5 flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {label}
         </p>
+        <Headphones className="h-4 w-4 text-orange-400/70" />
       </div>
 
       {title ? (
-        <p className="mb-3 text-sm font-semibold text-foreground">{title}</p>
+        <p className="mb-5 text-base font-semibold leading-6 text-foreground">
+          {title}
+        </p>
       ) : null}
 
-      <div className="grid gap-2 text-sm">
+      <div className="mt-auto grid gap-3 text-sm">
         {contact.email ? (
           <a
             href={`mailto:${contact.email}`}
@@ -682,7 +764,7 @@ function ContactRow({ contact }: { contact: ApiContact }) {
           </p>
         ) : null}
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -690,7 +772,7 @@ function FAQSection({ items }: { items: FAQItem[] }) {
   if (!items.length) return null;
 
   return (
-    <section className="mb-4">
+    <section id="event-faq" className="mb-4 scroll-mt-24">
       <SectionHeader
         eyebrow="FAQ"
         title="Frequently Asked Questions"
@@ -1511,7 +1593,7 @@ export default function EventDetailPage() {
             {event.tracks?.map((track) => (
               <div
                 key={track.id}
-                className="bg-card border border-border rounded-2xl p-6 hover:border-orange-500/30 transition-colors"
+                className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-orange-500/30"
               >
                 <h3 className="text-xl font-bold text-foreground mb-3">
                   {track.name}
@@ -1519,7 +1601,7 @@ export default function EventDetailPage() {
                 <p className="text-muted-foreground mb-4 text-sm leading-relaxed">
                   {track.description}
                 </p>
-                <div className="flex justify-between items-center text-sm font-medium bg-muted/50 p-3 rounded-lg border border-border/50">
+                <div className="mt-auto flex items-center justify-between rounded-lg border border-border/50 bg-muted/50 p-3 text-sm font-medium">
                   <span className="text-muted-foreground">Team Size:</span>
                   <span className="text-foreground">
                     {event.minMembersPerTeam ?? 1}–
@@ -1571,6 +1653,7 @@ export default function EventDetailPage() {
           location={publicEventLocation}
           contacts={eventContacts}
           mentorNote={mentorSupportNote}
+          hasFaq={eventFaqItems.length > 0}
         />
         <FAQSection items={eventFaqItems} />
       </main>

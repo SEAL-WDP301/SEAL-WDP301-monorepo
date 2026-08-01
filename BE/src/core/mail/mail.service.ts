@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { MailerService } from "@nestjs-modules/mailer";
-
+  
 function escapeHtml(value: string) {
   return value.replace(
     /[&<>"']/g,

@@ -16,14 +16,15 @@ import { SubmissionContentCard } from "./components/submission-content-card";
 import { CriteriaScoring } from "./components/criteria-score";
 import { ScoreSummary } from "./components/score-summary";
 import { GlassCard } from "@/components/ui/glass-card";
-import {
-  judgeApi,
-  type JudgeRubric,
-} from "@/lib/api/judge.api";
+import { judgeApi, type JudgeRubric } from "@/lib/api/judge.api";
 
 function buildScoreState(
   rubrics: JudgeRubric[],
-  myScores: Array<{ criterionId: number; scoreValue: number | string; comment?: string | null }>,
+  myScores: Array<{
+    criterionId: number;
+    scoreValue: number | string;
+    comment?: string | null;
+  }>,
 ) {
   const scores: Record<number, number> = {};
   const comments: Record<number, string> = {};
@@ -55,7 +56,9 @@ export default function EvaluationPage() {
   }, []);
 
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedSubmissionId, setSelectedSubmissionId] = useState<number | null>(null);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<
+    number | null
+  >(null);
   const [scores, setScores] = useState<Record<number, number>>({});
   const [comments, setComments] = useState<Record<number, string>>({});
 
@@ -70,7 +73,10 @@ export default function EvaluationPage() {
   const selectedEvent = useMemo(() => {
     if (!assignedEvents.length) return null;
     if (eventIdParam) {
-      return assignedEvents.find((e) => e.id === Number(eventIdParam)) ?? assignedEvents[0];
+      return (
+        assignedEvents.find((e) => e.id === Number(eventIdParam)) ??
+        assignedEvents[0]
+      );
     }
     return assignedEvents[0];
   }, [assignedEvents, eventIdParam]);
@@ -97,7 +103,10 @@ export default function EvaluationPage() {
   useEffect(() => {
     if (!selectedEvent || !selectedRoundId) return;
     if (typeof window !== "undefined") {
-      sessionStorage.setItem(`judge_round_${selectedEvent.id}`, String(selectedRoundId));
+      sessionStorage.setItem(
+        `judge_round_${selectedEvent.id}`,
+        String(selectedRoundId),
+      );
     }
     if (
       eventIdParam === String(selectedEvent.id) &&
@@ -107,17 +116,18 @@ export default function EvaluationPage() {
     }
     const urlParams = new URLSearchParams();
     urlParams.set("roundId", String(selectedRoundId));
-    router.replace(`/judge/events/${selectedEvent.id}/evalution?${urlParams.toString()}`, { scroll: false });
+    router.replace(
+      `/judge/events/${selectedEvent.id}/evalution?${urlParams.toString()}`,
+      { scroll: false },
+    );
   }, [selectedEvent, selectedRoundId, eventIdParam, roundIdParam, router]);
 
-  const {
-    data: roundSubmissions = [],
-    isLoading: submissionsLoading,
-  } = useQuery({
-    queryKey: ["judge", "round-submissions", selectedRoundId],
-    queryFn: () => judgeApi.getRoundSubmissions(selectedRoundId!),
-    enabled: !!selectedRoundId,
-  });
+  const { data: roundSubmissions = [], isLoading: submissionsLoading } =
+    useQuery({
+      queryKey: ["judge", "round-submissions", selectedRoundId],
+      queryFn: () => judgeApi.getRoundSubmissions(selectedRoundId!),
+      enabled: !!selectedRoundId,
+    });
 
   useEffect(() => {
     if (!roundSubmissions.length) {
@@ -128,14 +138,13 @@ export default function EvaluationPage() {
       (s) => (s.submissionId ?? s.id) === selectedSubmissionId,
     );
     if (!selectedSubmissionId || !exists) {
-      setSelectedSubmissionId(roundSubmissions[0].submissionId ?? roundSubmissions[0].id);
+      setSelectedSubmissionId(
+        roundSubmissions[0].submissionId ?? roundSubmissions[0].id,
+      );
     }
   }, [roundSubmissions, selectedSubmissionId]);
 
-  const {
-    data: submissionDetail,
-    isLoading: detailLoading,
-  } = useQuery({
+  const { data: submissionDetail, isLoading: detailLoading } = useQuery({
     queryKey: ["judge", "submission", selectedSubmissionId],
     queryFn: () => judgeApi.getSubmissionDetail(selectedSubmissionId!),
     enabled: !!selectedSubmissionId,
@@ -143,8 +152,11 @@ export default function EvaluationPage() {
 
   useEffect(() => {
     if (!submissionDetail) return;
-    const next = buildScoreState(submissionDetail.rubrics, submissionDetail.myScores);
-    
+    const next = buildScoreState(
+      submissionDetail.rubrics,
+      submissionDetail.myScores,
+    );
+
     if (selectedSubmissionId) {
       try {
         const draftKey = `judge_draft_${selectedSubmissionId}`;
@@ -198,13 +210,17 @@ export default function EvaluationPage() {
         localStorage.removeItem(`judge_draft_${selectedSubmissionId}`);
       }
       enqueueSnackbar("Scores submitted successfully", { variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["judge", "submission", selectedSubmissionId] });
-      queryClient.invalidateQueries({ queryKey: ["judge", "round-submissions", selectedRoundId] });
+      queryClient.invalidateQueries({
+        queryKey: ["judge", "submission", selectedSubmissionId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["judge", "round-submissions", selectedRoundId],
+      });
     },
     onError: (error: unknown) => {
       const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        "Failed to save scores";
+        (error as { response?: { data?: { message?: string } } })?.response
+          ?.data?.message || "Failed to save scores";
       enqueueSnackbar(message, { variant: "error" });
     },
   });
@@ -214,7 +230,9 @@ export default function EvaluationPage() {
       if (!selectedEvent) return;
       const urlParams = new URLSearchParams();
       urlParams.set("roundId", String(roundId));
-      router.replace(`/judge/events/${selectedEvent.id}/evalution?${urlParams.toString()}`);
+      router.replace(
+        `/judge/events/${selectedEvent.id}/evalution?${urlParams.toString()}`,
+      );
       setSelectedSubmissionId(null);
     },
     [router, selectedEvent],
@@ -257,26 +275,47 @@ export default function EvaluationPage() {
             Evaluation
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{selectedEvent?.name}</span>
+            <span className="font-medium text-foreground">
+              {selectedEvent?.name}
+            </span>
             <span>—</span>
             {selectedRound && (
               <>
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                  roundStatus === "open"
-                    ? "bg-blue-500/10 text-blue-500"
-                    : roundStatus === "results_published"
-                    ? "bg-purple-500/10 text-purple-500"
-                    : (roundStatus === "closed" || roundStatus === "judging")
-                    ? "bg-orange-500/10 text-orange-500"
-                    : "bg-muted text-muted-foreground"
-                }`}>
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    roundStatus === "open"
+                      ? "bg-blue-500/10 text-blue-500"
+                      : roundStatus === "results_published"
+                        ? "bg-purple-500/10 text-purple-500"
+                        : roundStatus === "closed" || roundStatus === "judging"
+                          ? "bg-orange-500/10 text-orange-500"
+                          : "bg-muted text-muted-foreground"
+                  }`}
+                >
                   {roundStatus?.replace("_", " ") || "unknown"}
                 </span>
-                
+
                 {submissionDeadline && (
                   <span className="flex items-center gap-1.5 opacity-80">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    Deadline: {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(submissionDeadline))}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    Deadline:{" "}
+                    {new Intl.DateTimeFormat("en", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(submissionDeadline))}
                   </span>
                 )}
               </>
@@ -287,14 +326,15 @@ export default function EvaluationPage() {
           </p>
         </div>
 
-        {topbarElement && createPortal(
-          <RoundTabs
-            rounds={eventRounds}
-            selectedRoundId={selectedRoundId}
-            onSelectRound={handleSelectRound}
-          />,
-          topbarElement
-        )}
+        {topbarElement &&
+          createPortal(
+            <RoundTabs
+              rounds={eventRounds}
+              selectedRoundId={selectedRoundId}
+              onSelectRound={handleSelectRound}
+            />,
+            topbarElement,
+          )}
       </div>
 
       <TeamSelectorBar
@@ -342,17 +382,27 @@ export default function EvaluationPage() {
               <div className="mt-8 space-y-8">
                 <SubmissionContentCard detail={submissionDetail} />
                 <div className="mt-8">
-                  <h2 className="mb-6 text-3xl font-bold">Rubric Evaluation</h2>
-                  
+                  <h2
+                    data-scroll-float="false"
+                    className="mb-6 text-3xl font-bold"
+                  >
+                    Rubric Evaluation
+                  </h2>
+
                   {scoringLocked && (
                     <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-500">
                       <AlertCircle className="h-5 w-5 shrink-0" />
                       <div>
-                        <h4 className="font-semibold text-sm">Scoring is currently locked</h4>
+                        <h4 className="font-semibold text-sm">
+                          Scoring is currently locked
+                        </h4>
                         <p className="mt-1 text-xs opacity-90">
-                          {roundStatus === "not_started" && "The round has not started yet."}
-                          {roundStatus === "results_published" && "Results for this round have been published. Scores cannot be changed."}
-                          {roundStatus === "open" && "Submissions are still open. Judges can only score when the deadline has passed or the round is Closed/Judging."}
+                          {roundStatus === "not_started" &&
+                            "The round has not started yet."}
+                          {roundStatus === "results_published" &&
+                            "Results for this round have been published. Scores cannot be changed."}
+                          {roundStatus === "open" &&
+                            "Submissions are still open. Judges can only score when the deadline has passed or the round is Closed/Judging."}
                         </p>
                       </div>
                     </div>
