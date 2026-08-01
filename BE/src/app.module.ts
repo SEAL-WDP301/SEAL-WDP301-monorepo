@@ -8,6 +8,7 @@ import databaseConfig from "./config/database.config";
 import jwtConfig from "./config/jwt.config";
 import redisConfig from "./config/redis.config";
 import githubConfig from "./config/github.config";
+import aiConfig from "./config/ai.config";
 
 // Logger config
 import { createWinstonConfig } from "./logger/winston.config";
@@ -46,13 +47,21 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { BullModule } from "@nestjs/bullmq";
 import { RoundModule } from "./modules/round/round.module";
 import { DevE2eModule } from "./modules/dev-e2e/dev-e2e.module";
+import { AssistantModule } from "./modules/assistant/assistant.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [`.env.${process.env.NODE_ENV || "development"}`, ".env"],
-      load: [appConfig, databaseConfig, jwtConfig, redisConfig, githubConfig],
+      load: [
+        appConfig,
+        databaseConfig,
+        jwtConfig,
+        redisConfig,
+        githubConfig,
+        aiConfig,
+      ],
       cache: true,
     }),
 
@@ -96,6 +105,7 @@ import { DevE2eModule } from "./modules/dev-e2e/dev-e2e.module";
     GithubModule,
     IntegrationModule,
     DevE2eModule,
+    AssistantModule,
   ],
 })
 export class AppModule implements NestModule {

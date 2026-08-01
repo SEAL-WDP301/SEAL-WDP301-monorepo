@@ -2,9 +2,6 @@ import {
   Controller,
   Get,
   Post,
-  Put,
-  Delete,
-  Body,
   Param,
   ParseIntPipe,
   UseGuards,
@@ -17,6 +14,7 @@ import { Role } from "../../../common/enums/role.enum";
 import { RolesGuard } from "../../../common/guards/roles.guard";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { AssignmentMentorService } from "../services/assignment.mentor.service";
+import { MentorAiService } from "../services/mentor.ai.service";
 
 @ApiTags("Mentor")
 @ApiBearerAuth()
@@ -26,6 +24,7 @@ import { AssignmentMentorService } from "../services/assignment.mentor.service";
 export class AssignmentMentorController {
   constructor(
     private readonly assignmentMentorService: AssignmentMentorService,
+    private readonly mentorAiService: MentorAiService,
   ) {}
 
   @Get("teams")
@@ -97,6 +96,36 @@ export class AssignmentMentorController {
         mentorId,
         submissionId,
       ),
+    };
+  }
+
+  @Post("events/:eventId/ai-overview")
+  @ApiOperation({
+    summary:
+      "AI triage overview of all assigned teams in an event (priority + focus)",
+  })
+  async aiOverview(
+    @CurrentUser("id") mentorId: number,
+    @Param("eventId", ParseIntPipe) eventId: number,
+  ) {
+    return {
+      message: "Mentor AI overview generated",
+      data: await this.mentorAiService.portfolioOverview(mentorId, eventId),
+    };
+  }
+
+  @Post("submissions/:submissionId/ai-draft")
+  @ApiOperation({
+    summary:
+      "AI mentoring draft for one submission (overview + questions + feedback text)",
+  })
+  async aiDraft(
+    @CurrentUser("id") mentorId: number,
+    @Param("submissionId", ParseIntPipe) submissionId: number,
+  ) {
+    return {
+      message: "Mentor AI draft generated",
+      data: await this.mentorAiService.draftFeedback(mentorId, submissionId),
     };
   }
 }

@@ -3,16 +3,22 @@
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
+import { enqueueSnackbar } from "notistack";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Input } from "@/components/ui/input";
-import { getMentorTeams } from "@/lib/api/mentor.api";
+import {
+  generateMentorAiOverview,
+  getMentorTeams,
+  type MentorAiOverviewResult,
+} from "@/lib/api/mentor.api";
 import { MentorPageHeader } from "@/app/mentor/_components/mentor-page-header";
 import { MentorEmptyState, MentorErrorState, MentorLoadingState } from "@/app/mentor/_components/mentor-query-state";
+import { AiMentorOverviewPanel } from "../components/ai-mentor-overview-panel";
 
 function initials(name: string) {
   return name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -20,10 +26,12 @@ function initials(name: string) {
 
 export default function MentorTeamsPage() {
   const params = useParams();
+  const eventId = params.eventId as string;
   const [search, setSearch] = useState("");
+  const [aiOverview, setAiOverview] = useState<MentorAiOverviewResult | null>(null);
   const query = useQuery({ 
-    queryKey: ["mentorTeams", params.eventId], 
-    queryFn: () => getMentorTeams(params.eventId as string) 
+    queryKey: ["mentorTeams", eventId], 
+    queryFn: () => getMentorTeams(eventId) 
   });
   const teams = useMemo(() => query.data || [], [query.data]);
   const filteredTeams = useMemo(() => {
@@ -34,12 +42,34 @@ export default function MentorTeamsPage() {
     ) : teams;
   }, [search, teams]);
 
+  const overviewMutation = useMutation({
+    mutationFn: () => generateMentorAiOverview(eventId),
+    onSuccess: (data) => {
+      setAiOverview(data);
+      enqueueSnackbar("AI mentoring overview ready", { variant: "success" });
+    },
+    onError: (error: any) => {
+      enqueueSnackbar(
+        error?.response?.data?.message || "Failed to generate AI overview",
+        { variant: "error" },
+      );
+    },
+  });
+
   if (query.isLoading) return <MentorLoadingState />;
   if (query.isError) return <MentorErrorState />;
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6">
       <MentorPageHeader title="My Teams" subtitle="Teams currently assigned to your mentor account." />
+      {teams.length > 0 && (
+        <AiMentorOverviewPanel
+          eventId={eventId}
+          overview={aiOverview}
+          isLoading={overviewMutation.isPending}
+          onGenerate={() => overviewMutation.mutate()}
+        />
+      )}
       <GlassCard className="rounded-[22px] bg-card p-4">
         <div className="relative max-w-md">
           <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

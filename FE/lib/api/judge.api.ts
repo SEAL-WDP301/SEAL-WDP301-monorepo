@@ -53,14 +53,19 @@ export interface JudgeScoreEntry {
   criterion?: JudgeRubric;
 }
 
+export type JudgeSubmissionType = "file" | "github_link";
+
 export interface JudgeSubmissionDetail {
   id: number;
   status: string;
+  submissionType?: JudgeSubmissionType | null;
   fileUrl?: string | null;
   githubUrl?: string | null;
   description?: string | null;
   submittedAt?: string | null;
+  teamId?: number;
   team: {
+    id?: number;
     name: string;
     anonymousIndex?: number;
     track: { id: number; name: string };
@@ -70,6 +75,7 @@ export interface JudgeSubmissionDetail {
     name: string;
     roundNumber: number;
     status: string;
+    submissionType?: JudgeSubmissionType | null;
     submissionDeadline?: string | null;
     problemFileUrl?: string | null;
   };
@@ -79,6 +85,19 @@ export interface JudgeSubmissionDetail {
   scoringStatus: JudgeScoringStatus;
   weightedScore?: number | null;
   isVotedByMe?: boolean;
+}
+
+export interface AiScoreSuggestion {
+  criterionId: number;
+  scoreValue: number;
+  comment: string;
+}
+
+export interface AiSuggestScoresResult {
+  auditId: number;
+  suggestions: AiScoreSuggestion[];
+  source: JudgeSubmissionType;
+  contextSummary: string;
 }
 
 export interface SubmitJudgeScoresPayload {
@@ -125,6 +144,29 @@ export const judgeApi = {
       scoringStatus: JudgeScoringStatus;
       weightedScore: number | null;
     };
+  },
+
+  suggestScores: async (submissionId: number) => {
+    const response = await axiosClient.post(
+      `/judge/submissions/${submissionId}/ai-suggest`,
+      undefined,
+      { timeout: 90_000 },
+    );
+    return response.data?.data as AiSuggestScoresResult;
+  },
+
+  applyAiSuggestion: async (auditId: number) => {
+    const response = await axiosClient.post(
+      `/judge/ai-suggestions/${auditId}/apply`,
+    );
+    return response.data?.data;
+  },
+
+  discardAiSuggestion: async (auditId: number) => {
+    const response = await axiosClient.post(
+      `/judge/ai-suggestions/${auditId}/discard`,
+    );
+    return response.data?.data;
   },
 
   toggleVote: async (submissionId: number) => {

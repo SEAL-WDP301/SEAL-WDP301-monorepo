@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { SubmissionJudgeController } from "./controllers/submission.judge.controller";
 import { SubmissionJudgeService } from "./services/submission.judge.service";
+import { SubmissionAiService } from "./services/submission.ai.service";
 import { PrismaModule } from "../../database/prisma/prisma.module";
 import { SubmissionStudentController } from "./controllers/submission.student.controller";
 import { SubmissionStudentService } from "./services/submission.student.service";
@@ -23,7 +24,17 @@ import { BullModule } from "@nestjs/bullmq";
     }),
   ],
   controllers: [SubmissionJudgeController, SubmissionStudentController, SubmissionOrganizerController],
-  providers: [SubmissionJudgeService, SubmissionStudentService, SubmissionOrganizerService],
-  exports: [SubmissionJudgeService, SubmissionStudentService, SubmissionOrganizerService],
+  providers: [
+    SubmissionJudgeService,
+    SubmissionAiService,
+    SubmissionStudentService,
+    SubmissionOrganizerService,
+  ],
+  exports: [
+    SubmissionJudgeService,
+    SubmissionAiService,
+    SubmissionStudentService,
+    SubmissionOrganizerService,
+  ],
 })
 export class SubmissionModule {}
