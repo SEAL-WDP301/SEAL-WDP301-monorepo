@@ -1,7 +1,7 @@
 ---
 type: project
 created: 2026-07-18
-updated: 2026-07-18
+updated: 2026-08-01
 ---
 
 # Technical Decisions
@@ -14,3 +14,4 @@ updated: 2026-07-18
 - **Hybrid Real-Time Delivery:** SSE (`@Sse()` + `SseProvider`) for unidirectional streaming notifications combined with Socket.IO (`AdminRealtimeGateway`) for isolated room-based WebSocket interactions (`user-${userId}`).
 - **In-Place Cache Mutation:** Frontend uses `queryClient.setQueryData()` for 0ms instant countdown timer updates without triggering page reloads.
 - **Zero Hardcoded Endpoints:** 100% environment URLs extracted to `.env` (`FRONTEND_URL`, `NEXT_PUBLIC_API_BASE_URL`).
+- **Event Stakeholder Roles:** Judge and mentor are event-scoped capabilities of a stakeholder. Event judges may score every track, including teams they mentor; each team has exactly one mentor.
