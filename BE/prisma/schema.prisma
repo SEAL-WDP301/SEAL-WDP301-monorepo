@@ -119,6 +119,8 @@ model User {
   criteriaCreated              Criterion[]               @relation("CriterionCreatedBy")
   teamsLed                     Team[]                    @relation("TeamLeader")
   teamMemberships              TeamMember[]
+  teamInvitationsSent          TeamInvitation[]          @relation("TeamInvitationInvitedBy")
+  teamInvitationsAccepted      TeamInvitation[]          @relation("TeamInvitationAcceptedBy")
   registrations                StudentRegistration[]
   submissions                  Submission[]              @relation("SubmissionSubmittedBy")
   disqualifiedSubmissions      Submission[]              @relation("SubmissionDisqualifiedBy")
