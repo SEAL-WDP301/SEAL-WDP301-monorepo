@@ -9,9 +9,20 @@ import { StorageModule } from "../../core/storage/storage.module";
 import { GithubModule } from "../../core/github/github.module";
 import { TeamStudentController } from "./controllers/team.student.controller";
 import { TeamOrganizerController } from "./controllers/team.organizer.controller";
+import { TeamInvitationPublicController } from "./controllers/team-invitation.public.controller";
 @Module({
-  imports: [PrismaModule, MailModule, StorageModule, GithubModule, NotificationModule],
-  controllers: [TeamStudentController, TeamOrganizerController],
+  imports: [
+    PrismaModule,
+    MailModule,
+    StorageModule,
+    GithubModule,
+    NotificationModule,
+  ],
+  controllers: [
+    TeamStudentController,
+    TeamOrganizerController,
+    TeamInvitationPublicController,
+  ],
   providers: [TeamStudentService, TeamOrganizerService, TeamGithubService],
   exports: [TeamStudentService, TeamOrganizerService, TeamGithubService],
 })

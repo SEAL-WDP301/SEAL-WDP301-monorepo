@@ -33,10 +33,20 @@ export class RegistrationsOrganizerService {
   }
 
   private getMembership(registration: RegistrationRecord) {
-    return registration.user.teamMemberships.find(
-      (membership) =>
-        membership.team.eventId === registration.eventId &&
-        membership.status !== TeamMemberStatus.rejected,
+    const memberships = registration.user.teamMemberships
+      .filter(
+        (membership) =>
+          membership.team.eventId === registration.eventId &&
+          membership.status !== TeamMemberStatus.rejected,
+      )
+      .sort((a, b) => b.joinedAt.getTime() - a.joinedAt.getTime());
+
+    return (
+      memberships.find(
+        (membership) =>
+          membership.team.status !== TeamStatus.rejected &&
+          membership.team.status !== TeamStatus.disqualified,
+      ) ?? memberships[0]
     );
   }
 

@@ -3,21 +3,14 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   ParseIntPipe,
   UseGuards,
   Query,
-  UseInterceptors,
-  UploadedFile,
 } from "@nestjs/common";
-import { FileInterceptor } from "@nestjs/platform-express";
-import {
-  ApiTags,
-  ApiBearerAuth,
-  ApiOperation,
-  ApiConsumes,
-} from "@nestjs/swagger";
+import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
 import { RolesGuard } from "../../../common/guards/roles.guard";
 import { Roles } from "../../../common/decorators/roles.decorator";
 import { Role } from "../../../common/enums/role.enum";
@@ -138,6 +131,64 @@ export class TeamStudentController {
       false,
     );
     return { message: "Invitation rejected", data: updated };
+  }
+
+  @Post("invitation-tokens/:token/accept")
+  @ApiOperation({ summary: "Accept a team invitation using its email token" })
+  async acceptInvitationToken(
+    @Param("token") token: string,
+    @CurrentUser("id") userId: string,
+  ) {
+    const updated = await this.teamStudentService.respondToInvitationToken(
+      Number(userId),
+      token,
+      true,
+    );
+    return { message: "Invitation accepted", data: updated };
+  }
+
+  @Post("invitation-tokens/:token/reject")
+  @ApiOperation({ summary: "Reject a team invitation using its email token" })
+  async rejectInvitationToken(
+    @Param("token") token: string,
+    @CurrentUser("id") userId: string,
+  ) {
+    const updated = await this.teamStudentService.respondToInvitationToken(
+      Number(userId),
+      token,
+      false,
+    );
+    return { message: "Invitation rejected", data: updated };
+  }
+
+  @Post(":teamId/invitations/:invitationId/resend")
+  @ApiOperation({ summary: "Resend a pending team invitation email" })
+  async resendInvitation(
+    @Param("teamId", ParseIntPipe) teamId: number,
+    @Param("invitationId", ParseIntPipe) invitationId: number,
+    @CurrentUser("id") userId: string,
+  ) {
+    const invitation = await this.teamStudentService.resendInvitation(
+      Number(userId),
+      teamId,
+      invitationId,
+    );
+    return { message: "Invitation resent", data: invitation };
+  }
+
+  @Delete(":teamId/invitations/:invitationId")
+  @ApiOperation({ summary: "Cancel a pending team invitation" })
+  async cancelInvitation(
+    @Param("teamId", ParseIntPipe) teamId: number,
+    @Param("invitationId", ParseIntPipe) invitationId: number,
+    @CurrentUser("id") userId: string,
+  ) {
+    const invitation = await this.teamStudentService.cancelInvitation(
+      Number(userId),
+      teamId,
+      invitationId,
+    );
+    return { message: "Invitation cancelled", data: invitation };
   }
 
   @Get("my-team/workspace")

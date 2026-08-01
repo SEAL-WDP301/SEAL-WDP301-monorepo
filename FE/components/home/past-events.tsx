@@ -131,7 +131,7 @@ export default function PastEvents() {
                                         {event.description}
                                     </p>
 
-                                    <div className="mb-6 flex flex-wrap gap-2 text-xs font-medium text-muted-foreground">
+                                    <div className="mt-auto mb-6 flex flex-wrap gap-2 text-xs font-medium text-muted-foreground">
                                         <div className="flex items-center gap-2 rounded-lg border border-border px-2 py-2">
                                             <Calendar className="size-4 shrink-0 text-orange-500" />
                                             <span className="truncate">Reg: {event.registrationDeadline ? format(new Date(event.registrationDeadline), 'MMM dd, yyyy') : 'TBA'}</span>
@@ -149,7 +149,7 @@ export default function PastEvents() {
                                     />
 
                                     {/* Footer Card */}
-                                    <div className="mt-auto flex items-center justify-between border-t border-border pt-4">
+                                    <div className="flex items-center justify-between border-t border-border pt-4">
                                         <span className={`text-sm font-medium flex items-center gap-1.5 ${
                                             event.status === 'active' ? 'text-blue-500' :
                                             event.status === 'ongoing' ? 'text-yellow-500' :

@@ -13,13 +13,19 @@ import { axiosClient } from "@/lib/axios";
 import { enqueueSnackbar } from "notistack";
 import { getOAuthUrl } from "@/lib/auth-oauth";
 
-export function RegisterForm() {
+export function RegisterForm({
+  initialEmail = "",
+  redirectPath = "",
+}: {
+  initialEmail?: string;
+  redirectPath?: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: "",
-    email: "",
+    email: initialEmail,
     password: "",
     confirmPassword: "",
   });
@@ -45,7 +51,11 @@ export function RegisterForm() {
       });
 
       enqueueSnackbar(res.data?.message || "Đăng ký thành công!", { variant: "success" });
-      router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
+      const params = new URLSearchParams({ email: formData.email });
+      if (redirectPath.startsWith("/") && !redirectPath.startsWith("//")) {
+        params.set("redirect", redirectPath);
+      }
+      router.push(`/verify-email?${params.toString()}`);
     } catch (error: unknown) {
       const errMessage = isAxiosError<{ message?: string | string[] }>(error)
         ? error.response?.data?.message
@@ -88,6 +98,7 @@ export function RegisterForm() {
               autoComplete="email"
               value={formData.email}
               onChange={handleChange}
+              readOnly={Boolean(initialEmail)}
               required
             />
             <AuthField

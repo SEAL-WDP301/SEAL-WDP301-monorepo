@@ -1,5 +1,6 @@
 import { IsInt, IsString, IsArray, IsEmail } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
+import { Transform } from "class-transformer";
 
 export class RegisterTeamDto {
   @ApiProperty()
@@ -12,6 +13,13 @@ export class RegisterTeamDto {
 
   @ApiProperty({ type: [String] })
   @IsArray()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value.map((email) =>
+          typeof email === "string" ? email.trim().toLowerCase() : email,
+        )
+      : value,
+  )
   @IsEmail({}, { each: true })
   memberEmails: string[];
 }
