@@ -85,6 +85,7 @@ export class GithubWebhookService {
       orderBy: { name: 'asc' },
     });
 
+    // Cap + omit heavy `files` JSON on the main load — was 1–4s+ on DO.
     const commits = await this.prisma.githubCommit.findMany({
       where: { team: { eventId } },
       select: {
@@ -100,9 +101,20 @@ export class GithubWebhookService {
         additions: true,
         deletions: true,
         changedFiles: true,
+      },
+      orderBy: { timestamp: 'desc' },
+      take: 1500,
+    });
+
+    // Small recent sample with file blobs for top-files / status charts only.
+    const commitsWithFiles = await this.prisma.githubCommit.findMany({
+      where: { team: { eventId } },
+      select: {
+        teamId: true,
         files: true,
       },
       orderBy: { timestamp: 'desc' },
+      take: 250,
     });
 
     const byTeam = new Map<number, typeof commits>();
@@ -111,11 +123,19 @@ export class GithubWebhookService {
       list.push(c);
       byTeam.set(c.teamId, list);
     }
+    const filesByTeam = new Map<number, typeof commitsWithFiles>();
+    for (const c of commitsWithFiles) {
+      const list = filesByTeam.get(c.teamId) || [];
+      list.push(c);
+      filesByTeam.set(c.teamId, list);
+    }
 
     const teamRows = teams.map((team) => {
       const teamCommits = byTeam.get(team.id) || [];
       const summary = this.buildCommitSummary(teamCommits);
-      const fileStats = this.buildFileStatusStats(teamCommits);
+      const fileStats = this.buildFileStatusStats(
+        filesByTeam.get(team.id) || [],
+      );
       const last = teamCommits[0] || null;
       const authors = new Set(
         teamCommits.map(
@@ -165,9 +185,9 @@ export class GithubWebhookService {
         a.teamName.localeCompare(b.teamName),
     );
 
-    const eventFileStats = this.buildFileStatusStats(commits);
+    const eventFileStats = this.buildFileStatusStats(commitsWithFiles);
     const uniqueFilesEvent = new Set<string>();
-    for (const c of commits) {
+    for (const c of commitsWithFiles) {
       if (!Array.isArray(c.files)) continue;
       for (const f of c.files as Array<{ filename?: string } | string>) {
         const name = typeof f === 'string' ? f : f?.filename;
@@ -196,7 +216,7 @@ export class GithubWebhookService {
       ).size,
     };
 
-    const topFiles = this.buildTopFiles(commits, 12);
+    const topFiles = this.buildTopFiles(commitsWithFiles, 12);
 
     const commitsByTeam = teamRows.map((t) => ({
       teamId: t.teamId,

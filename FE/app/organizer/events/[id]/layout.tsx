@@ -50,13 +50,15 @@ export default function EventDashboardLayout({
   const currentTab = currentTabMatch ? currentTabMatch[1] : "teams";
 
   const { data: teams } = useQuery({
-    queryKey: ["organizerTeams", eventId],
+    queryKey: ["organizerTeams", eventId, "sidebar-badge"],
     queryFn: async () => {
       const res = await axiosClient.get(`/organizer/teams/events/${eventId}`, {
-        params: { status: "approved", limit: 1000 },
+        // Sidebar only needs unread badges — avoid pulling 1000 deep team graphs
+        params: { status: "approved", limit: 100 },
       });
       return res.data.data;
     },
+    staleTime: 60_000,
   });
 
   const unreadTeamsCount = teams?.reduce((acc: number, team: any) => acc + (team.unreadCount > 0 ? 1 : 0), 0) || 0;
