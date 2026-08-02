@@ -4,16 +4,14 @@ import { SnackbarProvider as NotistackProvider } from "notistack";
 
 export function SnackbarProvider({ children }: { children: React.ReactNode }) {
   return (
-    <NotistackProvider 
-      maxSnack={3} 
-      anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      style={{ 
-        backgroundColor: "var(--foreground)", 
-        color: "var(--background)", 
-        border: "1px solid var(--border)",
-        borderRadius: "12px",
+    <NotistackProvider
+      maxSnack={4}
+      anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      className="!mt-14"
+      style={{
+        borderRadius: "16px",
         fontFamily: "var(--font-inter)",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2), 0 8px 10px -6px rgba(0,0,0,0.1)",
       }}
     >
       {children}

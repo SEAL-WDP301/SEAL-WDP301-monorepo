@@ -7,6 +7,7 @@ import { enqueueSnackbar } from "notistack";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { axiosClient } from "@/lib/axios";
+import { Bell } from "lucide-react";
 
 const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
@@ -18,17 +19,18 @@ export function SseProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [tokenVersion, setTokenVersion] = useState(0);
 
+  // Reactively subscribe to accessToken from Zustand store
+  const token = useAuthStore((state) => state.accessToken);
+
   useEffect(() => {
-    const handleTokenRefreshed = () => setTokenVersion(v => v + 1);
-    window.addEventListener('token-refreshed', handleTokenRefreshed);
-    return () => window.removeEventListener('token-refreshed', handleTokenRefreshed);
+    const handleTokenRefreshed = () => setTokenVersion((v) => v + 1);
+    window.addEventListener("token-refreshed", handleTokenRefreshed);
+    return () => window.removeEventListener("token-refreshed", handleTokenRefreshed);
   }, []);
 
   useEffect(() => {
     // Only connect if we have a token and are not on an auth page
-    const token = useAuthStore.getState().accessToken;
-    
-    if (!token || pathname.startsWith('/auth')) {
+    if (!token || pathname.startsWith("/auth") || pathname.startsWith("/login") || pathname.startsWith("/register")) {
       return;
     }
 
@@ -48,18 +50,15 @@ export function SseProvider({ children }: { children: React.ReactNode }) {
           },
           signal: ctrlRef.current?.signal,
           async onopen(response) {
-            if (response.ok && response.headers.get('content-type')?.includes('text/event-stream')) {
+            if (response.ok && response.headers.get("content-type")?.includes("text/event-stream")) {
               return; // everything's good
             } else if (response.status === 401) {
               // Trigger a token refresh via axios interceptor
-              axiosClient.get('/users/profile').catch(() => {});
-              // Stop this connection, wait for token-refreshed event to trigger a reconnect
+              axiosClient.get("/users/profile").catch(() => {});
               throw new FatalError("Unauthorized - token expired");
             } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-              // client-side errors are usually non-retriable:
               throw new FatalError(`SSE Connection failed with status: ${response.status}`);
             } else {
-              // fallback to let it retry or fail
               throw new Error("Unexpected response from SSE endpoint");
             }
           },
@@ -67,13 +66,28 @@ export function SseProvider({ children }: { children: React.ReactNode }) {
             try {
               if (!ev.data) return;
               const data = JSON.parse(ev.data);
-              
-              enqueueSnackbar(data.title || "You have a new notification!", {
-                variant: "info",
-                autoHideDuration: 5000,
-                key: data.id ? `notification-${data.id}` : undefined,
-                preventDuplicate: true,
-              });
+
+              // Render sleek Snackbar notification popup
+              enqueueSnackbar(
+                <div className="flex flex-col gap-1 max-w-sm">
+                  <div className="font-bold text-sm text-foreground flex items-center gap-2">
+                    <Bell className="size-4 text-orange-500 shrink-0 animate-bounce" />
+                    <span>{data.title || "New Notification"}</span>
+                  </div>
+                  {data.content && (
+                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                      {data.content}
+                    </p>
+                  )}
+                </div>,
+                {
+                  variant: "default",
+                  autoHideDuration: 6000,
+                  key: data.id ? `notification-${data.id}` : `notif-${Date.now()}`,
+                  preventDuplicate: true,
+                  anchorOrigin: { vertical: "top", horizontal: "right" },
+                },
+              );
 
               queryClient.invalidateQueries({ queryKey: ["userNotifications"] });
             } catch (e) {
@@ -82,13 +96,12 @@ export function SseProvider({ children }: { children: React.ReactNode }) {
           },
           onerror(err) {
             if (err instanceof FatalError) {
-              throw err; // Rethrow to stop retries entirely
+              throw err;
             }
-            // For other errors, do nothing to automatically retry
           },
           onclose() {
             // Connection closed by server
-          }
+          },
         });
       } catch {
         // Fatal error outside fetchEventSource
@@ -103,7 +116,7 @@ export function SseProvider({ children }: { children: React.ReactNode }) {
         ctrlRef.current = null;
       }
     };
-  }, [queryClient, pathname, tokenVersion]);
+  }, [token, queryClient, pathname, tokenVersion]);
 
   return <>{children}</>;
 }
