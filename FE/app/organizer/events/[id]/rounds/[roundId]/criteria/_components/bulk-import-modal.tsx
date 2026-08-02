@@ -24,6 +24,8 @@ interface ParsedRow {
   "Rubric Name"?: string;
   "Rubric Name*"?: string;
   Description?: string;
+  Share?: number | string;
+  "Share*"?: number | string;
   "Max Score"?: number | string;
   "Max Score*"?: number | string;
   Weight?: number | string;
