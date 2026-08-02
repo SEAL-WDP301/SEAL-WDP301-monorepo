@@ -192,6 +192,9 @@ model Event {
   maxTeams             Int?        @map("max_teams")
   minMembersPerTeam    Int         @default(1) @map("min_members_per_team")
   maxMembersPerTeam    Int         @default(4) @map("max_members_per_team")
+  /// When true: students register without choosing a track; tracks are
+  /// evenly random-assigned when the first round is opened (reveal).
+  deferredTrackAssignment Boolean  @default(false) @map("deferred_track_assignment")
   registrationDeadline DateTime?   @map("registration_deadline")
   startDate            DateTime?   @map("start_date")
   endDate              DateTime?   @map("end_date")
@@ -294,6 +297,7 @@ model Track {
   teams            Team[]
   registrations    StudentRegistration[]
   judgeAssignments JudgeAssignment[]
+  roundProblems    RoundTrackProblem[]
 
   @@map("tracks")
 }
@@ -319,9 +323,26 @@ model Round {
   submissions      Submission[]
   judgeAssignments JudgeAssignment[]
   teamRounds       TeamRound[]
+  trackProblems    RoundTrackProblem[]
 
   @@unique([eventId, roundNumber])
   @@map("rounds")
+}
+
+/// Per-track problem statement for a track-specific round (1 track = 1 đề).
+model RoundTrackProblem {
+  id             Int      @id @default(autoincrement())
+  roundId        Int      @map("round_id")
+  trackId        Int      @map("track_id")
+  problemFileUrl String?  @map("problem_file_url")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  track Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, trackId])
+  @@map("round_track_problems")
 }
 
 model Criterion {
@@ -347,7 +368,7 @@ model Criterion {
 model Team {
   id                Int        @id @default(autoincrement())
   eventId           Int        @map("event_id")
-  trackId           Int        @map("track_id")
+  trackId           Int?       @map("track_id")
   name              String
   status            TeamStatus @default(pending)
   eliminationReason String?    @map("elimination_reason")
@@ -359,7 +380,7 @@ model Team {
   updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at")
 
   event             Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  track             Track              @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  track             Track?             @relation(fields: [trackId], references: [id], onDelete: SetNull)
   leader            User               @relation("TeamLeader", fields: [leaderId], references: [id])
   award             EventPrize?        @relation("TeamAward", fields: [awardId], references: [id], onDelete: SetNull)
   members           TeamMember[]
@@ -434,7 +455,7 @@ model StudentRegistration {
   id      Int     @id @default(autoincrement())
   userId  Int     @map("user_id")
   eventId Int     @map("event_id")
-  trackId Int     @map("track_id")
+  trackId Int?    @map("track_id")
   hasTeam Boolean @default(false) @map("has_team")
   skills  String?
 
@@ -443,10 +464,10 @@ model StudentRegistration {
   note         String?
   createdAt    DateTime  @default(now()) @map("created_at")
 
-  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event      Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  track      Track @relation(fields: [trackId], references: [id], onDelete: Cascade)
-  reviewedBy User? @relation("RegistrationReviewedBy", fields: [reviewedById], references: [id])
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event      Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  track      Track? @relation(fields: [trackId], references: [id], onDelete: SetNull)
+  reviewedBy User?  @relation("RegistrationReviewedBy", fields: [reviewedById], references: [id])
 
   @@unique([userId, eventId])
   @@index([eventId, createdAt])

@@ -3,14 +3,15 @@
 import * as Accordion from "@radix-ui/react-accordion";
 import { useQuery } from "@tanstack/react-query";
 import { axiosClient } from "@/lib/axios";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { enqueueSnackbar } from "notistack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { EventRegisterDialog } from "@/components/events/event-register-dialog";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -93,7 +94,9 @@ type EventDetail = {
   prizePoolTotals?: Array<{ currency: string; amount: number }>;
   eventAchievements?: EventAchievement[];
   githubOrgUrl?: string | null;
+  deferredTrackAssignment?: boolean;
   tracks?: EventTrack[];
+  rounds?: Array<{ id?: number | string; status?: string | null }>;
   ruleGroups?: ApiRuleGroup[];
   rules?: ApiRuleGroup[] | ApiRuleRecord | string[] | string | null;
   faqItems?: ApiFAQItem[];
@@ -819,7 +822,11 @@ function FAQSection({ items }: { items: FAQItem[] }) {
 
 export default function EventDetailPage() {
   const params = useParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const eventId = params.id as string;
+  const [registerOpen, setRegisterOpen] = useState(false);
 
   // Fetch Current User
   const { data: user } = useQuery<UserAccount | null>({
@@ -842,6 +849,20 @@ export default function EventDetailPage() {
       return res.data.data;
     },
   });
+
+  // Deep-link fallback: /register page redirects here with ?register=1
+  useEffect(() => {
+    if (searchParams.get("register") === "1" && userRole === "student") {
+      setRegisterOpen(true);
+    }
+  }, [searchParams, userRole]);
+
+  const handleRegisterOpenChange = (open: boolean) => {
+    setRegisterOpen(open);
+    if (!open && searchParams.get("register") === "1") {
+      router.replace(pathname, { scroll: false });
+    }
+  };
 
   // Fetch Student Registration Status (Only if student)
   const { data: studentInfo, isLoading: isStudentLoading } = useQuery({
@@ -1132,15 +1153,14 @@ export default function EventDetailPage() {
               </div>
 
               {displayStatus === "pending" && teamInfo?.role === "leader" && (
-                <Link href={`/home/events/${eventId}/register`}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-orange-500/30 text-orange-500 hover:bg-orange-500/10 hover:text-orange-600 transition-colors"
-                  >
-                    Edit Registration
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRegisterOpen(true)}
+                  className="border-orange-500/30 text-orange-500 hover:bg-orange-500/10 hover:text-orange-600 transition-colors"
+                >
+                  Edit Registration
+                </Button>
               )}
               {(displayStatus === "rejected" ||
                 displayStatus === "disqualified") &&
@@ -1149,14 +1169,13 @@ export default function EventDetailPage() {
                     Event Full
                   </Button>
                 ) : (
-                  <Link href={`/home/events/${eventId}/register`}>
-                    <Button
-                      size="sm"
-                      className="bg-orange-500 hover:bg-orange-600 text-white transition-colors"
-                    >
-                      Register Again
-                    </Button>
-                  </Link>
+                  <Button
+                    size="sm"
+                    onClick={() => setRegisterOpen(true)}
+                    className="bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                  >
+                    Register Again
+                  </Button>
                 ))}
             </div>
 
@@ -1253,14 +1272,13 @@ export default function EventDetailPage() {
       }
 
       return (
-        <Link href={`/home/events/${eventId}/register`}>
-          <Button
-            size="lg"
-            className="w-full sm:w-auto px-8 bg-orange-500 hover:bg-orange-600"
-          >
-            Register Now
-          </Button>
-        </Link>
+        <Button
+          size="lg"
+          onClick={() => setRegisterOpen(true)}
+          className="w-full sm:w-auto px-8 bg-orange-500 hover:bg-orange-600"
+        >
+          Register Now
+        </Button>
       );
     }
 
@@ -1597,35 +1615,60 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* Tracks Section */}
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold text-foreground mb-6 flex items-center gap-2">
-            <Users className="h-6 w-6 text-orange-500" />
-            Competition Tracks
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {event.tracks?.map((track) => (
-              <div
-                key={track.id}
-                className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-orange-500/30"
-              >
-                <h3 className="text-xl font-bold text-foreground mb-3">
-                  {track.name}
-                </h3>
-                <p className="text-muted-foreground mb-4 text-sm leading-relaxed">
-                  {track.description}
-                </p>
-                <div className="mt-auto flex items-center justify-between rounded-lg border border-border/50 bg-muted/50 p-3 text-sm font-medium">
-                  <span className="text-muted-foreground">Team Size:</span>
-                  <span className="text-foreground">
-                    {event.minMembersPerTeam ?? 1}–
-                    {event.maxMembersPerTeam ?? 4} members
-                  </span>
+        {/* Tracks Section — hidden until reveal when deferred assignment is on */}
+        {(() => {
+          const tracksRevealed =
+            !event.deferredTrackAssignment ||
+            Boolean(
+              event.rounds?.some(
+                (round) => round.status && round.status !== "not_started",
+              ),
+            );
+
+          return (
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold text-foreground mb-6 flex items-center gap-2">
+                <Users className="h-6 w-6 text-orange-500" />
+                Competition Tracks
+              </h2>
+              {!tracksRevealed ? (
+                <div className="rounded-2xl border border-border bg-card p-6">
+                  <p className="font-semibold text-foreground">
+                    Tracks will be revealed later
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    This event keeps tracks hidden during registration. Teams
+                    are assigned evenly when the organizer opens the first
+                    round.
+                  </p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-6">
+                  {event.tracks?.map((track) => (
+                    <div
+                      key={track.id}
+                      className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-orange-500/30"
+                    >
+                      <h3 className="text-xl font-bold text-foreground mb-3">
+                        {track.name}
+                      </h3>
+                      <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
+                        {track.description}
+                      </p>
+                      <div className="mt-auto flex items-center justify-between rounded-lg border border-border/50 bg-muted/50 p-3 text-sm font-medium">
+                        <span className="text-muted-foreground">Team Size:</span>
+                        <span className="text-foreground">
+                          {event.minMembersPerTeam ?? 1}–
+                          {event.maxMembersPerTeam ?? 4} members
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Prizes Section */}
         {event.prizes && event.prizes.length > 0 && (
@@ -1691,6 +1734,14 @@ export default function EventDetailPage() {
         />
         <FAQSection items={eventFaqItems} />
       </main>
+
+      {userRole === "student" && (
+        <EventRegisterDialog
+          eventId={eventId}
+          open={registerOpen}
+          onOpenChange={handleRegisterOpenChange}
+        />
+      )}
     </div>
   );
 }

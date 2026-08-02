@@ -1,10 +1,14 @@
 import { IsInt, IsOptional, IsString } from "class-validator";
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiPropertyOptional } from "@nestjs/swagger";
 
 export class RegisterIndividualDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      "Required when event.deferredTrackAssignment is false. Omitted when tracks are revealed later.",
+  })
+  @IsOptional()
   @IsInt()
-  trackId: number;
+  trackId?: number | null;
 
   @ApiPropertyOptional()
   @IsString()

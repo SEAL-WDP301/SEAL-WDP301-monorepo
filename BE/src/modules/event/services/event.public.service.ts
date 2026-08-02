@@ -91,7 +91,14 @@ export class EventPublicService {
     );
 
     return events.map((event) =>
-      this.withTeamCapacity(event, occupiedTeamCounts.get(event.id) ?? 0),
+      this.withTeamCapacity(
+        {
+          ...event,
+          // List view never needs track details for deferred events.
+          tracks: event.deferredTrackAssignment ? [] : event.tracks,
+        },
+        occupiedTeamCounts.get(event.id) ?? 0,
+      ),
     );
   }
 
@@ -160,9 +167,15 @@ export class EventPublicService {
       problemFileUrl: r.status === "not_started" ? null : r.problemFileUrl,
     }));
 
+    const tracksRevealed =
+      !event.deferredTrackAssignment ||
+      event.rounds.some((round) => round.status !== "not_started");
+
     return this.withTeamCapacity(
       {
         ...event,
+        // Keep track names hidden until the first round leaves "not_started".
+        tracks: tracksRevealed ? event.tracks : [],
         rounds: sanitizedRounds,
         eventAchievements,
         _count: {

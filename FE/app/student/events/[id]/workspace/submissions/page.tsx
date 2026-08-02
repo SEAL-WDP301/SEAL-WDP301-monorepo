@@ -44,6 +44,7 @@ import {
   type GithubRepoInsights,
 } from "@/components/github/github-activity-stats";
 import { TeamGithubAnalyticsDialog } from "@/components/github/team-github-analytics-dialog";
+import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
 
 interface SubmissionHistoryEntry {
   action: string;
@@ -441,34 +442,19 @@ export default function SubmissionsPage() {
           />
         )}
 
-        {/* Problem Statement & Guidelines Attachment */}
-        {displayRound?.problemFileUrl && (
-          <GlassCard className="p-6 rounded-[24px] border-orange-500/30 bg-orange-500/5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-orange-500/20 flex items-center justify-center shrink-0">
-                <FileText className="h-6 w-6 text-orange-500" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Badge variant="outline" className="border-orange-500/40 text-orange-500 text-[10px] uppercase tracking-wider font-bold">
-                    Official Topic Attachment
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">· Provided by Organizers</span>
-                </div>
-                <h3 className="font-bold text-lg text-foreground">
-                  📌 {displayRound.name} Problem Statement & Guidelines
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Read and download the official prompt, rules, and technical requirements for this round.
-                </p>
-              </div>
-            </div>
-            <Button variant="orange" size="sm" asChild className="rounded-xl gap-2 shrink-0 shadow-md">
-              <a href={displayRound.problemFileUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" /> Download Topic File
-              </a>
-            </Button>
+        {displayRound?.trackPending && (
+          <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
+            Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
           </GlassCard>
+        )}
+
+        {displayRound?.problemFileUrl && (
+          <ProblemStatementViewer
+            fileUrl={displayRound.problemFileUrl}
+            title={`${displayRound.name} — Problem Statement`}
+            roundName={displayRound.name}
+            trackName={workspaceData?.team?.track?.name}
+          />
         )}
 
         {/* Submitted File / Link */}
@@ -637,34 +623,19 @@ export default function SubmissionsPage() {
         </div>
       </header>
 
-      {/* Problem Statement & Guidelines Attachment */}
-      {displayRound?.problemFileUrl && (
-        <GlassCard className="p-6 rounded-[24px] border-orange-500/30 bg-orange-500/5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-orange-500/20 flex items-center justify-center shrink-0">
-              <FileText className="h-6 w-6 text-orange-500" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Badge variant="outline" className="border-orange-500/40 text-orange-500 text-[10px] uppercase tracking-wider font-bold">
-                  Official Topic Attachment
-                </Badge>
-                <span className="text-xs text-muted-foreground">· Provided by Organizers</span>
-              </div>
-              <h3 className="font-bold text-lg text-foreground">
-                📌 {displayRound.name} Problem Statement & Guidelines
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Read and download the official prompt, rules, and technical requirements before submitting your work for this round.
-              </p>
-            </div>
-          </div>
-          <Button variant="orange" size="sm" asChild className="rounded-xl gap-2 shrink-0 shadow-md">
-            <a href={displayRound.problemFileUrl} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4" /> Download Topic File
-            </a>
-          </Button>
+      {displayRound?.trackPending && (
+        <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
+          Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
         </GlassCard>
+      )}
+
+      {displayRound?.problemFileUrl && (
+        <ProblemStatementViewer
+          fileUrl={displayRound.problemFileUrl}
+          title={`${displayRound.name} — Problem Statement`}
+          roundName={displayRound.name}
+          trackName={workspaceData?.team?.track?.name}
+        />
       )}
 
       {/* Disclaimer */}

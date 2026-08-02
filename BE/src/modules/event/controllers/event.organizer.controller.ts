@@ -132,18 +132,38 @@ export class EventOrganizerController {
   }
 
   @Patch(":id/rounds/:roundId/problem-file")
-  @ApiOperation({ summary: "Update round problem statement / topic file attachment" })
+  @ApiOperation({
+    summary:
+      "Update round problem file. Pass trackId for per-track đề when round is track-specific.",
+  })
   async updateRoundProblemFile(
     @Param("id", ParseIntPipe) eventId: number,
     @Param("roundId", ParseIntPipe) roundId: number,
-    @Body() dto: { problemFileUrl?: string | null },
+    @Body() dto: { problemFileUrl?: string | null; trackId?: number | null },
   ) {
     const round = await this.eventOrganizerService.updateRoundProblemFile(
       eventId,
       roundId,
       dto.problemFileUrl ?? null,
+      dto.trackId,
     );
     return { message: "Round problem file updated successfully", data: round };
+  }
+
+  @Post(":id/tracks/reveal")
+  @ApiOperation({
+    summary:
+      "Randomly assign deferred tracks to unassigned teams (even distribution). Optional forceReassign reshuffles all.",
+  })
+  async revealTracks(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Body() dto?: { forceReassign?: boolean },
+  ) {
+    const data = await this.eventOrganizerService.revealTracks(
+      eventId,
+      Boolean(dto?.forceReassign),
+    );
+    return { message: "Tracks revealed successfully", data };
   }
 
   @Get(":id/submissions")

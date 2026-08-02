@@ -33,6 +33,7 @@ import { getPublicEvent } from "@/lib/api/public-events.api";
 import { OnlineMeetingCard } from "@/components/events/online-meeting-card";
 import { useEffect, useMemo, useState } from "react";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
+import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
 
 interface WorkspaceRound {
   id: number;
@@ -448,28 +449,19 @@ export default function WorkspaceOverviewPage() {
         </GlassCard>
       </section>
 
-      {/* Problem Statement File Card if available */}
-      {displayRound?.problemFileUrl && (
-        <GlassCard className="p-6 rounded-[24px] border-orange-500/30 bg-orange-500/5 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-orange-500/20 flex items-center justify-center shrink-0">
-              <FileText className="h-6 w-6 text-orange-500" />
-            </div>
-            <div>
-              <h3 className="font-bold text-lg text-foreground flex items-center gap-2">
-                📌 {displayRound.name} Problem Statement & Guidelines
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Download the official competition prompt & topic attachment for this round.
-              </p>
-            </div>
-          </div>
-          <Button variant="orange" size="sm" asChild className="rounded-xl gap-2 shrink-0 shadow-sm">
-            <a href={displayRound.problemFileUrl} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-4 w-4" /> Download Topic File
-            </a>
-          </Button>
+      {displayRound?.trackPending && (
+        <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
+          Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
         </GlassCard>
+      )}
+
+      {displayRound?.problemFileUrl && (
+        <ProblemStatementViewer
+          fileUrl={displayRound.problemFileUrl}
+          title={`${displayRound.name} — Problem Statement`}
+          roundName={displayRound.name}
+          trackName={workspaceData?.team?.track?.name}
+        />
       )}
 
       {/* Main Content Grid */}

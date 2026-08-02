@@ -57,6 +57,12 @@ export class SubmissionStudentService {
       );
     }
 
+    if (team.trackId == null) {
+      throw new BadRequestException(
+        "Your team has not been assigned a track yet. Wait until the organizer opens the round and reveals tracks.",
+      );
+    }
+
     const teamId = team.id;
 
     const round = await this.prisma.round.findUnique({

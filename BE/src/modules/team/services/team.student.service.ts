@@ -26,6 +26,7 @@ import { MailService } from "../../../core/mail/mail.service";
 import { StorageService } from "../../../core/storage/storage.service";
 import { RegisterIndividualDto } from "../dto/register-individual.dto";
 import { RegisterTeamDto } from "../dto/register-team.dto";
+import { resolveProblemFileUrl } from "../../event/utils/problem-file.utils";
 
 @Injectable()
 export class TeamStudentService {
@@ -65,6 +66,28 @@ export class TeamStudentService {
         ? registrationDeadline
         : defaultExpiry;
     return { email, rawToken, tokenHash, expiresAt };
+  }
+
+  private async resolveRegistrationTrackId(
+    event: { id: number; deferredTrackAssignment: boolean },
+    requestedTrackId?: number | null,
+  ): Promise<number | null> {
+    if (event.deferredTrackAssignment) {
+      // Ignore client-provided track — reveal happens when a round opens.
+      return null;
+    }
+    if (requestedTrackId == null) {
+      throw new BadRequestException(
+        "Track is required for this event. Choose a track to register.",
+      );
+    }
+    const track = await this.prisma.track.findUnique({
+      where: { id: requestedTrackId },
+    });
+    if (!track || track.eventId !== event.id) {
+      throw new NotFoundException("Track not found for this event");
+    }
+    return track.id;
   }
 
   private getInvitationUrl(rawToken: string) {
@@ -196,10 +219,12 @@ export class TeamStudentService {
       throw new BadRequestException("Registration deadline has passed");
     }
 
+    const trackId = await this.resolveRegistrationTrackId(event, dto.trackId);
+
     return this.prisma.studentRegistration.upsert({
       where: { userId_eventId: { userId, eventId } },
       update: {
-        trackId: dto.trackId,
+        trackId,
         hasTeam: false,
         skills: dto.skills,
         reviewedById: null,
@@ -210,7 +235,7 @@ export class TeamStudentService {
       create: {
         userId,
         eventId,
-        trackId: dto.trackId,
+        trackId,
         hasTeam: false,
         skills: dto.skills,
       },
@@ -228,12 +253,10 @@ export class TeamStudentService {
       throw new BadRequestException("Registration deadline has passed");
     }
 
-    const track = await this.prisma.track.findUnique({
-      where: { id: dto.trackId },
-    });
-    if (!track || track.eventId !== eventId) {
-      throw new NotFoundException("Track not found for this event");
-    }
+    const trackId = await this.resolveRegistrationTrackId(event, dto.trackId);
+    const track = trackId
+      ? await this.prisma.track.findUnique({ where: { id: trackId } })
+      : null;
 
     const leader = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!leader) throw new NotFoundException("Team leader not found");
@@ -372,7 +395,7 @@ export class TeamStudentService {
         data: {
           name: dto.teamName,
           eventId,
-          trackId: dto.trackId,
+          trackId,
           leaderId: userId,
           status: TeamStatus.approved,
         },
@@ -425,7 +448,7 @@ export class TeamStudentService {
           },
         },
         update: {
-          trackId: dto.trackId,
+          trackId,
           hasTeam: true,
           reviewedById: null,
           reviewedAt: null,
@@ -435,13 +458,19 @@ export class TeamStudentService {
         create: {
           userId,
           eventId,
-          trackId: dto.trackId,
+          trackId,
           hasTeam: true,
         },
       });
 
       return team;
     });
+
+    const trackLabel =
+      track?.name ??
+      (event.deferredTrackAssignment
+        ? "Sẽ công bố khi mở vòng thi"
+        : "TBA");
 
     if (invitations.length > 0) {
       Promise.all(
@@ -450,7 +479,7 @@ export class TeamStudentService {
             to: invitation.email,
             teamName: dto.teamName,
             eventName: event.name,
-            trackName: track.name,
+            trackName: trackLabel,
             leaderName: leader.name,
             invitationUrl: this.getInvitationUrl(invitation.rawToken),
             expiresAt: invitation.expiresAt,
@@ -463,7 +492,7 @@ export class TeamStudentService {
       eventId,
       teamId: resultTeam.id,
       teamName: resultTeam.name,
-      trackName: track.name,
+      trackName: trackLabel,
       timestamp: new Date(),
     });
 
@@ -490,17 +519,18 @@ export class TeamStudentService {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
     });
-    if (event?.status !== "active") {
+    if (!event || event.status !== "active") {
       throw new BadRequestException(
         "Team roster is locked because the event is no longer in the active registration phase.",
       );
     }
 
-    const track = await this.prisma.track.findUnique({
-      where: { id: dto.trackId },
-    });
-    if (!track || track.eventId !== eventId)
-      throw new NotFoundException("Track not found");
+    const trackId = await this.resolveRegistrationTrackId(event, dto.trackId);
+    // When deferred, keep an already-revealed track (do not clear on roster edit).
+    const nextTrackId =
+      event.deferredTrackAssignment && team.trackId != null
+        ? team.trackId
+        : trackId;
     const memberEmails = this.normalizeInvitationEmails(
       dto.memberEmails,
       team.leader.email,
@@ -591,12 +621,12 @@ export class TeamStudentService {
     const resultTeam = await this.prisma.$transaction(async (prisma) => {
       await prisma.team.update({
         where: { id: team.id },
-        data: { name: dto.teamName, trackId: dto.trackId },
+        data: { name: dto.teamName, trackId: nextTrackId },
       });
 
       await prisma.studentRegistration.update({
         where: { userId_eventId: { userId, eventId } },
-        data: { trackId: dto.trackId },
+        data: { trackId: nextTrackId },
       });
 
       if (emailsToRemove.length > 0) {
@@ -649,13 +679,21 @@ export class TeamStudentService {
     });
 
     if (newInvitations.length > 0) {
+      const trackForMail = nextTrackId
+        ? await this.prisma.track.findUnique({ where: { id: nextTrackId } })
+        : null;
+      const trackLabel =
+        trackForMail?.name ??
+        (event.deferredTrackAssignment
+          ? "Sẽ công bố khi mở vòng thi"
+          : "TBA");
       Promise.all(
         newInvitations.map((invitation) =>
           this.mailService.sendTeamInvitationEmail({
             to: invitation.email,
             teamName: dto.teamName,
             eventName: event.name,
-            trackName: track.name,
+            trackName: trackLabel,
             leaderName: team.leader.name,
             invitationUrl: this.getInvitationUrl(invitation.rawToken),
             expiresAt: invitation.expiresAt,
@@ -1134,6 +1172,7 @@ export class TeamStudentService {
         teamRounds: {
           where: { teamId },
         },
+        trackProblems: true,
       },
     });
 
@@ -1185,18 +1224,23 @@ export class TeamStudentService {
           submissionDeadline: round.submissionDeadline,
           maxFileSizeMb: round.maxFileSizeMb,
           isTrackSpecific: round.isTrackSpecific,
-          problemFileUrl:
-            round.status === RoundStatus.not_started
-              ? null
-              : round.problemFileUrl,
+          problemFileUrl: resolveProblemFileUrl(
+            round,
+            teamMember.team.trackId,
+          ),
+          trackPending: teamMember.team.trackId == null,
         },
         teamRound: teamRound
           ? { status: teamRound.status, score: teamRound.score }
           : null,
         submission,
-        canSubmit: access.canSubmit,
+        canSubmit:
+          access.canSubmit && teamMember.team.trackId != null,
         canView: access.canView,
-        lockReason: access.lockReason,
+        lockReason:
+          access.canSubmit && teamMember.team.trackId == null
+            ? "Track chưa được công bố. Chờ admin mở vòng thi để nhận track/đề."
+            : access.lockReason,
       };
     });
 
