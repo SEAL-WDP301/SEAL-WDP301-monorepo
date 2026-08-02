@@ -24,6 +24,7 @@ import {
 } from "@prisma/client";
 import { MailService } from "../../../core/mail/mail.service";
 import { StorageService } from "../../../core/storage/storage.service";
+import { RedisService } from "../../../core/redis/redis.service";
 import { RegisterIndividualDto } from "../dto/register-individual.dto";
 import { RegisterTeamDto } from "../dto/register-team.dto";
 
@@ -37,6 +38,7 @@ export class TeamStudentService {
     private readonly storageService: StorageService,
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
+    private readonly redisService: RedisService,
   ) {}
 
   private normalizeInvitationEmails(emails: string[], leaderEmail: string) {
@@ -72,6 +74,86 @@ export class TeamStudentService {
       this.configService.get<string>("app.frontendUrl") ||
       "http://localhost:3001";
     return `${frontendUrl}/team-invitations/${rawToken}`;
+  }
+
+  private async checkInviteRateLimits(
+    userId: number,
+    teamId: number,
+    email: string,
+  ): Promise<void> {
+    try {
+      // 1. Cooldown 60s check per team/email
+      const cooldownKey = `cooldown:invite:${teamId}:${email.toLowerCase()}`;
+      const isCoolingDown = await this.redisService.exists(cooldownKey);
+      if (isCoolingDown) {
+        throw new HttpException(
+          "Please wait 60 seconds before requesting another invitation email.",
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      // 2. Daily limit check: max 10 invitation emails per day per user
+      const dailyKey = `rate_limit:daily_invites:${userId}`;
+      const currentDailyCount = await this.redisService.get(dailyKey);
+      if (currentDailyCount && parseInt(currentDailyCount, 10) >= 10) {
+        throw new HttpException(
+          "Daily invitation limit reached (10 emails/day). Please try again tomorrow.",
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.warn(
+        `Redis rate limit check failed, bypassing: ${error.message}`,
+      );
+    }
+  }
+
+  private async recordInviteSent(
+    userId: number,
+    teamId: number,
+    email: string,
+  ): Promise<void> {
+    try {
+      // Set 60s cooldown key
+      const cooldownKey = `cooldown:invite:${teamId}:${email.toLowerCase()}`;
+      await this.redisService.set(cooldownKey, "1", 60);
+
+      // Increment daily count (24h = 86400s)
+      const dailyKey = `rate_limit:daily_invites:${userId}`;
+      const count = await this.redisService.incr(dailyKey);
+      if (count === 1) {
+        await this.redisService.set(dailyKey, "1", 86400);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis recordInviteSent failed: ${error.message}`);
+    }
+  }
+
+  private async cacheInvitationToken(
+    tokenHash: string,
+    data: any,
+  ): Promise<void> {
+    try {
+      const key = `invitation:token:${tokenHash}`;
+      await this.redisService.set(key, JSON.stringify(data), 900); // TTL 15 minutes
+    } catch (error) {
+      this.logger.warn(`Redis cacheInvitationToken failed: ${error.message}`);
+    }
+  }
+
+  private async invalidateInvitationToken(tokenHash?: string): Promise<void> {
+    if (!tokenHash) return;
+    try {
+      const key = `invitation:token:${tokenHash}`;
+      await this.redisService.del(key);
+    } catch (error) {
+      this.logger.warn(
+        `Redis invalidateInvitationToken failed: ${error.message}`,
+      );
+    }
   }
 
   async getMyEvents(userId: number) {
@@ -650,8 +732,9 @@ export class TeamStudentService {
 
     if (newInvitations.length > 0) {
       Promise.all(
-        newInvitations.map((invitation) =>
-          this.mailService.sendTeamInvitationEmail({
+        newInvitations.map((invitation) => {
+          this.recordInviteSent(userId, team.id, invitation.email);
+          return this.mailService.sendTeamInvitationEmail({
             to: invitation.email,
             teamName: dto.teamName,
             eventName: event.name,
@@ -659,8 +742,8 @@ export class TeamStudentService {
             leaderName: team.leader.name,
             invitationUrl: this.getInvitationUrl(invitation.rawToken),
             expiresAt: invitation.expiresAt,
-          }),
-        ),
+          });
+        }),
       ).catch((err) => this.logger.error("Failed to send invitations", err));
     }
 
@@ -786,6 +869,18 @@ export class TeamStudentService {
 
   async getInvitationByToken(rawToken: string) {
     const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+
+    try {
+      const cached = await this.redisService.get(
+        `invitation:token:${tokenHash}`,
+      );
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      this.logger.warn(`Redis token cache lookup failed: ${err.message}`);
+    }
+
     const invitation = await this.prisma.teamInvitation.findUnique({
       where: { tokenHash },
       include: {
@@ -807,7 +902,7 @@ export class TeamStudentService {
       invitation.expiresAt <= new Date()
         ? TeamInvitationStatus.expired
         : invitation.status;
-    return {
+    const result = {
       id: invitation.id,
       email: invitation.email,
       status,
@@ -820,6 +915,9 @@ export class TeamStudentService {
         leader: invitation.team.leader,
       },
     };
+
+    await this.cacheInvitationToken(tokenHash, result);
+    return result;
   }
 
   async respondToInvitationToken(
@@ -835,7 +933,11 @@ export class TeamStudentService {
     return this.respondToStoredInvitation(userId, invitation.id, accept);
   }
 
-  async resendInvitation(userId: number, teamId: number, invitationId: number) {
+  async resendInvitation(
+    userId: number,
+    teamId: number,
+    invitationId: number,
+  ) {
     const invitation = await this.prisma.teamInvitation.findFirst({
       where: {
         id: invitationId,
@@ -855,12 +957,12 @@ export class TeamStudentService {
     ) {
       throw new BadRequestException("Team roster is locked");
     }
-    if (Date.now() - invitation.updatedAt.getTime() < 60_000) {
-      throw new HttpException(
-        "Wait 60 seconds before resending this invitation.",
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+
+    // Check Redis Rate Limits (60s Cooldown & 10 emails/day)
+    await this.checkInviteRateLimits(userId, teamId, invitation.email);
+
+    // Invalidate old token cache
+    await this.invalidateInvitationToken(invitation.tokenHash);
 
     const replacement = this.createInvitation(
       invitation.email,
@@ -873,6 +975,10 @@ export class TeamStudentService {
         expiresAt: replacement.expiresAt,
       },
     });
+
+    // Record rate limit counter & cooldown in Redis
+    await this.recordInviteSent(userId, teamId, invitation.email);
+
     await this.mailService.sendTeamInvitationEmail({
       to: invitation.email,
       teamName: invitation.team.name,

@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosClient } from "@/lib/axios";
 import { enqueueSnackbar } from "notistack";
@@ -29,6 +30,31 @@ type PendingInvitesTableProps = {
 
 export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEventActive }: PendingInvitesTableProps) {
     const queryClient = useQueryClient();
+    const [cooldowns, setCooldowns] = useState<Record<number, number>>({});
+
+    useEffect(() => {
+        const updateCooldowns = () => {
+            const newCooldowns: Record<number, number> = {};
+            const now = Date.now();
+            invites.forEach((invite) => {
+                const storedTime = localStorage.getItem(`resend_cooldown_${invite.id}`);
+                if (storedTime) {
+                    const elapsed = Math.floor((now - parseInt(storedTime, 10)) / 1000);
+                    const remaining = 60 - elapsed;
+                    if (remaining > 0) {
+                        newCooldowns[invite.id] = remaining;
+                    } else {
+                        localStorage.removeItem(`resend_cooldown_${invite.id}`);
+                    }
+                }
+            });
+            setCooldowns(newCooldowns);
+        };
+
+        updateCooldowns();
+        const interval = setInterval(updateCooldowns, 1000);
+        return () => clearInterval(interval);
+    }, [invites]);
 
     const cancelMutation = useMutation({
         mutationFn: async (invitationId: number) => {
@@ -48,13 +74,15 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
     const resendMutation = useMutation({
         mutationFn: async (invitationId: number) =>
             axiosClient.post(`/student/teams/${team.id}/invitations/${invitationId}/resend`),
-        onSuccess: () => {
+        onSuccess: (_, invitationId) => {
+            localStorage.setItem(`resend_cooldown_${invitationId}`, Date.now().toString());
             enqueueSnackbar('Invitation email resent!', { variant: 'success' });
             queryClient.invalidateQueries({ queryKey: ['studentEventStatus', String(team.eventId)] });
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onError: (error: any) => {
-            enqueueSnackbar(error.response?.data?.message || 'Failed to resend invitation', { variant: 'error' });
+            const message = error.response?.data?.message || 'Failed to resend invitation';
+            enqueueSnackbar(message, { variant: 'warning' });
         },
     });
 
@@ -86,6 +114,7 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
                         {invites.map((invite) => {
                             const name = "Pending invite";
                             const email = invite.email;
+                            const cooldown = cooldowns[invite.id] || 0;
                             
                             return (
                                 <tr key={email} className="hover:bg-muted/30 transition-colors">
@@ -109,13 +138,18 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
                                             <div className="flex items-center justify-end gap-1">
                                                 <Button 
                                                     variant="ghost" 
-                                                    size="icon" 
-                                                    className="rounded-lg h-8 w-8 text-blue-400 hover:text-blue-500 hover:bg-blue-400/10" 
-                                                    title="Resend invitation email"
+                                                    size="sm" 
+                                                    className="h-8 px-2.5 text-xs font-semibold text-blue-400 hover:text-blue-500 hover:bg-blue-400/10 gap-1 rounded-lg" 
+                                                    title={cooldown > 0 ? `Wait ${cooldown}s before resending` : "Resend invitation email"}
                                                     onClick={() => resendMutation.mutate(invite.id)}
-                                                    disabled={resendMutation.isPending || !isEventActive}
+                                                    disabled={resendMutation.isPending || !isEventActive || cooldown > 0}
                                                 >
-                                                    <Send className="h-3.5 w-3.5" />
+                                                    {resendMutation.isPending ? (
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    ) : (
+                                                        <Send className="h-3.5 w-3.5" />
+                                                    )}
+                                                    {cooldown > 0 ? `${cooldown}s` : "Resend"}
                                                 </Button>
                                                 <Button 
                                                     variant="ghost" 

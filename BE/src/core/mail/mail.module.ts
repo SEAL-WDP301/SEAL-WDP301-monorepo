@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
 import { MailerModule } from "@nestjs-modules/mailer";
+import { BullModule } from "@nestjs/bullmq";
 import { ConfigService } from "@nestjs/config";
 import { MailService } from "./mail.service";
+import { EmailQueueProcessor } from "./email-queue.processor";
 
 @Module({
   imports: [
@@ -22,8 +24,20 @@ import { MailService } from "./mail.service";
         },
       }),
     }),
+    BullModule.registerQueue({
+      name: "email-queue",
+      defaultJobOptions: {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000,
+        },
+        removeOnComplete: true,
+        removeOnFail: 100,
+      },
+    }),
   ],
-  providers: [MailService],
-  exports: [MailService],
+  providers: [MailService, EmailQueueProcessor],
+  exports: [MailService, BullModule],
 })
 export class MailModule {}
