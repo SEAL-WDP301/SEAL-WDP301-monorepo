@@ -13,10 +13,15 @@ import { TeamSelectorBar } from "./components/team-selector-bar";
 import { TeamHeader } from "./components/team-header";
 import { RoundTabs } from "./components/round-tabs";
 import { SubmissionContentCard } from "./components/submission-content-card";
+import { AiSuggestPanel } from "./components/ai-suggest-panel";
 import { CriteriaScoring } from "./components/criteria-score";
 import { ScoreSummary } from "./components/score-summary";
 import { GlassCard } from "@/components/ui/glass-card";
-import { judgeApi, type JudgeRubric } from "@/lib/api/judge.api";
+import {
+  judgeApi,
+  type AiSuggestScoresResult,
+  type JudgeRubric,
+} from "@/lib/api/judge.api";
 
 function buildScoreState(
   rubrics: JudgeRubric[],
@@ -61,6 +66,7 @@ export default function EvaluationPage() {
   >(null);
   const [scores, setScores] = useState<Record<number, number>>({});
   const [comments, setComments] = useState<Record<number, string>>({});
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestScoresResult | null>(null);
 
   const eventIdParam = params.eventId as string;
   const roundIdParam = searchParams.get("roundId");
@@ -144,7 +150,14 @@ export default function EvaluationPage() {
     }
   }, [roundSubmissions, selectedSubmissionId]);
 
-  const { data: submissionDetail, isLoading: detailLoading } = useQuery({
+  useEffect(() => {
+    setAiSuggestion(null);
+  }, [selectedSubmissionId]);
+
+  const {
+    data: submissionDetail,
+    isLoading: detailLoading,
+  } = useQuery({
     queryKey: ["judge", "submission", selectedSubmissionId],
     queryFn: () => judgeApi.getSubmissionDetail(selectedSubmissionId!),
     enabled: !!selectedSubmissionId,
@@ -205,7 +218,7 @@ export default function EvaluationPage() {
 
       return judgeApi.submitScores(selectedSubmissionId, payload);
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       if (selectedSubmissionId) {
         localStorage.removeItem(`judge_draft_${selectedSubmissionId}`);
       }
@@ -221,6 +234,85 @@ export default function EvaluationPage() {
       const message =
         (error as { response?: { data?: { message?: string } } })?.response
           ?.data?.message || "Failed to save scores";
+      enqueueSnackbar(message, { variant: "error" });
+    },
+  });
+
+  const suggestMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedSubmissionId) {
+        throw new Error("No submission selected");
+      }
+      return judgeApi.suggestScores(selectedSubmissionId);
+    },
+    onSuccess: (data) => {
+      setAiSuggestion(data);
+      enqueueSnackbar(
+        `AI suggestions ready (${data.source === "github_link" ? "GitHub" : "File"}): ${data.contextSummary}. Review then Apply.`,
+        { variant: "info" },
+      );
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Failed to generate AI suggestions";
+      enqueueSnackbar(message, { variant: "error" });
+    },
+  });
+
+  const applyAiMutation = useMutation({
+    mutationFn: async () => {
+      if (!aiSuggestion) throw new Error("No AI suggestion to apply");
+      await judgeApi.applyAiSuggestion(aiSuggestion.auditId);
+      return aiSuggestion;
+    },
+    onSuccess: (data) => {
+      const nextScores: Record<number, number> = { ...scores };
+      const nextComments: Record<number, string> = { ...comments };
+      for (const item of data.suggestions) {
+        nextScores[item.criterionId] = item.scoreValue;
+        nextComments[item.criterionId] = item.comment ?? "";
+      }
+      setScores(nextScores);
+      setComments(nextComments);
+
+      if (selectedSubmissionId) {
+        try {
+          localStorage.setItem(
+            `judge_draft_${selectedSubmissionId}`,
+            JSON.stringify({ scores: nextScores, comments: nextComments }),
+          );
+        } catch {
+          // ignore draft persistence errors
+        }
+      }
+
+      enqueueSnackbar(
+        "AI suggestions applied to the score form. Review before Save.",
+        { variant: "success" },
+      );
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Failed to apply AI suggestions";
+      enqueueSnackbar(message, { variant: "error" });
+    },
+  });
+
+  const discardAiMutation = useMutation({
+    mutationFn: async () => {
+      if (!aiSuggestion) return;
+      await judgeApi.discardAiSuggestion(aiSuggestion.auditId);
+    },
+    onSuccess: () => {
+      setAiSuggestion(null);
+      enqueueSnackbar("AI suggestions discarded", { variant: "info" });
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Failed to discard AI suggestions";
       enqueueSnackbar(message, { variant: "error" });
     },
   });
@@ -381,6 +473,30 @@ export default function EvaluationPage() {
 
               <div className="mt-8 space-y-8">
                 <SubmissionContentCard detail={submissionDetail} />
+
+                {submissionDetail && (
+                  <AiSuggestPanel
+                    rubrics={submissionDetail.rubrics}
+                    suggestion={aiSuggestion}
+                    isSuggesting={suggestMutation.isPending}
+                    isApplying={applyAiMutation.isPending}
+                    disabled={
+                      scoringLocked ||
+                      saveMutation.isPending ||
+                      discardAiMutation.isPending
+                    }
+                    onSuggest={() => suggestMutation.mutate()}
+                    onApply={() => applyAiMutation.mutate()}
+                    onDismiss={() => {
+                      if (aiSuggestion) {
+                        discardAiMutation.mutate();
+                      } else {
+                        setAiSuggestion(null);
+                      }
+                    }}
+                  />
+                )}
+
                 <div className="mt-8">
                   <h2
                     data-scroll-float="false"

@@ -15,6 +15,7 @@ import { Roles } from "../../../common/decorators/roles.decorator";
 import { Role } from "../../../common/enums/role.enum";
 import { CurrentUser } from "../../../common/decorators/current-user.decorator";
 import { SubmissionJudgeService } from "../services/submission.judge.service";
+import { SubmissionAiService } from "../services/submission.ai.service";
 import { SubmitScoresDto } from "../dto/submit-scores.dto";
 
 @ApiTags("Judge/Submissions")
@@ -23,7 +24,10 @@ import { SubmitScoresDto } from "../dto/submit-scores.dto";
 @Roles(Role.STAKEHOLDER, Role.ADMIN)
 @Controller("judge")
 export class SubmissionJudgeController {
-  constructor(private readonly judgeService: SubmissionJudgeService) {}
+  constructor(
+    private readonly judgeService: SubmissionJudgeService,
+    private readonly aiService: SubmissionAiService,
+  ) {}
 
   @Get("rounds/:roundId/submissions")
   @ApiOperation({ summary: "List submissions to evaluate in a round" })
@@ -51,6 +55,52 @@ export class SubmissionJudgeController {
       submissionId,
     );
     return { message: "Submission detail fetched", data: submission };
+  }
+
+  @Post("submissions/:submissionId/ai-suggest")
+  @ApiOperation({
+    summary:
+      "Generate AI draft scores/comments for a submission (file or GitHub context)",
+  })
+  async suggestScores(
+    @CurrentUser("id") userId: string,
+    @Param("submissionId", ParseIntPipe) submissionId: number,
+  ) {
+    const result = await this.aiService.suggestScores(
+      Number(userId),
+      submissionId,
+    );
+    return { message: "AI score suggestions generated", data: result };
+  }
+
+  @Post("ai-suggestions/:auditId/apply")
+  @ApiOperation({
+    summary: "Mark an AI suggestion audit log as applied by the judge",
+  })
+  async applyAiSuggestion(
+    @CurrentUser("id") userId: string,
+    @Param("auditId", ParseIntPipe) auditId: number,
+  ) {
+    const result = await this.aiService.markSuggestionApplied(
+      Number(userId),
+      auditId,
+    );
+    return { message: "AI suggestion marked as applied", data: result };
+  }
+
+  @Post("ai-suggestions/:auditId/discard")
+  @ApiOperation({
+    summary: "Mark an AI suggestion audit log as discarded by the judge",
+  })
+  async discardAiSuggestion(
+    @CurrentUser("id") userId: string,
+    @Param("auditId", ParseIntPipe) auditId: number,
+  ) {
+    const result = await this.aiService.markSuggestionDiscarded(
+      Number(userId),
+      auditId,
+    );
+    return { message: "AI suggestion marked as discarded", data: result };
   }
 
   @Put("submissions/:submissionId/scores")

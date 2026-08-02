@@ -166,11 +166,14 @@ export class SubmissionJudgeService {
     return {
       id: submission.id,
       status: submission.status,
+      submissionType: submission.round.submissionType,
       fileUrl: submission.fileUrl,
       githubUrl: submission.githubUrl ?? submission.team.githubRepoUrl,
       description: submission.description,
       submittedAt: submission.submittedAt,
+      teamId: submission.teamId,
       team: {
+        id: submission.team.id,
         name: submission.team.name,
         anonymousIndex: anonymous.index,
         track: submission.team.track,
@@ -180,6 +183,7 @@ export class SubmissionJudgeService {
         name: submission.round.name,
         roundNumber: submission.round.roundNumber,
         status: submission.round.status,
+        submissionType: submission.round.submissionType,
         submissionDeadline: submission.round.submissionDeadline,
         problemFileUrl:
           submission.round.status === RoundStatus.not_started
@@ -350,7 +354,10 @@ export class SubmissionJudgeService {
     };
   }
 
-  private assertRoundAllowsScoring(round: {
+  /**
+   * Public guard used by AI suggest + score submit paths.
+   */
+  assertRoundAllowsScoring(round: {
     status: RoundStatus;
     submissionDeadline: Date | null;
   }) {

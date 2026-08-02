@@ -24,6 +24,7 @@ export const metadata: Metadata = {
 
 import { SseProvider } from "../components/providers/sse-provider";
 import { AuthProvider } from "../components/providers/auth-provider";
+import { SealAssistant } from "../components/assistant/seal-assistant";
 
 export default function RootLayout({
   children,
@@ -44,7 +45,10 @@ export default function RootLayout({
             <SnackbarProvider>
               <AuthProvider>
                 <SseProvider>
-                  <ScrollFloatProvider>{children}</ScrollFloatProvider>
+                  <ScrollFloatProvider>
+                    {children}
+                    <SealAssistant />
+                  </ScrollFloatProvider>
                 </SseProvider>
               </AuthProvider>
             </SnackbarProvider>

@@ -229,19 +229,28 @@ export class GithubService {
     return response.json();
   }
 
-  async getRepoCommits(org: string, repoName: string): Promise<any[]> {
-    const token = this.configService.get<string>("github.token");
-    if (!token) return [];
+  private authHeaders(): Record<string, string> {
+    const token = (this.configService.get<string>("github.token") || "").trim();
+    const headers: Record<string, string> = {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "SEAL-Hackathon-Platform",
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  }
 
+  async getRepoCommits(
+    org: string,
+    repoName: string,
+    perPage = 100,
+    page = 1,
+  ): Promise<any[]> {
     const response = await fetch(
-      `https://api.github.com/repos/${org}/${repoName}/commits`,
+      `https://api.github.com/repos/${org}/${repoName}/commits?per_page=${perPage}&page=${page}`,
       {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
+        headers: this.authHeaders(),
       },
     );
 
@@ -251,5 +260,277 @@ export class GithubService {
       return [];
     }
     return response.json();
+  }
+
+  /** Fetch up to `maxPages` pages (100/page) for one team — keeps quota bounded. */
+  async getRepoCommitsPaged(
+    org: string,
+    repoName: string,
+    maxPages = 3,
+  ): Promise<any[]> {
+    const all: any[] = [];
+    for (let page = 1; page <= maxPages; page++) {
+      const batch = await this.getRepoCommits(org, repoName, 100, page);
+      if (!batch.length) break;
+      all.push(...batch);
+      if (batch.length < 100) break;
+    }
+    return all;
+  }
+
+  private async safeJson(url: string): Promise<any> {
+    const response = await fetch(url, { headers: this.authHeaders() });
+    if (!response.ok) return null;
+    return response.json().catch(() => null);
+  }
+
+  private async safeJsonArray(url: string): Promise<any[]> {
+    const data = await this.safeJson(url);
+    return Array.isArray(data) ? data : [];
+  }
+
+  async getRepoActivityExtras(owner: string, repo: string): Promise<{
+    pullRequests: Array<{
+      number: number;
+      title: string;
+      state: string;
+      user: string | null;
+      createdAt: string | null;
+      mergedAt: string | null;
+      htmlUrl: string;
+      additions: number | null;
+      deletions: number | null;
+      changedFiles: number | null;
+    }>;
+    branches: Array<{ name: string; protected: boolean }>;
+    workflowRuns: Array<{
+      id: number;
+      name: string;
+      status: string;
+      conclusion: string | null;
+      htmlUrl: string;
+      createdAt: string | null;
+      headBranch: string | null;
+    }>;
+    releases: Array<{
+      id: number;
+      tagName: string;
+      name: string;
+      publishedAt: string | null;
+      htmlUrl: string;
+      draft: boolean;
+      prerelease: boolean;
+    }>;
+    openIssues: Array<{
+      number: number;
+      title: string;
+      user: string | null;
+      createdAt: string | null;
+      htmlUrl: string;
+      comments: number;
+    }>;
+    tags: Array<{ name: string; commitSha: string }>;
+  }> {
+    const base = `https://api.github.com/repos/${owner}/${repo}`;
+    const [prs, branches, runsBody, releases, issues, tags] = await Promise.all([
+      this.safeJsonArray(`${base}/pulls?state=all&per_page=20&sort=updated`),
+      this.safeJsonArray(`${base}/branches?per_page=30`),
+      this.safeJson(`${base}/actions/runs?per_page=15`),
+      this.safeJsonArray(`${base}/releases?per_page=10`),
+      this.safeJsonArray(
+        `${base}/issues?state=open&per_page=15&sort=updated`,
+      ),
+      this.safeJsonArray(`${base}/tags?per_page=15`),
+    ]);
+
+    const pureIssues = issues.filter((i: any) => !i.pull_request);
+    const workflowRunsRaw = Array.isArray(runsBody?.workflow_runs)
+      ? runsBody.workflow_runs
+      : [];
+
+    return {
+      pullRequests: prs.slice(0, 20).map((p: any) => ({
+        number: Number(p.number || 0),
+        title: String(p.title || ""),
+        state: p.merged_at ? "merged" : String(p.state || "open"),
+        user: p.user?.login ? String(p.user.login) : null,
+        createdAt: p.created_at ? String(p.created_at) : null,
+        mergedAt: p.merged_at ? String(p.merged_at) : null,
+        htmlUrl: String(p.html_url || ""),
+        additions: p.additions != null ? Number(p.additions) : null,
+        deletions: p.deletions != null ? Number(p.deletions) : null,
+        changedFiles: p.changed_files != null ? Number(p.changed_files) : null,
+      })),
+      branches: branches.slice(0, 30).map((b: any) => ({
+        name: String(b.name || ""),
+        protected: Boolean(b.protected),
+      })),
+      workflowRuns: workflowRunsRaw.slice(0, 15).map((r: any) => ({
+        id: Number(r.id || 0),
+        name: String(r.name || r.display_title || "workflow"),
+        status: String(r.status || "unknown"),
+        conclusion: r.conclusion ? String(r.conclusion) : null,
+        htmlUrl: String(r.html_url || ""),
+        createdAt: r.created_at ? String(r.created_at) : null,
+        headBranch: r.head_branch ? String(r.head_branch) : null,
+      })),
+      releases: releases.slice(0, 10).map((r: any) => ({
+        id: Number(r.id || 0),
+        tagName: String(r.tag_name || ""),
+        name: String(r.name || r.tag_name || ""),
+        publishedAt: r.published_at ? String(r.published_at) : null,
+        htmlUrl: String(r.html_url || ""),
+        draft: Boolean(r.draft),
+        prerelease: Boolean(r.prerelease),
+      })),
+      openIssues: pureIssues.slice(0, 15).map((i: any) => ({
+        number: Number(i.number || 0),
+        title: String(i.title || ""),
+        user: i.user?.login ? String(i.user.login) : null,
+        createdAt: i.created_at ? String(i.created_at) : null,
+        htmlUrl: String(i.html_url || ""),
+        comments: Number(i.comments || 0),
+      })),
+      tags: tags.slice(0, 15).map((t: any) => ({
+        name: String(t.name || ""),
+        commitSha: String(t.commit?.sha || "").slice(0, 7),
+      })),
+    };
+  }
+
+  async getCommitDetail(
+    owner: string,
+    repo: string,
+    sha: string,
+  ): Promise<{
+    sha: string;
+    htmlUrl: string;
+    message: string;
+    authorLogin: string | null;
+    authorName: string | null;
+    timestamp: Date;
+    additions: number;
+    deletions: number;
+    changedFiles: number;
+    files: Array<{
+      filename: string;
+      status: string;
+      additions: number;
+      deletions: number;
+      changes: number;
+    }>;
+  } | null> {
+    if (!sha) return null;
+
+    const response = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/commits/${encodeURIComponent(sha)}`,
+      {
+        method: "GET",
+        headers: this.authHeaders(),
+      },
+    );
+
+    if (!response.ok) {
+      this.logger.warn(
+        `Commit detail ${owner}/${repo}@${sha.slice(0, 7)} → HTTP ${response.status}`,
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as any;
+    const files = Array.isArray(data.files)
+      ? data.files.slice(0, 100).map((f: any) => ({
+          filename: String(f.filename || ""),
+          status: String(f.status || "modified"),
+          additions: Number(f.additions || 0),
+          deletions: Number(f.deletions || 0),
+          changes: Number(f.changes || 0),
+        }))
+      : [];
+
+    return {
+      sha: String(data.sha || sha),
+      htmlUrl: String(data.html_url || ""),
+      message: String(data.commit?.message || "No message"),
+      authorLogin: data.author?.login || null,
+      authorName: data.commit?.author?.name || null,
+      timestamp: new Date(
+        data.commit?.author?.date || data.commit?.committer?.date || Date.now(),
+      ),
+      additions: Number(data.stats?.additions || 0),
+      deletions: Number(data.stats?.deletions || 0),
+      changedFiles: Number(data.files?.length || files.length || 0),
+      files,
+    };
+  }
+
+  async getRepoInsights(owner: string, repo: string): Promise<{
+    fullName: string;
+    htmlUrl: string;
+    description: string | null;
+    defaultBranch: string | null;
+    language: string | null;
+    languages: Record<string, number>;
+    stars: number;
+    forks: number;
+    watchers: number;
+    openIssues: number;
+    sizeKb: number;
+    createdAt: string | null;
+    pushedAt: string | null;
+    contributors: Array<{ login: string; contributions: number; avatarUrl: string | null }>;
+    contributorCount: number;
+  } | null> {
+    const headers = this.authHeaders();
+    const [repoRes, langRes, contribRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers }),
+      fetch(`https://api.github.com/repos/${owner}/${repo}/languages`, {
+        headers,
+      }),
+      fetch(
+        `https://api.github.com/repos/${owner}/${repo}/contributors?per_page=30`,
+        { headers },
+      ),
+    ]);
+
+    if (!repoRes.ok) {
+      this.logger.warn(
+        `Repo insights ${owner}/${repo} → HTTP ${repoRes.status}`,
+      );
+      return null;
+    }
+
+    const repoData = (await repoRes.json()) as any;
+    const languages = langRes.ok
+      ? ((await langRes.json()) as Record<string, number>)
+      : {};
+    const contributorsRaw = contribRes.ok ? ((await contribRes.json()) as any[]) : [];
+    const contributors = (Array.isArray(contributorsRaw) ? contributorsRaw : [])
+      .slice(0, 20)
+      .map((c) => ({
+        login: String(c.login || "unknown"),
+        contributions: Number(c.contributions || 0),
+        avatarUrl: c.avatar_url ? String(c.avatar_url) : null,
+      }));
+
+    return {
+      fullName: String(repoData.full_name || `${owner}/${repo}`),
+      htmlUrl: String(repoData.html_url || `https://github.com/${owner}/${repo}`),
+      description: repoData.description ? String(repoData.description) : null,
+      defaultBranch: repoData.default_branch
+        ? String(repoData.default_branch)
+        : null,
+      language: repoData.language ? String(repoData.language) : null,
+      languages,
+      stars: Number(repoData.stargazers_count || 0),
+      forks: Number(repoData.forks_count || 0),
+      watchers: Number(repoData.subscribers_count || repoData.watchers_count || 0),
+      openIssues: Number(repoData.open_issues_count || 0),
+      sizeKb: Number(repoData.size || 0),
+      createdAt: repoData.created_at ? String(repoData.created_at) : null,
+      pushedAt: repoData.pushed_at ? String(repoData.pushed_at) : null,
+      contributors,
+      contributorCount: contributors.length,
+    };
   }
 }

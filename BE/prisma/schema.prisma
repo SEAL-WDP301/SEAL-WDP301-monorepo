@@ -145,6 +145,7 @@ model User {
   teamMessageReads             TeamMessageRead[]
   googleCalendarConnection     GoogleCalendarConnection?
   googleOAuthStates            GoogleOAuthState[]
+  aiScoreSuggestionLogs        AiScoreSuggestionLog[]
 
   @@map("users")
 }
@@ -471,14 +472,34 @@ model Submission {
   round           Round            @relation(fields: [roundId], references: [id], onDelete: Cascade)
   submittedBy     User             @relation("SubmissionSubmittedBy", fields: [submittedById], references: [id])
   disqualifiedBy  User?            @relation("SubmissionDisqualifiedBy", fields: [disqualifiedById], references: [id])
-  scores          Score[]
-  judgeVotes      JudgeVote[]
-  mentorFeedbacks MentorFeedback[]
+  scores                Score[]
+  judgeVotes            JudgeVote[]
+  mentorFeedbacks       MentorFeedback[]
+  aiScoreSuggestionLogs AiScoreSuggestionLog[]
 
   @@unique([teamId, roundId])
   @@index([roundId, submittedAt])
   @@index([status])
   @@map("submissions")
+}
+
+model AiScoreSuggestionLog {
+  id              Int       @id @default(autoincrement())
+  submissionId    Int       @map("submission_id")
+  judgeId         Int       @map("judge_id")
+  source          String
+  contextSummary  String    @map("context_summary") @db.Text
+  suggestions     Json
+  appliedAt       DateTime? @map("applied_at")
+  discardedAt     DateTime? @map("discarded_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  judge      User       @relation(fields: [judgeId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, judgeId])
+  @@index([createdAt])
+  @@map("ai_score_suggestion_logs")
 }
 
 model Score {
@@ -603,17 +624,24 @@ model TeamMessageRead {
 }
 
 model GithubCommit {
-  id         Int      @id @default(autoincrement())
-  teamId     Int      @map("team_id")
-  commitHash String   @map("commit_hash")
-  message    String   @db.Text
-  pusher     String
-  url        String
-  timestamp  DateTime
-  createdAt  DateTime @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  teamId       Int      @map("team_id")
+  commitHash   String   @map("commit_hash")
+  message      String   @db.Text
+  pusher       String
+  url          String
+  timestamp    DateTime
+  additions    Int?
+  deletions    Int?
+  changedFiles Int?     @map("changed_files")
+  files        Json?
+  authorLogin  String?  @map("author_login")
+  authorName   String?  @map("author_name")
+  createdAt    DateTime @default(now()) @map("created_at")
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
+  @@unique([teamId, commitHash])
   @@index([teamId])
   @@index([timestamp(sort: Desc)])
   @@map("github_commits")

@@ -19,9 +19,11 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { 
+  generateMentorAiDraft,
   getMentorTeam, 
   getMentorTeamSubmissions,
   getMentorTeams,
+  type MentorAiDraftResult,
 } from "@/lib/api/mentor.api";
 import { axiosClient } from "@/lib/axios";
 import { MentorPageHeader } from "@/app/mentor/_components/mentor-page-header";
@@ -31,6 +33,7 @@ import {
   MentorErrorState,
   MentorLoadingState,
 } from "@/app/mentor/_components/mentor-query-state";
+import { AiMentorDraftPanel } from "./components/ai-mentor-draft-panel";
 
 function initials(value?: string | null) {
   return (value || "?")
@@ -85,9 +88,8 @@ export default function MentorTeamDashboard() {
   const queryClient = useQueryClient();
 
   const [feedbackContent, setFeedbackContent] = useState("");
-  const [chatMessage, setChatMessage] = useState("");
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [editingFeedbackId, setEditingFeedbackId] = useState<number | null>(null);
+  const [aiDraft, setAiDraft] = useState<MentorAiDraftResult | null>(null);
   
   // To handle multiple submissions, we default to the latest one
   const [activeSubmissionId, setActiveSubmissionId] = useState<number | null>(null);
@@ -179,6 +181,20 @@ export default function MentorTeamDashboard() {
     onError: () => {
       enqueueSnackbar("Failed to delete feedback.", { variant: "error" });
     }
+  });
+
+  const aiDraftMutation = useMutation({
+    mutationFn: (submissionId: number) => generateMentorAiDraft(submissionId),
+    onSuccess: (data) => {
+      setAiDraft(data);
+      enqueueSnackbar("AI mentoring draft ready", { variant: "success" });
+    },
+    onError: (error: any) => {
+      enqueueSnackbar(
+        error?.response?.data?.message || "Failed to generate AI draft",
+        { variant: "error" },
+      );
+    },
   });
 
   if (teamQuery.isLoading) return <MentorLoadingState />;
@@ -401,11 +417,16 @@ export default function MentorTeamDashboard() {
                 <p className="text-muted-foreground mt-1">Review the team's materials and provide feedback.</p>
               </div>
               
-              {submissions.length > 1 && (
+                  {submissions.length > 1 && (
                 <select 
                   className="h-10 rounded-xl border border-input bg-background px-3 text-sm focus-visible:ring-1 focus-visible:ring-primary"
                   value={activeSubmissionId || ""}
-                  onChange={(e) => setActiveSubmissionId(Number(e.target.value))}
+                  onChange={(e) => {
+                    setActiveSubmissionId(Number(e.target.value));
+                    setAiDraft(null);
+                    setEditingFeedbackId(null);
+                    setFeedbackContent("");
+                  }}
                 >
                   {submissions.map(s => (
                     <option key={s.id} value={s.id}>
@@ -464,6 +485,24 @@ export default function MentorTeamDashboard() {
                     </p>
                   </div>
                 )}
+
+                <AiMentorDraftPanel
+                  draft={
+                    aiDraft && aiDraft.submissionId === activeSubmission.id
+                      ? aiDraft
+                      : null
+                  }
+                  isLoading={aiDraftMutation.isPending}
+                  onGenerate={() => aiDraftMutation.mutate(activeSubmission.id)}
+                  onUseDraft={(text) => {
+                    setEditingFeedbackId(null);
+                    setFeedbackContent(text);
+                    enqueueSnackbar("Draft copied into the editor — review before submit", {
+                      variant: "info",
+                    });
+                  }}
+                  onDismiss={() => setAiDraft(null)}
+                />
 
                 <hr className="border-border my-8" />
 
