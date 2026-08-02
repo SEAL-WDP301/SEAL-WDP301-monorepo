@@ -21,7 +21,7 @@ export default function EventTeamsPage() {
   if (isLoading) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
       </div>
     );
   }
@@ -35,19 +35,8 @@ export default function EventTeamsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Teams</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage registrations and approve teams for {event.name}.
-          </p>
-        </div>
-      </div>
-
-      <div className="animate-in fade-in duration-500">
-        <TeamsTab event={event} />
-      </div>
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <TeamsTab event={event} />
     </div>
   );
 }

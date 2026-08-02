@@ -384,6 +384,32 @@ export class EventOrganizerService {
     return this.withPrizePoolTotals(updatedEvent);
   }
 
+  async updateRegistrationDeadline(
+    eventId: number,
+    registrationDeadlineStr: string,
+  ) {
+    const deadline = new Date(registrationDeadlineStr);
+    if (isNaN(deadline.getTime())) {
+      throw new BadRequestException(
+        "Invalid registration deadline date format.",
+      );
+    }
+
+    const event = await this.prisma.event.update({
+      where: { id: eventId },
+      data: { registrationDeadline: deadline },
+      include: { rounds: true, tracks: true, prizes: true },
+    });
+
+    // Schedule BullMQ delayed job for auto-closing registration & opening Round 1
+    await this.roundAutomationSchedulerService.scheduleRegistrationDeadlineJob(
+      eventId,
+      deadline,
+    );
+
+    return this.withPrizePoolTotals(event);
+  }
+
   async updateEventStatus(id: number, status: EventStatus) {
     await this.getEventById(id);
     return this.prisma.event.update({

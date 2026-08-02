@@ -27,6 +27,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { TeamDetailsDialog } from "./team-details-dialog";
+import { RegistrationDeadlineBanner } from "./registration-deadline-banner";
 import { useAdminSocket } from "@/hooks/use-admin-socket";
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
@@ -331,7 +332,11 @@ export default function TeamsTab({ event }: { event: any }) {
     event.rounds?.find((r: any) => r.id === Number(roundId))?.roundNumber === 1;
 
   return (
-    <div className="bg-card border border-border rounded-xl flex flex-col min-h-[500px]">
+    <div className="space-y-6">
+      {/* Registration Deadline & Live Countdown Banner */}
+      <RegistrationDeadlineBanner event={event} />
+
+      <div className="bg-card border border-border rounded-xl flex flex-col min-h-[500px]">
       {/* Header & Controls */}
       <div className="p-6 border-b border-border flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="shrink-0">
@@ -849,6 +854,7 @@ export default function TeamsTab({ event }: { event: any }) {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }
