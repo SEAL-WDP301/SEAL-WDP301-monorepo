@@ -39,7 +39,6 @@ type RubricDraft = {
   trackId: string;
   name: string;
   description: string;
-  maxScore: number | string;
   weight: number | string;
 };
 
@@ -48,7 +47,6 @@ const emptyRubric = (): RubricDraft => ({
   trackId: "",
   name: "",
   description: "",
-  maxScore: 10,
   weight: 1,
 });
 
@@ -145,19 +143,31 @@ export default function EventCriteriaPage() {
     return filteredRubrics.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredRubrics, currentPage]);
 
+  const TARGET_WEIGHT_TOTAL = 10;
+
   const selectedScopeWeight = useMemo(() => {
-    if (!rubricDraft.roundId || !rubricDraft.trackId) return 0;
+    if (!currentRoundId) return 0;
+    const draftTrackKey =
+      isTrackSpecific && rubricDraft.trackId ? String(rubricDraft.trackId) : "null";
+
     return rubrics.reduce((sum, rubric) => {
-      if (
-        rubric.id !== editingRubricId &&
-        String(rubric.roundId) === rubricDraft.roundId &&
-        String(rubric.trackId) === rubricDraft.trackId
-      ) {
-        return sum + Number(rubric.weight || 0);
-      }
-      return sum;
+      if (rubric.id === editingRubricId) return sum;
+      if (String(rubric.roundId) !== String(currentRoundId)) return sum;
+      const rubricTrackKey =
+        rubric.trackId == null ? "null" : String(rubric.trackId);
+      if (rubricTrackKey !== draftTrackKey) return sum;
+      return sum + Number(rubric.weight || 0);
     }, 0);
-  }, [editingRubricId, rubricDraft.roundId, rubricDraft.trackId, rubrics]);
+  }, [
+    currentRoundId,
+    editingRubricId,
+    isTrackSpecific,
+    rubricDraft.trackId,
+    rubrics,
+  ]);
+
+  const projectedScopeWeight =
+    selectedScopeWeight + (Number(rubricDraft.weight) || 0);
 
   const resetForm = () => {
     setEditingRubricId(null);
@@ -173,20 +183,21 @@ export default function EventCriteriaPage() {
       if (isTrackSpecific && !rubricDraft.trackId) throw new Error("Track is required for track-specific rounds.");
       if (!rubricDraft.name.trim()) throw new Error("Criterion name is required.");
 
-      const maxScore = Number(rubricDraft.maxScore);
       const weight = Number(rubricDraft.weight);
 
-      if (!Number.isFinite(maxScore) || maxScore < 1) {
-        throw new Error("Max score must be at least 1.");
-      }
       if (!Number.isFinite(weight) || weight <= 0) {
-        throw new Error("Weight must be greater than 0.");
+        throw new Error("Share (weight) must be greater than 0.");
+      }
+      if (projectedScopeWeight > TARGET_WEIGHT_TOTAL + 0.001) {
+        throw new Error(
+          `Criterion shares for this round/track must total ${TARGET_WEIGHT_TOTAL}. Current ${selectedScopeWeight.toFixed(2)} + ${weight} = ${projectedScopeWeight.toFixed(2)}.`,
+        );
       }
 
       const payload: OrganizerRubricPayload = {
         name: rubricDraft.name.trim(),
         description: rubricDraft.description.trim() || undefined,
-        maxScore,
+        maxScore: 10, // fixed; judges always rate 0–10
         weight,
         roundId: Number(currentRoundId),
         trackId: isTrackSpecific && rubricDraft.trackId ? Number(rubricDraft.trackId) : null,
@@ -238,7 +249,6 @@ export default function EventCriteriaPage() {
       trackId: rubric.trackId ? String(rubric.trackId) : "",
       name: rubric.name,
       description: rubric.description || "",
-      maxScore: rubric.maxScore,
       weight: rubric.weight,
     });
     setIsAddEditModalOpen(true);
@@ -324,6 +334,18 @@ export default function EventCriteriaPage() {
         </div>
       )}
 
+      <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">Scoring rule</p>
+        <p className="mt-1">
+          Each criterion has a <strong className="text-foreground">share</strong>{" "}
+          (e.g. 2+3+2+3). Shares must total{" "}
+          <strong className="text-foreground">10</strong>. Judges always rate
+          each criterion 0–10; contribution = (score ÷ 10) × share. Example:
+          share 2 and score 8 → 1.6. Final team score is the average across
+          judges who finished all criteria.
+        </p>
+      </div>
+
       <GlassCard className="min-w-0 rounded-[24px] p-5">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -391,8 +413,7 @@ export default function EventCriteriaPage() {
                     <th className="px-4 py-3 font-semibold">Rubric</th>
                     <th className="px-4 py-3 font-semibold">Round</th>
                     <th className="px-4 py-3 font-semibold">Track</th>
-                    <th className="w-24 px-4 py-3 text-center font-semibold">Max</th>
-                    <th className="w-24 px-4 py-3 text-center font-semibold">Weight</th>
+                    <th className="w-28 px-4 py-3 text-center font-semibold">Share /10</th>
                     <th className="w-28 px-4 py-3 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -441,8 +462,9 @@ export default function EventCriteriaPage() {
                         <td className="px-4 py-4">
                           {track ? <Badge variant="outline">{track.name}</Badge> : <Badge variant="outline">All tracks</Badge>}
                         </td>
-                        <td className="px-4 py-4 text-center">{rubric.maxScore}</td>
-                        <td className="px-4 py-4 text-center">{rubric.weight}</td>
+                        <td className="px-4 py-4 text-center font-semibold tabular-nums">
+                          {rubric.weight}
+                        </td>
                         <td className="px-4 py-4">
                           <div className="flex justify-end gap-2" title={event?.status === "closed" ? "Read-only: Event is closed." : !canEditCriteria(rubric.roundId) ? "Read-only: This round has already ended." : undefined}>
                             <Button
@@ -553,33 +575,48 @@ export default function EventCriteriaPage() {
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Max score *">
-                <Input
-                  type="number"
-                  min={1}
-                  value={rubricDraft.maxScore}
-                  disabled={!canEditCriteria(currentRoundId)}
-                  onChange={(event) => setRubricDraft((draft) => ({ ...draft, maxScore: event.target.value }))}
-                />
-              </Field>
-              <Field label="Weight *">
-                <Input
-                  type="number"
-                  min={0.01}
-                  step="0.01"
-                  value={rubricDraft.weight}
-                  disabled={!canEditCriteria(currentRoundId)}
-                  onChange={(event) => setRubricDraft((draft) => ({ ...draft, weight: event.target.value }))}
-                />
-              </Field>
-            </div>
+            <Field label="Share (parts of 10) *">
+              <Input
+                type="number"
+                min={0.01}
+                step="0.01"
+                value={rubricDraft.weight}
+                disabled={!canEditCriteria(currentRoundId)}
+                onChange={(event) =>
+                  setRubricDraft((draft) => ({
+                    ...draft,
+                    weight: event.target.value,
+                  }))
+                }
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Example: 2 means this criterion is worth 2 of the final /10
+                points. All shares in the round/track must add up to 10.
+              </p>
+            </Field>
 
-            {rubricDraft.roundId && rubricDraft.trackId && (
-              <div className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                Current weight for this round and track: <strong className="text-foreground">{selectedScopeWeight}</strong>
-              </div>
-            )}
+            <div
+              className={cn(
+                "rounded-xl border px-3 py-2 text-xs",
+                Math.abs(projectedScopeWeight - TARGET_WEIGHT_TOTAL) <= 0.001
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : projectedScopeWeight > TARGET_WEIGHT_TOTAL
+                    ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                    : "border-border bg-muted/30 text-muted-foreground",
+              )}
+            >
+              Weight total for this round/track:{" "}
+              <strong className="text-foreground">
+                {projectedScopeWeight.toFixed(2)} / {TARGET_WEIGHT_TOTAL}
+              </strong>
+              {projectedScopeWeight < TARGET_WEIGHT_TOTAL - 0.001 && (
+                <span>
+                  {" "}
+                  (remaining{" "}
+                  {(TARGET_WEIGHT_TOTAL - projectedScopeWeight).toFixed(2)})
+                </span>
+              )}
+            </div>
 
             <div className="pt-4 flex justify-end gap-3 border-t border-border mt-6">
               <Button variant="outline" onClick={resetForm}>Cancel</Button>

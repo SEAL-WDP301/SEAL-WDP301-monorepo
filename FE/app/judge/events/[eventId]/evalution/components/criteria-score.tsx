@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import type { JudgeRubric } from "@/lib/api/judge.api";
+import { JUDGE_SCORE_SCALE, type JudgeRubric } from "@/lib/api/judge.api";
 
 interface Props {
   rubrics: JudgeRubric[];
@@ -44,14 +44,20 @@ export function CriteriaScoring({
               <div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <h3 className="text-xl font-semibold">{item.name}</h3>
-                  <Badge variant="highlight">Weight {weight}</Badge>
-                  <Badge variant="ai">Max {item.maxScore}</Badge>
+                  <Badge variant="highlight">Share {weight}/10</Badge>
                 </div>
                 {item.description && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     {item.description}
                   </p>
                 )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Rate 0–{JUDGE_SCORE_SCALE}. Contribution = (score ÷{" "}
+                  {JUDGE_SCORE_SCALE}) × {weight}
+                  {score > 0
+                    ? ` → ${((score / JUDGE_SCORE_SCALE) * weight).toFixed(2)}`
+                    : ""}
+                </p>
               </div>
 
               <div className="text-right shrink-0">
@@ -59,7 +65,7 @@ export function CriteriaScoring({
                   {score.toFixed(1)}
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  /{item.maxScore}
+                  /{JUDGE_SCORE_SCALE}
                 </span>
               </div>
             </div>
@@ -67,7 +73,7 @@ export function CriteriaScoring({
             <div className="mt-5 flex items-center gap-4">
               <Slider
                 value={[score]}
-                max={item.maxScore}
+                max={JUDGE_SCORE_SCALE}
                 min={0}
                 step={0.5}
                 disabled={disabled}
@@ -78,13 +84,16 @@ export function CriteriaScoring({
               <Input
                 type="number"
                 min={0}
-                max={item.maxScore}
+                max={JUDGE_SCORE_SCALE}
                 step={0.5}
                 disabled={disabled}
                 value={score}
                 className="w-24 text-center"
                 onChange={(e) =>
-                  onScoreChange(item.id, Math.min(item.maxScore, Number(e.target.value) || 0))
+                  onScoreChange(
+                    item.id,
+                    Math.min(JUDGE_SCORE_SCALE, Number(e.target.value) || 0),
+                  )
                 }
               />
             </div>

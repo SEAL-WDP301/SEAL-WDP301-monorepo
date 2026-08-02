@@ -8,7 +8,13 @@ import { RoundStatus, SubmissionStatus, TeamStatus } from "@prisma/client";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { resolveProblemFileUrl } from "../../event/utils/problem-file.utils";
 import { SubmitScoresDto } from "../dto/submit-scores.dto";
-import { computeJudgeWeightedScore } from "../../../common/utils/scoring.util";
+import {
+  computeJudgeWeightedScore,
+  isRubricWeightTotalValid,
+  JUDGE_SCORE_SCALE,
+  RUBRIC_WEIGHT_TOTAL,
+  sumRubricWeights,
+} from "../../../common/utils/scoring.util";
 
 type ScoringStatus = "pending" | "in_review" | "completed";
 
@@ -287,6 +293,16 @@ export class SubmissionJudgeService {
       submission.roundId,
       submission.team.trackId,
     );
+    if (rubrics.length === 0) {
+      throw new BadRequestException(
+        "No scoring criteria are configured for this track/round",
+      );
+    }
+    if (!isRubricWeightTotalValid(rubrics)) {
+      throw new BadRequestException(
+        `Criterion weights for this track/round must total ${RUBRIC_WEIGHT_TOTAL} (currently ${sumRubricWeights(rubrics).toFixed(2)}). Ask the organizer to finish the rubric setup.`,
+      );
+    }
     const rubricMap = new Map(rubrics.map((r) => [r.id, r]));
 
     const criterionIds = new Set<number>();
@@ -305,9 +321,9 @@ export class SubmissionJudgeService {
         );
       }
 
-      if (item.scoreValue > rubric.maxScore) {
+      if (item.scoreValue > JUDGE_SCORE_SCALE) {
         throw new BadRequestException(
-          `Score for "${rubric.name}" cannot exceed ${rubric.maxScore}`,
+          `Score for "${rubric.name}" cannot exceed ${JUDGE_SCORE_SCALE}`,
         );
       }
     }

@@ -22,16 +22,25 @@ export class CreateRubricDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 10 })
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      "Deprecated — judges always score 0–10. Kept optional for API compat; server forces 10.",
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  maxScore: number;
+  @IsOptional()
+  maxScore?: number;
 
-  @ApiProperty({ example: 1 })
+  @ApiProperty({
+    example: 2,
+    description:
+      "Share of the /10 final score (phần). All criteria weights for a round/track must total 10.",
+  })
   @Type(() => Number)
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   weight: number;
 
   @ApiProperty({ example: 1 })

@@ -122,7 +122,7 @@ export function AiSuggestPanel({
                       </div>
                       {rubric && (
                         <div className="mt-0.5 text-xs text-muted-foreground">
-                          max {rubric.maxScore}
+                          share {rubric.weight}/10
                           {rubric.description
                             ? ` · ${rubric.description}`
                             : ""}
@@ -131,12 +131,10 @@ export function AiSuggestPanel({
                     </div>
                     <div className="font-semibold text-orange-500">
                       {item.scoreValue}
-                      {rubric ? (
-                        <span className="font-normal text-muted-foreground">
-                          {" "}
-                          / {rubric.maxScore}
-                        </span>
-                      ) : null}
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        / 10
+                      </span>
                     </div>
                     <p className="text-muted-foreground whitespace-pre-wrap">
                       {item.comment || "—"}

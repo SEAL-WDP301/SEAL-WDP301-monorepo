@@ -5,6 +5,9 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { CreateRubricDto } from "../dto/create-rubric.dto";
+import { RUBRIC_WEIGHT_TOTAL } from "../../../common/utils/scoring.util";
+
+const WEIGHT_EPSILON = 0.001;
 
 @Injectable()
 export class RubricOrganizerService {
@@ -35,11 +38,17 @@ export class RubricOrganizerService {
       await this.assertTrackBelongsToEvent(dto.trackId, eventId);
     }
 
+    await this.assertWeightBudget(
+      dto.roundId,
+      dto.trackId ?? null,
+      Number(dto.weight),
+    );
+
     return this.prisma.criterion.create({
       data: {
         name: dto.name,
         description: dto.description,
-        maxScore: dto.maxScore,
+        maxScore: 10, // judges always rate 0–10; weight is the score share
         weight: dto.weight,
         roundId: dto.roundId,
         trackId: dto.trackId ?? null,
@@ -73,11 +82,24 @@ export class RubricOrganizerService {
       await this.assertTrackBelongsToEvent(trackId, eventId);
     }
 
+    // Validate each (roundId, trackId) scope does not exceed weight total 10.
+    const grouped = new Map<string, number>();
+    for (const dto of dtos) {
+      const key = `${dto.roundId}:${dto.trackId ?? "null"}`;
+      grouped.set(key, (grouped.get(key) ?? 0) + Number(dto.weight));
+    }
+    for (const [key, addedWeight] of grouped) {
+      const [roundIdRaw, trackRaw] = key.split(":");
+      const roundId = Number(roundIdRaw);
+      const trackId = trackRaw === "null" ? null : Number(trackRaw);
+      await this.assertWeightBudget(roundId, trackId, addedWeight);
+    }
+
     const createData = dtos.map((dto) => ({
       createdById,
       name: dto.name,
       description: dto.description,
-      maxScore: dto.maxScore,
+      maxScore: 10,
       weight: dto.weight,
       roundId: dto.roundId,
       trackId: dto.trackId ?? null,
@@ -106,12 +128,19 @@ export class RubricOrganizerService {
       await this.assertTrackBelongsToEvent(dto.trackId, eventId);
     }
 
+    await this.assertWeightBudget(
+      dto.roundId,
+      dto.trackId ?? null,
+      Number(dto.weight),
+      rubricId,
+    );
+
     return this.prisma.criterion.update({
       where: { id: rubricId },
       data: {
         name: dto.name,
         description: dto.description,
-        maxScore: dto.maxScore,
+        maxScore: 10,
         weight: dto.weight,
         roundId: dto.roundId,
         trackId: dto.trackId ?? null,
@@ -249,5 +278,38 @@ export class RubricOrganizerService {
     }
 
     return rubric;
+  }
+
+  /**
+   * Weights for a round + track scope may not exceed 10.
+   * Final scoring assumes organizers complete the set to exactly 10.
+   */
+  private async assertWeightBudget(
+    roundId: number,
+    trackId: number | null,
+    addedWeight: number,
+    excludeRubricId?: number,
+  ) {
+    if (!Number.isFinite(addedWeight) || addedWeight <= 0) {
+      throw new BadRequestException("Weight must be greater than 0");
+    }
+
+    const existing = await this.prisma.criterion.findMany({
+      where: {
+        roundId,
+        trackId,
+        ...(excludeRubricId ? { id: { not: excludeRubricId } } : {}),
+      },
+      select: { weight: true },
+    });
+
+    const current = existing.reduce((sum, row) => sum + Number(row.weight), 0);
+    const next = current + addedWeight;
+
+    if (next > RUBRIC_WEIGHT_TOTAL + WEIGHT_EPSILON) {
+      throw new BadRequestException(
+        `Criterion weights for this round/track must total ${RUBRIC_WEIGHT_TOTAL}. Current ${current.toFixed(2)} + ${addedWeight} would be ${next.toFixed(2)}.`,
+      );
+    }
   }
 }
