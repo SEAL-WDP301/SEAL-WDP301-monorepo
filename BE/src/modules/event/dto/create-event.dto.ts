@@ -13,6 +13,7 @@ import {
   Max,
   IsIn,
   Matches,
+  IsBoolean,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Season, EventStatus } from "@prisma/client";
@@ -162,6 +163,15 @@ export class CreateEventDto {
   @IsUrl()
   @IsOptional()
   githubOrgUrl?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "If true, students register without choosing a track; tracks are randomly assigned when a round is opened.",
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  deferredTrackAssignment?: boolean;
 
   @ApiPropertyOptional({ type: [EventFaqItemDto] })
   @IsArray()

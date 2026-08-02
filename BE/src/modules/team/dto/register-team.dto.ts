@@ -1,11 +1,21 @@
-import { IsInt, IsString, IsArray, IsEmail } from "class-validator";
-import { ApiProperty } from "@nestjs/swagger";
+import {
+  IsInt,
+  IsString,
+  IsArray,
+  IsEmail,
+  IsOptional,
+} from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
 
 export class RegisterTeamDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      "Required when event.deferredTrackAssignment is false. Omitted/null when tracks are revealed later.",
+  })
+  @IsOptional()
   @IsInt()
-  trackId: number;
+  trackId?: number | null;
 
   @ApiProperty()
   @IsString()

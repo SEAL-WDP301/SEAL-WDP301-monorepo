@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { RoundStatus, SubmissionStatus, TeamStatus } from "@prisma/client";
 import { PrismaService } from "../../../database/prisma/prisma.service";
+import { resolveProblemFileUrl } from "../../event/utils/problem-file.utils";
 import { SubmitScoresDto } from "../dto/submit-scores.dto";
 import { computeJudgeWeightedScore } from "../../../common/utils/scoring.util";
 
@@ -118,6 +119,7 @@ export class SubmissionJudgeService {
             event: {
               select: { id: true, name: true, season: true, year: true },
             },
+            trackProblems: true,
           },
         },
         judgeVotes: {
@@ -185,10 +187,10 @@ export class SubmissionJudgeService {
         status: submission.round.status,
         submissionType: submission.round.submissionType,
         submissionDeadline: submission.round.submissionDeadline,
-        problemFileUrl:
-          submission.round.status === RoundStatus.not_started
-            ? null
-            : submission.round.problemFileUrl,
+        problemFileUrl: resolveProblemFileUrl(
+          submission.round,
+          submission.team.trackId,
+        ),
       },
       event: submission.round.event,
       rubrics,

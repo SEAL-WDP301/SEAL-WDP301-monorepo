@@ -13,6 +13,7 @@ import { TeamGithubService } from "../../team/services/team-github.service";
 
 import { RoundAutomationSchedulerService } from "../../round/services/round-automation-scheduler.service";
 import { calculatePrizePoolTotals } from "../utils/prize-value.utils";
+import { TrackAssignmentService } from "./track-assignment.service";
 
 @Injectable()
 export class EventOrganizerService {
@@ -22,6 +23,7 @@ export class EventOrganizerService {
     private readonly prisma: PrismaService,
     private readonly teamGithubService: TeamGithubService,
     private readonly roundAutomationSchedulerService: RoundAutomationSchedulerService,
+    private readonly trackAssignmentService: TrackAssignmentService,
   ) {}
 
   private validateTeamMemberLimits(
@@ -197,7 +199,10 @@ export class EventOrganizerService {
           include: { _count: { select: { teams: true } } },
         },
         rounds: {
-          include: { _count: { select: { submissions: true } } },
+          include: {
+            _count: { select: { submissions: true } },
+            trackProblems: true,
+          },
         },
         prizes: true,
         calendarMeeting: true,
@@ -453,12 +458,34 @@ export class EventOrganizerService {
           `Cannot open this round because previous Round ${prevRound.roundNumber} has not published results.`,
         );
       }
+
+      await this.assertRoundProblemsReady(eventId, targetRound);
     }
 
     const updatedRound = await this.prisma.round.update({
       where: { id: roundId },
       data: { status },
     });
+
+    let trackAssignment: Awaited<
+      ReturnType<TrackAssignmentService["assignDeferredTracks"]>
+    > | null = null;
+
+    if (status === RoundStatus.open && event.deferredTrackAssignment) {
+      try {
+        trackAssignment =
+          await this.trackAssignmentService.assignDeferredTracks(eventId);
+        this.logger.log(
+          `Deferred track reveal for event ${eventId}: assigned ${trackAssignment.assignedCount} team(s)`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Failed deferred track assignment for event ${eventId}`,
+          err,
+        );
+        throw err;
+      }
+    }
 
     if (
       status === RoundStatus.open &&
@@ -472,7 +499,54 @@ export class EventOrganizerService {
       });
     }
 
-    return updatedRound;
+    return { ...updatedRound, trackAssignment };
+  }
+
+  /** Block opening a round until topic file(s) are uploaded. */
+  private async assertRoundProblemsReady(
+    eventId: number,
+    round: {
+      id: number;
+      name: string;
+      isTrackSpecific: boolean;
+      problemFileUrl: string | null;
+    },
+  ) {
+    if (!round.isTrackSpecific) {
+      if (!round.problemFileUrl?.trim()) {
+        throw new BadRequestException(
+          `Cannot open "${round.name}" — upload the round topic/problem file first.`,
+        );
+      }
+      return;
+    }
+
+    const tracks = await this.prisma.track.findMany({
+      where: { eventId },
+      select: { id: true, name: true },
+      orderBy: { id: "asc" },
+    });
+    if (!tracks.length) {
+      throw new BadRequestException(
+        `Cannot open "${round.name}" — create at least one track and upload its problem file.`,
+      );
+    }
+
+    const problems = await this.prisma.roundTrackProblem.findMany({
+      where: { roundId: round.id },
+      select: { trackId: true, problemFileUrl: true },
+    });
+    const byTrack = new Map(
+      problems.map((p) => [p.trackId, p.problemFileUrl?.trim() || ""]),
+    );
+    const missing = tracks.filter((t) => !byTrack.get(t.id));
+    if (missing.length) {
+      throw new BadRequestException(
+        `Cannot open "${round.name}" — missing problem file for track(s): ${missing
+          .map((t) => t.name)
+          .join(", ")}. Upload one đề per track first.`,
+      );
+    }
   }
 
   async updateRoundDeadline(
@@ -528,6 +602,7 @@ export class EventOrganizerService {
     eventId: number,
     roundId: number,
     problemFileUrl: string | null,
+    trackId?: number | null,
   ) {
     const round = await this.prisma.round.findFirst({
       where: { id: roundId, eventId },
@@ -542,9 +617,53 @@ export class EventOrganizerService {
       );
     }
 
+    // Per-track đề when round is track-specific and trackId provided
+    if (trackId != null) {
+      if (!round.isTrackSpecific) {
+        throw new BadRequestException(
+          "This round is not track-specific; upload a single round problem file instead.",
+        );
+      }
+      const track = await this.prisma.track.findFirst({
+        where: { id: trackId, eventId },
+      });
+      if (!track) {
+        throw new NotFoundException("Track not found for this event");
+      }
+      return this.prisma.roundTrackProblem.upsert({
+        where: {
+          roundId_trackId: { roundId, trackId },
+        },
+        create: {
+          roundId,
+          trackId,
+          problemFileUrl: problemFileUrl || null,
+        },
+        update: {
+          problemFileUrl: problemFileUrl || null,
+        },
+      });
+    }
+
     return this.prisma.round.update({
       where: { id: roundId },
       data: { problemFileUrl: problemFileUrl || null },
+    });
+  }
+
+  async revealTracks(eventId: number, forceReassign = false) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { deferredTrackAssignment: true },
+    });
+    if (!event) throw new NotFoundException("Event not found");
+    if (!event.deferredTrackAssignment) {
+      throw new BadRequestException(
+        "This event does not use deferred track assignment.",
+      );
+    }
+    return this.trackAssignmentService.assignDeferredTracks(eventId, {
+      forceReassign,
     });
   }
 

@@ -87,6 +87,8 @@ export interface OrganizerEventPayload {
   maxTeams?: number | null;
   minMembersPerTeam: number;
   maxMembersPerTeam: number;
+  /** Register without track; random reveal when a round opens */
+  deferredTrackAssignment?: boolean;
   status?: EventStatus;
   registrationDeadline?: string;
   startDate?: string;
@@ -108,11 +110,19 @@ export interface OrganizerTrack extends OrganizerTrackInput {
   };
 }
 
+export interface OrganizerRoundTrackProblem {
+  id?: number;
+  roundId?: number;
+  trackId: number;
+  problemFileUrl?: string | null;
+}
+
 export interface OrganizerRound extends OrganizerRoundInput {
   id: number;
   status?: "not_started" | "open" | "closed" | "results_published" | string;
   startDate?: string;
   problemFileUrl?: string | null;
+  trackProblems?: OrganizerRoundTrackProblem[];
   track?: OrganizerTrack | null;
   _count?: {
     submissions?: number;
@@ -462,10 +472,30 @@ export async function updateRoundProblemFile(
   eventId: string | number,
   roundId: string | number,
   problemFileUrl: string | null,
+  trackId?: number | null,
 ) {
   const res = await axiosClient.patch(
     `/organizer/events/${eventId}/rounds/${roundId}/problem-file`,
-    { problemFileUrl },
+    { problemFileUrl, ...(trackId != null ? { trackId } : {}) },
   );
   return unwrapData<unknown>(res);
+}
+
+export async function revealEventTracks(
+  eventId: string | number,
+  forceReassign = false,
+) {
+  const res = await axiosClient.post(
+    `/organizer/events/${eventId}/tracks/reveal`,
+    { forceReassign },
+  );
+  return unwrapData<{
+    assignedCount: number;
+    skippedAlreadyAssigned: number;
+    trackCounts: Array<{
+      trackId: number;
+      trackName: string;
+      teamCount: number;
+    }>;
+  }>(res);
 }

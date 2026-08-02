@@ -241,6 +241,7 @@ const createEventSchema = (isEdit: boolean) =>
         .int("Maximum teams must be an integer")
         .min(1, "Maximum teams must be at least 1")
         .max(1000, "Maximum teams cannot exceed 1000"),
+      deferredTrackAssignment: z.boolean().default(true),
       minMembersPerTeam: z.coerce
         .number()
         .int("Minimum members must be an integer")
@@ -815,6 +816,7 @@ const eventFormSteps: Array<{
       "season",
       "year",
       "maxTeams",
+      "deferredTrackAssignment",
       "minMembersPerTeam",
       "maxMembersPerTeam",
       "registrationDeadline",
@@ -911,6 +913,7 @@ export default function EventForm({ initialData }: EventFormProps) {
     season: initialData?.season || "Spring",
     year: initialData?.year || new Date().getFullYear(),
     maxTeams: initialData?.maxTeams ?? 50,
+    deferredTrackAssignment: initialData?.deferredTrackAssignment ?? true,
     minMembersPerTeam: initialData?.minMembersPerTeam ?? 3,
     maxMembersPerTeam: initialData?.maxMembersPerTeam ?? 5,
     status: initialData?.status || "draft",
@@ -1762,6 +1765,37 @@ export default function EventForm({ initialData }: EventFormProps) {
                             {...field}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={control}
+                    name="deferredTrackAssignment"
+                    render={({ field }) => (
+                      <FormItem className="md:col-span-12 rounded-xl border border-border/60 bg-muted/30 p-4">
+                        <div className="flex items-start gap-3">
+                          <FormControl>
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 rounded border-border"
+                              checked={Boolean(field.value)}
+                              onChange={(e) => field.onChange(e.target.checked)}
+                            />
+                          </FormControl>
+                          <div>
+                            <FormLabel className="text-foreground/90 font-medium">
+                              Reveal tracks when a round opens
+                            </FormLabel>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Students register without choosing a track. When
+                              you open a round, tracks are assigned evenly
+                              across teams. Turn off to keep the classic
+                              pick-a-track registration flow.
+                            </p>
+                          </div>
+                        </div>
                         <FormMessage />
                       </FormItem>
                     )}

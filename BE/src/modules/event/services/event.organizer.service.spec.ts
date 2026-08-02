@@ -5,6 +5,7 @@ import { CreateEventDto } from "../dto/create-event.dto";
 import { RoundAutomationSchedulerService } from "../../round/services/round-automation-scheduler.service";
 import { TeamGithubService } from "../../team/services/team-github.service";
 import { EventOrganizerService } from "./event.organizer.service";
+import { TrackAssignmentService } from "./track-assignment.service";
 
 describe("EventOrganizerService team member limits", () => {
   const prisma = {
@@ -14,6 +15,7 @@ describe("EventOrganizerService team member limits", () => {
     prisma as unknown as PrismaService,
     {} as TeamGithubService,
     {} as RoundAutomationSchedulerService,
+    {} as TrackAssignmentService,
   );
 
   const dto = {

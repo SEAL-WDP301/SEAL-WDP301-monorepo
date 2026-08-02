@@ -218,8 +218,18 @@ export default function EventRoundsPage() {
       );
       return response.data;
     },
-    onSuccess: (_, variables) => {
-      enqueueSnackbar("Round status updated", { variant: "success" });
+    onSuccess: (res, variables) => {
+      const assignment = res?.data?.trackAssignment;
+      if (assignment && variables.status === "open") {
+        enqueueSnackbar(
+          assignment.assignedCount > 0
+            ? `Round opened · random assigned ${assignment.assignedCount} team(s) to tracks`
+            : "Round opened · no unassigned teams (tracks already set)",
+          { variant: "success" },
+        );
+      } else {
+        enqueueSnackbar("Round status updated", { variant: "success" });
+      }
       queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
       queryClient.invalidateQueries({
         queryKey: ["detailedRankings", eventId, String(variables.roundId)],
@@ -236,11 +246,16 @@ export default function EventRoundsPage() {
     },
   });
 
-  const [uploadingRoundId, setUploadingRoundId] = useState<number | null>(null);
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
 
-  const handleProblemFileUpload = async (roundId: number, file: File) => {
+  const handleProblemFileUpload = async (
+    roundId: number,
+    file: File,
+    trackId?: number,
+  ) => {
+    const key = trackId != null ? `${roundId}-${trackId}` : String(roundId);
     try {
-      setUploadingRoundId(roundId);
+      setUploadingKey(key);
       const formData = new FormData();
       formData.append("file", file);
       const uploadRes = await axiosClient.post("/storage/upload", formData, {
@@ -249,24 +264,31 @@ export default function EventRoundsPage() {
       const fileUrl = uploadRes.data?.data?.fileUrl;
       if (!fileUrl) throw new Error("Upload failed: No file URL returned");
 
-      await updateRoundProblemFile(eventId, roundId, fileUrl);
-      enqueueSnackbar("Problem statement file uploaded successfully!", {
-        variant: "success",
-      });
+      await updateRoundProblemFile(eventId, roundId, fileUrl, trackId);
+      enqueueSnackbar(
+        trackId != null
+          ? "Track problem file uploaded!"
+          : "Problem statement file uploaded successfully!",
+        { variant: "success" },
+      );
       eventQuery.refetch();
     } catch (err: unknown) {
       enqueueSnackbar(getApiMessage(err, "Failed to upload problem file"), {
         variant: "error",
       });
     } finally {
-      setUploadingRoundId(null);
+      setUploadingKey(null);
     }
   };
 
-  const handleRemoveProblemFile = async (roundId: number) => {
+  const handleRemoveProblemFile = async (
+    roundId: number,
+    trackId?: number,
+  ) => {
+    const key = trackId != null ? `${roundId}-${trackId}` : String(roundId);
     try {
-      setUploadingRoundId(roundId);
-      await updateRoundProblemFile(eventId, roundId, null);
+      setUploadingKey(key);
+      await updateRoundProblemFile(eventId, roundId, null, trackId);
       enqueueSnackbar("Problem statement file removed.", { variant: "info" });
       eventQuery.refetch();
     } catch (err: unknown) {
@@ -274,7 +296,7 @@ export default function EventRoundsPage() {
         variant: "error",
       });
     } finally {
-      setUploadingRoundId(null);
+      setUploadingKey(null);
     }
   };
 
@@ -616,7 +638,88 @@ export default function EventRoundsPage() {
                         className="px-5 py-4 text-xs"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {round.problemFileUrl ? (
+                        {round.isTrackSpecific && tracks.length > 0 ? (
+                          <div className="space-y-2 max-w-[220px]">
+                            {tracks.map((track) => {
+                              const problem = round.trackProblems?.find(
+                                (p) => p.trackId === track.id,
+                              );
+                              const key = `${round.id}-${track.id}`;
+                              const busy = uploadingKey === key;
+                              return (
+                                <div
+                                  key={track.id}
+                                  className="flex items-center gap-1.5 flex-wrap"
+                                >
+                                  <span className="text-[10px] font-semibold text-muted-foreground truncate max-w-[72px]">
+                                    {track.name}
+                                  </span>
+                                  {problem?.problemFileUrl ? (
+                                    <>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        asChild
+                                        className="h-7 gap-1 text-[10px] px-2"
+                                      >
+                                        <a
+                                          href={problem.problemFileUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                        >
+                                          <ExternalLink className="h-3 w-3 text-orange-500" />
+                                          Đề
+                                        </a>
+                                      </Button>
+                                      {isRoundNotStarted && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            handleRemoveProblemFile(
+                                              round.id,
+                                              track.id,
+                                            )
+                                          }
+                                        >
+                                          <Trash2 className="h-3 w-3 text-red-500" />
+                                        </Button>
+                                      )}
+                                    </>
+                                  ) : isRoundNotStarted ? (
+                                    <label className="inline-flex items-center gap-1 cursor-pointer rounded border border-input px-1.5 py-0.5 text-[10px] hover:bg-muted">
+                                      {busy ? (
+                                        <Loader2 className="h-3 w-3 animate-spin text-orange-500" />
+                                      ) : (
+                                        <Upload className="h-3 w-3 text-orange-500" />
+                                      )}
+                                      Upload
+                                      <input
+                                        type="file"
+                                        className="hidden"
+                                        disabled={busy}
+                                        onChange={(e) => {
+                                          const f = e.target.files?.[0];
+                                          if (f)
+                                            handleProblemFileUpload(
+                                              round.id,
+                                              f,
+                                              track.id,
+                                            );
+                                        }}
+                                      />
+                                    </label>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground italic">
+                                      —
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : round.problemFileUrl ? (
                           <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
@@ -638,7 +741,7 @@ export default function EventRoundsPage() {
                                 variant="ghost"
                                 size="icon-sm"
                                 title="Remove Problem File"
-                                disabled={uploadingRoundId === round.id}
+                                disabled={uploadingKey === String(round.id)}
                                 onClick={() =>
                                   handleRemoveProblemFile(round.id)
                                 }
@@ -656,7 +759,7 @@ export default function EventRoundsPage() {
                           </div>
                         ) : isRoundNotStarted ? (
                           <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
-                            {uploadingRoundId === round.id ? (
+                            {uploadingKey === String(round.id) ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-500" />
                             ) : (
                               <Upload className="h-3.5 w-3.5 text-orange-500" />
@@ -665,7 +768,7 @@ export default function EventRoundsPage() {
                             <input
                               type="file"
                               className="hidden"
-                              disabled={uploadingRoundId === round.id}
+                              disabled={uploadingKey === String(round.id)}
                               onChange={(e) => {
                                 const f = e.target.files?.[0];
                                 if (f) handleProblemFileUpload(round.id, f);
