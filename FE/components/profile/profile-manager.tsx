@@ -212,6 +212,10 @@ function ProfileManagerContent({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.user });
       enqueueSnackbar("Student profile saved.", { variant: "success" });
+      const redirectPath = searchParams.get("redirect");
+      if (redirectPath?.startsWith("/") && !redirectPath.startsWith("//")) {
+        router.push(redirectPath);
+      }
     },
     onError: (error) => {
       enqueueSnackbar(getErrorMessage(error, "Failed to save student profile."), {

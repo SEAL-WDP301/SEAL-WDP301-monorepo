@@ -46,19 +46,6 @@ export class AssignmentOrganizerService {
     if (!round || round.eventId !== eventId)
       throw new BadRequestException("Round does not belong to this event");
 
-    // Check if stakeholder mentors any team in this round
-    const mentoredTeamConflict = await this.prisma.mentorAssignment.findFirst({
-      where: {
-        mentorId: { in: stakeholderIds },
-        team: { teamRounds: { some: { roundId } } },
-      },
-    });
-    if (mentoredTeamConflict) {
-      throw new BadRequestException(
-        "One or more stakeholders cannot be a judge because they are mentoring a team in this round.",
-      );
-    }
-
     // First, delete existing assignments for these judges in this round
     await this.prisma.judgeAssignment.deleteMany({
       where: { judgeId: { in: stakeholderIds }, roundId },
@@ -136,26 +123,12 @@ export class AssignmentOrganizerService {
   }
 
   async assignMentor(teamId: number, stakeholderId: number, adminId: number) {
-    const teamRounds = await this.prisma.teamRound.findMany({
-      where: { teamId },
-    });
-    const roundIds = teamRounds.map((tr) => tr.roundId);
-
     // Check if team already has a mentor
     const existingMentor = await this.prisma.mentorAssignment.findFirst({
       where: { teamId },
     });
     if (existingMentor) {
       throw new BadRequestException("This team already has a mentor assigned.");
-    }
-
-    const judgeConflict = await this.prisma.judgeAssignment.findFirst({
-      where: { judgeId: stakeholderId, roundId: { in: roundIds } },
-    });
-    if (judgeConflict) {
-      throw new BadRequestException(
-        "Stakeholder cannot be a mentor because they are a judge in a round this team participates in.",
-      );
     }
 
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
@@ -200,11 +173,6 @@ export class AssignmentOrganizerService {
     teamIds: number[],
     adminId: number,
   ) {
-    const teamRounds = await this.prisma.teamRound.findMany({
-      where: { teamId: { in: teamIds } },
-    });
-    const roundIds = teamRounds.map((tr) => tr.roundId);
-
     // Check if any of the teams already have a mentor
     const existingMentors = await this.prisma.mentorAssignment.findFirst({
       where: { teamId: { in: teamIds } },
@@ -212,15 +180,6 @@ export class AssignmentOrganizerService {
     if (existingMentors) {
       throw new BadRequestException(
         "One or more selected teams already have a mentor assigned.",
-      );
-    }
-
-    const judgeConflict = await this.prisma.judgeAssignment.findFirst({
-      where: { judgeId: stakeholderId, roundId: { in: roundIds } },
-    });
-    if (judgeConflict) {
-      throw new BadRequestException(
-        "Stakeholder cannot be assigned because they are a judge in a round where one or more selected teams participate.",
       );
     }
 

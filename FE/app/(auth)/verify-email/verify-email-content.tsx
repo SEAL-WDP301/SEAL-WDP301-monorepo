@@ -12,6 +12,7 @@ export default function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email");
+  const redirectPath = searchParams.get("redirect");
 
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,15 @@ export default function VerifyEmailContent() {
       });
 
       enqueueSnackbar(res.data?.message || "Xác thực thành công!", { variant: "success" });
-      router.push("/login");
+      const params = new URLSearchParams();
+      if (email) params.set("email", email);
+      if (
+        redirectPath?.startsWith("/") &&
+        !redirectPath.startsWith("//")
+      ) {
+        params.set("redirect", redirectPath);
+      }
+      router.push(`/login?${params.toString()}`);
     } catch (error: unknown) {
       enqueueSnackbar(
         isAxiosError<{ message?: string }>(error)

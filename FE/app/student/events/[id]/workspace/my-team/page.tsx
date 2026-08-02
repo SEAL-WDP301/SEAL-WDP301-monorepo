@@ -15,7 +15,6 @@ import {
   UserPlus,
   UsersRound,
   Crown,
-  LogOut,
   Check,
   GraduationCap,
 } from "lucide-react";
@@ -116,13 +115,22 @@ export default function TeamMembersPage() {
 
   const team = teamInfo.team;
   const isLeader = teamInfo.role === "leader";
-  const isEventActive = !isReadOnly && event?.status === "active";
+  const registrationDeadline = event?.registrationDeadline
+    ? new Date(event.registrationDeadline)
+    : null;
+  const isEventActive =
+    !isReadOnly &&
+    event?.status === "active" &&
+    (!registrationDeadline || registrationDeadline >= new Date());
   const members = team.members || [];
+  const invitations = team.invitations || [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const activeMembers = members.filter((m: any) => m.status === "accepted");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pendingMembers = members.filter((m: any) => m.status === "pending");
+  const pendingInvitations = invitations.filter(
+    (invitation: any) => invitation.status === "pending",
+  );
 
   // Prepare data for inviting a new member
   const handleSendInvite = () => {
@@ -142,7 +150,9 @@ export default function TeamMembersPage() {
       .filter((m: any) => m.role === "member")
       .map((m: any) => m.user.email);
 
-    const pendingEmails = pendingMembers.map((m: any) => m.user.email);
+    const pendingEmails = pendingInvitations.map(
+      (invitation: any) => invitation.email,
+    );
 
     const newEmails = [...currentEmails, ...pendingEmails, inviteEmail.trim()];
 
@@ -359,10 +369,7 @@ export default function TeamMembersPage() {
               <MemberListItem
                 key={member.id}
                 member={member}
-                teamInfo={teamInfo}
-                isCurrentUserLeader={isLeader}
                 currentUserId={studentStatus?.individualRegistration?.userId}
-                isEventActive={isEventActive}
               />
             ))}
             {filteredMembers.length === 0 && (
@@ -375,16 +382,16 @@ export default function TeamMembersPage() {
           </div>
         </div>
 
-        {pendingMembers.length > 0 && (
+        {pendingInvitations.length > 0 && (
           <div className="pt-4 border-t border-border">
             <h3 className="text-lg font-bold mb-4 text-foreground flex items-center gap-2 px-1">
               Pending Invitations
               <Badge className="ml-1 bg-amber-500/20 text-amber-500 border-amber-500/30 shadow-sm pointer-events-none">
-                {pendingMembers.length}
+                {pendingInvitations.length}
               </Badge>
             </h3>
             <PendingInvitesTable
-              invites={pendingMembers}
+              invites={pendingInvitations}
               isCurrentUserLeader={isLeader}
               team={team}
               isEventActive={isEventActive}

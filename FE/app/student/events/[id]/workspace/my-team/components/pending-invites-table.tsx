@@ -8,23 +8,32 @@ import { Send, X, Clock, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+type PendingInvitation = {
+    id: number;
+    email: string;
+    status: string;
+    createdAt?: string;
+};
+
+type TeamSummary = {
+    id: number;
+    eventId: number;
+};
+
 type PendingInvitesTableProps = {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    invites: any[];
+    invites: PendingInvitation[];
     isCurrentUserLeader: boolean;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    team: any;
+    team: TeamSummary;
     isEventActive: boolean;
 };
 
 export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEventActive }: PendingInvitesTableProps) {
     const queryClient = useQueryClient();
 
-    const updateTeamMutation = useMutation({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mutationFn: async (data: any) => {
+    const cancelMutation = useMutation({
+        mutationFn: async (invitationId: number) => {
             if (!isEventActive) throw new Error("Team roster is locked for this event.");
-            return axiosClient.put(`/student/teams/register/team/${team.eventId}`, data);
+            return axiosClient.delete(`/student/teams/${team.id}/invitations/${invitationId}`);
         },
         onSuccess: () => {
             enqueueSnackbar('Invitation canceled successfully!', { variant: 'success' });
@@ -36,23 +45,25 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
         }
     });
 
-    const handleCancelInvite = (emailToCancel: string) => {
+    const resendMutation = useMutation({
+        mutationFn: async (invitationId: number) =>
+            axiosClient.post(`/student/teams/${team.id}/invitations/${invitationId}/resend`),
+        onSuccess: () => {
+            enqueueSnackbar('Invitation email resent!', { variant: 'success' });
+            queryClient.invalidateQueries({ queryKey: ['studentEventStatus', String(team.eventId)] });
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onError: (error: any) => {
+            enqueueSnackbar(error.response?.data?.message || 'Failed to resend invitation', { variant: 'error' });
+        },
+    });
+
+    const handleCancelInvite = (invitationId: number) => {
         if (!isEventActive) {
             enqueueSnackbar('Team roster is locked for this event.', { variant: 'warning' });
             return;
         }
-        // Remove the email to cancel from the existing list of emails (both active and pending, but excluding the leader)
-        const currentEmails = team.members
-            .filter((m: any) => m.role === "member")
-            .map((m: any) => m.user.email);
-            
-        const newEmails = currentEmails.filter((email: string) => email !== emailToCancel);
-
-        updateTeamMutation.mutate({
-            trackId: team.trackId,
-            teamName: team.name,
-            memberEmails: newEmails,
-        });
+        cancelMutation.mutate(invitationId);
     };
 
     if (invites.length === 0) {
@@ -73,8 +84,8 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
                     </thead>
                     <tbody className="divide-y divide-border">
                         {invites.map((invite) => {
-                            const name = invite.user?.name || "Pending Student";
-                            const email = invite.user?.email;
+                            const name = "Pending invite";
+                            const email = invite.email;
                             
                             return (
                                 <tr key={email} className="hover:bg-muted/30 transition-colors">
@@ -84,13 +95,13 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-500 border-amber-500/20">
-                                            {invite.role || "MEMBER"}
+                                            MEMBER
                                         </Badge>
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center text-xs text-muted-foreground">
                                             <Clock className="w-3 h-3 mr-1.5" />
-                                            {invite.joinedAt ? new Date(invite.joinedAt).toLocaleDateString() : "Just now"}
+                                            {invite.createdAt ? new Date(invite.createdAt).toLocaleDateString() : "Just now"}
                                         </div>
                                     </td>
                                     {isCurrentUserLeader && (
@@ -100,8 +111,9 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
                                                     variant="ghost" 
                                                     size="icon" 
                                                     className="rounded-lg h-8 w-8 text-blue-400 hover:text-blue-500 hover:bg-blue-400/10" 
-                                                    title="Resend Invitation (Coming Soon)"
-                                                    disabled
+                                                    title="Resend invitation email"
+                                                    onClick={() => resendMutation.mutate(invite.id)}
+                                                    disabled={resendMutation.isPending || !isEventActive}
                                                 >
                                                     <Send className="h-3.5 w-3.5" />
                                                 </Button>
@@ -110,10 +122,10 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
                                                     size="icon" 
                                                     className="rounded-lg h-8 w-8 text-red-400 hover:text-red-500 hover:bg-red-400/10 disabled:opacity-50" 
                                                     title={!isEventActive ? "Team roster is locked after the event starts." : "Cancel Invitation"}
-                                                    onClick={() => handleCancelInvite(email)}
-                                                    disabled={updateTeamMutation.isPending || !isEventActive}
+                                                    onClick={() => handleCancelInvite(invite.id)}
+                                                    disabled={cancelMutation.isPending || !isEventActive}
                                                 >
-                                                    {updateTeamMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                                                    {cancelMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
                                                 </Button>
                                             </div>
                                         </td>

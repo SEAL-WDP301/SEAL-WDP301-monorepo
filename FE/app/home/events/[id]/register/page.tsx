@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosClient } from "@/lib/axios";
 import { useParams, useRouter } from "next/navigation";
@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { enqueueSnackbar } from "notistack";
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { useAuthStore } from "@/lib/stores/auth.store";
+import {
+  ensureRequiredEmailSlots,
+  normalizeTeamMemberEmail,
+  validateTeamMemberEmails,
+} from "@/lib/team-registration-validation";
 
 interface PublicEvent {
   id: number;
@@ -90,6 +96,7 @@ export default function EventRegistrationPage() {
   const params = useParams();
   const router = useRouter();
   const eventId = params.id as string;
+  const currentUserEmail = useAuthStore((state) => state.user?.email ?? "");
 
   const [teamName, setTeamName] = useState("");
   const [selectedTrack, setSelectedTrack] = useState<number | null>(null);
@@ -134,14 +141,16 @@ export default function EventRegistrationPage() {
           .map((m: TeamMember) => m.user?.email)
           .filter(Boolean);
 
-        if (otherMembers.length > 0) {
-          setMemberEmails(otherMembers);
-        } else {
-          setMemberEmails([""]);
-        }
+        setMemberEmails(
+          ensureRequiredEmailSlots(
+            otherMembers,
+            event?.minMembersPerTeam ?? 1,
+            event?.maxMembersPerTeam ?? 4,
+          ),
+        );
       }
     }
-  }, [studentInfo]);
+  }, [studentInfo, event?.minMembersPerTeam, event?.maxMembersPerTeam]);
 
   const queryClient = useQueryClient();
 
@@ -150,20 +159,37 @@ export default function EventRegistrationPage() {
   const minMembersPerTeam = event?.minMembersPerTeam ?? 1;
   const maxMembersPerTeam = event?.maxMembersPerTeam ?? 4;
   const maxAdditionalMembers = maxMembersPerTeam - 1;
+  const requiredEmailSlots = Math.max(0, minMembersPerTeam - 1);
+  const emailErrors = useMemo(
+    () =>
+      validateTeamMemberEmails(
+        memberEmails,
+        currentUserEmail,
+        requiredEmailSlots,
+      ),
+    [memberEmails, currentUserEmail, requiredEmailSlots],
+  );
+  const hasEmailErrors = emailErrors.some(Boolean);
 
   useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setMemberEmails((previous) =>
+        ensureRequiredEmailSlots(
+          previous,
+          minMembersPerTeam,
+          maxMembersPerTeam,
+        ),
+      );
+    });
     if (memberEmails.length > maxAdditionalMembers) {
-      const frame = requestAnimationFrame(() => {
-        setMemberEmails((prev) => prev.slice(0, maxAdditionalMembers));
-      });
       enqueueSnackbar(
         `The member list has been shortened to fit the event limit (${maxMembersPerTeam} members).`,
         { variant: "info" },
       );
-      return () => cancelAnimationFrame(frame);
     }
+    return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maxMembersPerTeam]);
+  }, [minMembersPerTeam, maxMembersPerTeam]);
 
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterPayload) => {
@@ -217,8 +243,16 @@ export default function EventRegistrationPage() {
       return;
     }
 
-    // Filter out empty emails
-    const validEmails = memberEmails.filter((email) => email.trim() !== "");
+    if (hasEmailErrors) {
+      enqueueSnackbar("Please fix the member email errors before submitting.", {
+        variant: "warning",
+      });
+      return;
+    }
+
+    const validEmails = memberEmails
+      .map(normalizeTeamMemberEmail)
+      .filter(Boolean);
     const requestedTeamSize = validEmails.length + 1;
     if (
       requestedTeamSize < minMembersPerTeam ||
@@ -396,7 +430,7 @@ export default function EventRegistrationPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <label className="text-sm font-semibold text-foreground">
-                    Invite Members (Optional)
+                    Invite Members
                   </label>
                   <Button
                     type="button"
@@ -415,32 +449,48 @@ export default function EventRegistrationPage() {
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  Enter the email addresses of your team members. They must have
-                  an account on SEAL. You are automatically included as the Team
-                  Leader.
+                  You are automatically included as Team Leader. The first{" "}
+                  {requiredEmailSlots} email field
+                  {requiredEmailSlots === 1 ? " is" : "s are"} required.
+                  Invitees may register for SEAL after receiving the email.
                 </p>
 
                 <div className="space-y-3">
                   {memberEmails.map((email, index) => (
-                    <div key={index} className="flex items-center gap-3">
+                    <div
+                      key={index}
+                      className="flex flex-wrap items-center gap-3"
+                    >
                       <input
                         type="email"
                         value={email}
                         onChange={(e) => updateEmail(index, e.target.value)}
                         disabled={isRegistrationBlocked}
                         placeholder={`Member ${index + 1} Email`}
-                        className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                        aria-invalid={Boolean(emailErrors[index])}
+                        className={`flex-1 bg-background border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                          emailErrors[index]
+                            ? "border-red-500 focus:ring-red-500/40"
+                            : "border-border focus:ring-orange-500/50"
+                        }`}
                       />
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         onClick={() => removeEmailField(index)}
-                        disabled={isRegistrationBlocked}
+                        disabled={
+                          isRegistrationBlocked || index < requiredEmailSlots
+                        }
                         className="text-red-400 hover:text-red-500 hover:bg-red-400/10 rounded-xl"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
+                      {emailErrors[index] && (
+                        <p className="basis-full pl-1 text-xs text-red-500">
+                          {emailErrors[index]}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -452,7 +502,11 @@ export default function EventRegistrationPage() {
                   type="submit"
                   size="lg"
                   className="w-full bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 text-white shadow-xl shadow-orange-500/20"
-                  disabled={isRegistrationBlocked || registerMutation.isPending}
+                  disabled={
+                    isRegistrationBlocked ||
+                    registerMutation.isPending ||
+                    hasEmailErrors
+                  }
                 >
                   {registrationBlockReason
                     ? "Registration Closed"

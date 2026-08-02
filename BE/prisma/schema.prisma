@@ -68,6 +68,14 @@ enum TeamMemberStatus {
   rejected
 }
 
+enum TeamInvitationStatus {
+  pending
+  accepted
+  rejected
+  cancelled
+  expired
+}
+
 enum SubmissionStatus {
   submitted
   under_review
@@ -119,13 +127,15 @@ model User {
   criteriaCreated              Criterion[]               @relation("CriterionCreatedBy")
   teamsLed                     Team[]                    @relation("TeamLeader")
   teamMemberships              TeamMember[]
+  teamInvitationsSent          TeamInvitation[]          @relation("TeamInvitationInvitedBy")
+  teamInvitationsAccepted      TeamInvitation[]          @relation("TeamInvitationAcceptedBy")
   registrations                StudentRegistration[]
   submissions                  Submission[]              @relation("SubmissionSubmittedBy")
   disqualifiedSubmissions      Submission[]              @relation("SubmissionDisqualifiedBy")
   scores                       Score[]
   judgeAssignments             JudgeAssignment[]
   judgeVotes                   JudgeVote[]
-  judgeAssignedBy              JudgeAssignment[]     @relation("JudgeAssignedBy")
+  judgeAssignedBy              JudgeAssignment[]         @relation("JudgeAssignedBy")
   mentorAssignments            MentorAssignment[]
   mentorAssignedBy             MentorAssignment[]        @relation("MentorAssignedBy")
   mentorFeedbacks              MentorFeedback[]
@@ -350,6 +360,7 @@ model Team {
   leader            User               @relation("TeamLeader", fields: [leaderId], references: [id])
   award             EventPrize?        @relation("TeamAward", fields: [awardId], references: [id], onDelete: SetNull)
   members           TeamMember[]
+  invitations       TeamInvitation[]
   submissions       Submission[]
   mentorAssignments MentorAssignment[]
   mentorFeedbacks   MentorFeedback[]
@@ -391,6 +402,29 @@ model TeamMember {
   @@index([teamId, status])
   @@index([userId, status])
   @@map("team_members")
+}
+
+model TeamInvitation {
+  id           Int                  @id @default(autoincrement())
+  teamId       Int                  @map("team_id")
+  email        String
+  tokenHash    String               @unique @map("token_hash")
+  status       TeamInvitationStatus @default(pending)
+  invitedById  Int                  @map("invited_by_id")
+  acceptedById Int?                 @map("accepted_by_id")
+  expiresAt    DateTime             @map("expires_at")
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @default(now()) @updatedAt @map("updated_at")
+
+  team       Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  invitedBy  User  @relation("TeamInvitationInvitedBy", fields: [invitedById], references: [id])
+  acceptedBy User? @relation("TeamInvitationAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, email])
+  @@index([email, status])
+  @@index([teamId, status])
+  @@index([expiresAt])
+  @@map("team_invitations")
 }
 
 model StudentRegistration {

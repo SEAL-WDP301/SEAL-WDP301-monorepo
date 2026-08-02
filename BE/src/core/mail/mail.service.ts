@@ -1,5 +1,23 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { MailerService } from "@nestjs-modules/mailer";
+  
+function escapeHtml(value: string) {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[character] as string,
+  );
+}
+
+function sanitizeMailHeader(value: string) {
+  return value.replace(/[\r\n<>]/g, "").trim();
+}
 
 @Injectable()
 export class MailService {
@@ -78,24 +96,106 @@ export class MailService {
     }
   }
 
-  async sendTeamInvitationEmail(
-    to: string,
-    teamName: string,
-    eventName: string,
-    trackName: string,
-    leaderName: string,
-  ) {
+  async sendTeamInvitationEmail(invitation: {
+    to: string;
+    teamName: string;
+    eventName: string;
+    trackName: string;
+    leaderName: string;
+    invitationUrl: string;
+    expiresAt: Date;
+  }) {
+    const {
+      to,
+      teamName,
+      eventName,
+      trackName,
+      leaderName,
+      invitationUrl,
+      expiresAt,
+    } = invitation;
+    const safeTeamName = escapeHtml(teamName);
+    const safeEventName = escapeHtml(eventName);
+    const safeTrackName = escapeHtml(trackName);
+    const safeLeaderName = escapeHtml(leaderName);
+    const safeInvitationUrl = escapeHtml(invitationUrl);
+    const formattedExpiry = new Intl.DateTimeFormat("vi-VN", {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone: "Asia/Ho_Chi_Minh",
+    }).format(expiresAt);
+    const subjectTeamName = sanitizeMailHeader(teamName);
+    const plainLeaderName = sanitizeMailHeader(leaderName);
+    const plainEventName = sanitizeMailHeader(eventName);
+    const plainTrackName = sanitizeMailHeader(trackName);
     try {
       const response = await this.mailerService.sendMail({
         to,
-        subject: `SEAL - Lời mời tham gia đội thi ${teamName}`,
+        subject: `SEAL - Lời mời tham gia đội thi ${subjectTeamName}`,
+        text: [
+          "LỜI MỜI THAM GIA ĐỘI THI SEAL",
+          "",
+          `${plainLeaderName} đã mời bạn tham gia đội ${subjectTeamName}.`,
+          `Sự kiện: ${plainEventName}`,
+          `Track: ${plainTrackName}`,
+          `Lời mời hết hạn: ${formattedExpiry} (GMT+7)`,
+          "",
+          `Xem và phản hồi lời mời: ${invitationUrl}`,
+          "",
+          "Nếu chưa có tài khoản SEAL, hãy đăng ký bằng đúng địa chỉ email nhận được lời mời này.",
+          "Nếu bạn không mong đợi lời mời này, bạn có thể bỏ qua email.",
+          "",
+          "Đội ngũ SEAL",
+        ].join("\n"),
         html: `
-          <div style="font-family: sans-serif; padding: 20px;">
-            <h2>Bạn nhận được một lời mời tham gia đội thi!</h2>
-            <p><strong>${leaderName}</strong> vừa mời bạn gia nhập đội <strong>${teamName}</strong> để cùng tham gia cuộc thi <strong>${eventName}</strong> (Track: <strong>${trackName}</strong>).</p>
-            <p>Vui lòng đăng nhập vào hệ thống SEAL, đi tới mục Thông báo hoặc trang Chi tiết cuộc thi để <strong>Chấp nhận</strong> hoặc <strong>Từ chối</strong> lời mời này.</p>
-            <br/>
-            <p>Trân trọng,<br/>Đội ngũ SEAL</p>
+          <div style="margin:0;background:#0f0b0a;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#f8fafc;">
+            <div style="max-width:600px;margin:0 auto;overflow:hidden;border:1px solid #3a2b24;border-radius:20px;background:#17110f;box-shadow:0 16px 40px rgba(0,0,0,.25);">
+              <div style="padding:28px 32px;background:linear-gradient(135deg,#2a160c 0%,#17110f 60%,#12351f 100%);border-bottom:1px solid #3a2b24;">
+                <div style="font-size:22px;font-weight:800;letter-spacing:4px;color:#ff7629;">SEAL</div>
+                <div style="margin-top:8px;font-size:12px;font-weight:700;letter-spacing:2px;color:#c7b8b0;">TEAM INVITATION</div>
+              </div>
+
+              <div style="padding:32px;">
+                <h1 style="margin:0 0 14px;font-size:26px;line-height:1.25;color:#ffffff;">Bạn được mời tham gia đội thi</h1>
+                <p style="margin:0 0 24px;font-size:15px;line-height:1.7;color:#c7b8b0;">
+                  <strong style="color:#ffffff;">${safeLeaderName}</strong> đã mời bạn đồng hành cùng đội
+                  <strong style="color:#ff7629;">${safeTeamName}</strong> trên SEAL.
+                </p>
+
+                <div style="margin:0 0 26px;padding:20px;border:1px solid #3a2b24;border-radius:14px;background:#201714;">
+                  <div style="margin-bottom:14px;">
+                    <div style="margin-bottom:4px;font-size:11px;font-weight:700;letter-spacing:1px;color:#9f8f87;">SỰ KIỆN</div>
+                    <div style="font-size:16px;font-weight:700;color:#ffffff;">${safeEventName}</div>
+                  </div>
+                  <div>
+                    <div style="margin-bottom:4px;font-size:11px;font-weight:700;letter-spacing:1px;color:#9f8f87;">TRACK</div>
+                    <div style="font-size:15px;color:#f8fafc;">${safeTrackName}</div>
+                  </div>
+                </div>
+
+                <div style="text-align:center;">
+                  <a href="${safeInvitationUrl}" style="display:inline-block;padding:14px 28px;border-radius:10px;background:#ff7629;color:#ffffff;text-decoration:none;font-size:15px;font-weight:800;">
+                    XEM VÀ PHẢN HỒI LỜI MỜI
+                  </a>
+                </div>
+
+                <p style="margin:24px 0 8px;text-align:center;font-size:13px;line-height:1.6;color:#c7b8b0;">
+                  Lời mời hết hạn vào <strong style="color:#ffffff;">${formattedExpiry} (GMT+7)</strong>.
+                </p>
+                <p style="margin:0;text-align:center;font-size:13px;line-height:1.6;color:#9f8f87;">
+                  Chưa có tài khoản? Hãy đăng ký bằng đúng email nhận lời mời này.
+                </p>
+
+                <div style="margin-top:28px;padding-top:20px;border-top:1px solid #3a2b24;font-size:12px;line-height:1.6;color:#81736d;">
+                  Nếu nút phía trên không hoạt động, sao chép đường dẫn sau vào trình duyệt:<br/>
+                  <a href="${safeInvitationUrl}" style="color:#ff9a5f;word-break:break-all;">${safeInvitationUrl}</a>
+                </div>
+              </div>
+
+              <div style="padding:18px 32px;background:#120d0c;text-align:center;font-size:11px;line-height:1.6;color:#756863;">
+                Đây là email tự động từ SEAL. Nếu bạn không mong đợi lời mời này, hãy bỏ qua email.
+              </div>
+            </div>
           </div>
         `,
       });
@@ -125,7 +225,11 @@ export class MailService {
         ? `🎉 SEAL - CHÚC MỪNG: ${teamName} vượt qua ${roundName}`
         : `📋 SEAL - THÔNG BÁO KẾT QUẢ: ${roundName}`;
 
-    const themeColor = isAwarded ? "#f59e0b" : isAdvanced ? "#10b981" : "#6b7280";
+    const themeColor = isAwarded
+      ? "#f59e0b"
+      : isAdvanced
+        ? "#10b981"
+        : "#6b7280";
     const headerTitle = isAwarded
       ? "OUTSTANDING ACHIEVEMENT"
       : isAdvanced
@@ -201,7 +305,7 @@ export class MailService {
     deadline: string,
     timeRemaining: string,
     isSubmitted: boolean,
-    actionUrl: string
+    actionUrl: string,
   ) {
     const subject = isSubmitted
       ? `ℹ️ Nhắc nhở: Rà soát bài nộp vòng ${roundName} - ${eventName}`
@@ -260,7 +364,10 @@ export class MailService {
       );
       return response;
     } catch (error) {
-      this.logger.error(`Failed to send submission reminder email to ${to}`, error);
+      this.logger.error(
+        `Failed to send submission reminder email to ${to}`,
+        error,
+      );
     }
   }
 }

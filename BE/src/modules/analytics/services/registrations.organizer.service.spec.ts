@@ -91,6 +91,44 @@ describe("RegistrationsOrganizerService", () => {
     eventAccess.ensureEventAccess.mockResolvedValue(undefined);
   });
 
+  it("uses the newly registered active team instead of an older rejected team", async () => {
+    const originalMembership = registration.user.teamMemberships[0];
+    repository.findRegistrationDetails.mockResolvedValue({
+      ...registration,
+      user: {
+        ...registration.user,
+        teamMemberships: [
+          {
+            ...originalMembership,
+            joinedAt: new Date("2026-07-01T00:00:00.000Z"),
+            team: {
+              ...originalMembership.team,
+              id: 10,
+              status: TeamStatus.rejected,
+              updatedAt: new Date("2026-07-02T00:00:00.000Z"),
+            },
+          },
+          {
+            ...originalMembership,
+            joinedAt: new Date("2026-08-01T00:00:00.000Z"),
+            team: {
+              ...originalMembership.team,
+              id: 11,
+              name: "Second Chance Team",
+              status: TeamStatus.pending,
+              updatedAt: new Date("2026-08-01T00:00:00.000Z"),
+            },
+          },
+        ],
+      },
+    });
+
+    const result = await service.getRegistration(42, registration.id);
+
+    expect(result.status).toBe("PENDING");
+    expect(result.team?.id).toBe(11);
+  });
+
   it("returns details containing answers, team and chronological history", async () => {
     const result = await service.getRegistration(42, 12);
 

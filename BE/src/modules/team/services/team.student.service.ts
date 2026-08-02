@@ -5,8 +5,12 @@ import {
   BadRequestException,
   ForbiddenException,
   ConflictException,
+  HttpException,
+  HttpStatus,
 } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
+import { ConfigService } from "@nestjs/config";
+import { createHash, randomBytes } from "node:crypto";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import {
   TeamMemberRole,
@@ -14,6 +18,9 @@ import {
   TeamStatus,
   RoundResultStatus,
   RoundStatus,
+  TeamInvitationStatus,
+  NotificationType,
+  Role,
 } from "@prisma/client";
 import { MailService } from "../../../core/mail/mail.service";
 import { StorageService } from "../../../core/storage/storage.service";
@@ -29,7 +36,43 @@ export class TeamStudentService {
     private readonly mailService: MailService,
     private readonly storageService: StorageService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly configService: ConfigService,
   ) {}
+
+  private normalizeInvitationEmails(emails: string[], leaderEmail: string) {
+    const normalized = emails.map((email) => email.trim().toLowerCase());
+    if (new Set(normalized).size !== normalized.length) {
+      throw new BadRequestException({
+        errorCode: "DUPLICATE_TEAM_MEMBER_EMAIL",
+        message: "Each invited member email must be unique.",
+      });
+    }
+    if (normalized.includes(leaderEmail.trim().toLowerCase())) {
+      throw new BadRequestException({
+        errorCode: "LEADER_EMAIL_CANNOT_BE_INVITED",
+        message: "You cannot invite yourself to the team.",
+      });
+    }
+    return normalized;
+  }
+
+  private createInvitation(email: string, registrationDeadline: Date | null) {
+    const rawToken = randomBytes(32).toString("hex");
+    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+    const defaultExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt =
+      registrationDeadline && registrationDeadline < defaultExpiry
+        ? registrationDeadline
+        : defaultExpiry;
+    return { email, rawToken, tokenHash, expiresAt };
+  }
+
+  private getInvitationUrl(rawToken: string) {
+    const frontendUrl =
+      this.configService.get<string>("app.frontendUrl") ||
+      "http://localhost:3001";
+    return `${frontendUrl}/team-invitations/${rawToken}`;
+  }
 
   async getMyEvents(userId: number) {
     const teams = await this.prisma.team.findMany({
@@ -102,6 +145,10 @@ export class TeamStudentService {
                 },
               },
             },
+            invitations: {
+              where: { status: TeamInvitationStatus.pending },
+              orderBy: { createdAt: "desc" },
+            },
             mentorAssignments: {
               include: {
                 mentor: {
@@ -122,7 +169,8 @@ export class TeamStudentService {
     });
 
     return {
-      individualRegistration: registration,
+      individualRegistration:
+        registration && !registration.hasTeam ? registration : null,
       teamInfo: teamMember
         ? {
             role: teamMember.role,
@@ -154,6 +202,10 @@ export class TeamStudentService {
         trackId: dto.trackId,
         hasTeam: false,
         skills: dto.skills,
+        reviewedById: null,
+        reviewedAt: null,
+        note: null,
+        createdAt: new Date(),
       },
       create: {
         userId,
@@ -183,7 +235,14 @@ export class TeamStudentService {
       throw new NotFoundException("Track not found for this event");
     }
 
-    const requestedTeamSize = dto.memberEmails.length + 1;
+    const leader = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!leader) throw new NotFoundException("Team leader not found");
+
+    const memberEmails = this.normalizeInvitationEmails(
+      dto.memberEmails,
+      leader.email,
+    );
+    const requestedTeamSize = memberEmails.length + 1;
     if (
       requestedTeamSize < event.minMembersPerTeam ||
       requestedTeamSize > event.maxMembersPerTeam
@@ -198,23 +257,9 @@ export class TeamStudentService {
 
     const members = await this.prisma.user.findMany({
       where: {
-        email: { in: dto.memberEmails },
+        email: { in: memberEmails },
       },
     });
-
-    if (members.length !== dto.memberEmails.length) {
-      const foundEmails = members.map((m) => m.email);
-      const missingEmails = dto.memberEmails.filter(
-        (e) => !foundEmails.includes(e),
-      );
-      throw new BadRequestException(
-        `These emails are not registered in the system: ${missingEmails.join(", ")}`,
-      );
-    }
-
-    if (members.some((m) => m.id === userId)) {
-      throw new BadRequestException("You cannot invite yourself to the team.");
-    }
 
     const memberIds = members.map((m) => m.id);
     const existingMemberships = await this.prisma.teamMember.findMany({
@@ -237,6 +282,27 @@ export class TeamStudentService {
         `These users are already in a team for this event: ${conflictingUsers.join(", ")}`,
       );
     }
+
+    const existingInvitations = await this.prisma.teamInvitation.findMany({
+      where: {
+        email: { in: memberEmails },
+        status: TeamInvitationStatus.pending,
+        team: {
+          eventId,
+          status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
+        },
+      },
+    });
+    if (existingInvitations.length > 0) {
+      throw new ConflictException({
+        errorCode: "EMAIL_ALREADY_INVITED_TO_EVENT_TEAM",
+        message: `These emails already have a pending team invitation for this event: ${existingInvitations.map((invitation) => invitation.email).join(", ")}`,
+      });
+    }
+
+    const invitations = memberEmails.map((email) =>
+      this.createInvitation(email, event.registrationDeadline),
+    );
 
     const resultTeam = await this.prisma.$transaction(async (prisma) => {
       await prisma.$queryRaw`
@@ -263,6 +329,23 @@ export class TeamStudentService {
         lockedEvent.registrationDeadline < new Date()
       ) {
         throw new BadRequestException("Registration deadline has passed");
+      }
+
+      const invitationConflict = await prisma.teamInvitation.findFirst({
+        where: {
+          email: { in: memberEmails },
+          status: TeamInvitationStatus.pending,
+          team: {
+            eventId,
+            status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
+          },
+        },
+      });
+      if (invitationConflict) {
+        throw new ConflictException({
+          errorCode: "EMAIL_ALREADY_INVITED_TO_EVENT_TEAM",
+          message: `${invitationConflict.email} already has a pending team invitation for this event.`,
+        });
       }
 
       if (lockedEvent.maxTeams !== null) {
@@ -321,13 +404,15 @@ export class TeamStudentService {
         },
       });
 
-      if (members.length > 0) {
-        await prisma.teamMember.createMany({
-          data: members.map((member) => ({
+      if (invitations.length > 0) {
+        await prisma.teamInvitation.createMany({
+          data: invitations.map((invitation) => ({
             teamId: team.id,
-            userId: member.id,
-            role: TeamMemberRole.member,
-            status: TeamMemberStatus.pending,
+            email: invitation.email,
+            tokenHash: invitation.tokenHash,
+            status: TeamInvitationStatus.pending,
+            invitedById: userId,
+            expiresAt: invitation.expiresAt,
           })),
         });
       }
@@ -342,6 +427,10 @@ export class TeamStudentService {
         update: {
           trackId: dto.trackId,
           hasTeam: true,
+          reviewedById: null,
+          reviewedAt: null,
+          note: null,
+          createdAt: new Date(),
         },
         create: {
           userId,
@@ -354,23 +443,18 @@ export class TeamStudentService {
       return team;
     });
 
-    if (members.length > 0) {
-      const leader = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
-      const event = await this.prisma.event.findUnique({
-        where: { id: eventId },
-      });
-
+    if (invitations.length > 0) {
       Promise.all(
-        members.map((member) =>
-          this.mailService.sendTeamInvitationEmail(
-            member.email,
-            dto.teamName,
-            event?.name || "Sự kiện",
-            track.name,
-            leader?.name || "Một người bạn",
-          ),
+        invitations.map((invitation) =>
+          this.mailService.sendTeamInvitationEmail({
+            to: invitation.email,
+            teamName: dto.teamName,
+            eventName: event.name,
+            trackName: track.name,
+            leaderName: leader.name,
+            invitationUrl: this.getInvitationUrl(invitation.rawToken),
+            expiresAt: invitation.expiresAt,
+          }),
         ),
       ).catch((err) => this.logger.error("Failed to send invitations", err));
     }
@@ -393,7 +477,11 @@ export class TeamStudentService {
   ) {
     const team = await this.prisma.team.findFirst({
       where: { eventId, leaderId: userId },
-      include: { members: { include: { user: true } } },
+      include: {
+        leader: true,
+        members: { include: { user: true } },
+        invitations: true,
+      },
     });
 
     if (!team)
@@ -413,7 +501,11 @@ export class TeamStudentService {
     });
     if (!track || track.eventId !== eventId)
       throw new NotFoundException("Track not found");
-    const requestedTeamSize = dto.memberEmails.length + 1;
+    const memberEmails = this.normalizeInvitationEmails(
+      dto.memberEmails,
+      team.leader.email,
+    );
+    const requestedTeamSize = memberEmails.length + 1;
     if (
       requestedTeamSize < event.minMembersPerTeam ||
       requestedTeamSize > event.maxMembersPerTeam
@@ -427,33 +519,31 @@ export class TeamStudentService {
     }
 
     const members = await this.prisma.user.findMany({
-      where: { email: { in: dto.memberEmails } },
+      where: { email: { in: memberEmails } },
     });
-    if (members.length !== dto.memberEmails.length) {
-      const foundEmails = members.map((m) => m.email);
-      const missingEmails = dto.memberEmails.filter(
-        (e) => !foundEmails.includes(e),
-      );
-      throw new BadRequestException(
-        `These emails are not registered: ${missingEmails.join(", ")}`,
-      );
-    }
-
-    if (members.some((m) => m.id === userId)) {
-      throw new BadRequestException("You cannot invite yourself to the team.");
-    }
 
     const currentMemberEmails = team.members
       .filter((m) => m.role === TeamMemberRole.member)
-      .map((m) => m.user.email);
-    const emailsToAdd = dto.memberEmails.filter(
-      (e) => !currentMemberEmails.includes(e),
+      .map((m) => m.user.email.toLowerCase());
+    const currentInvitationEmails = team.invitations
+      .filter(
+        (invitation) => invitation.status === TeamInvitationStatus.pending,
+      )
+      .map((invitation) => invitation.email);
+    const currentEmails = new Set([
+      ...currentMemberEmails,
+      ...currentInvitationEmails,
+    ]);
+    const emailsToAdd = memberEmails.filter(
+      (email) => !currentEmails.has(email),
     );
-    const emailsToRemove = currentMemberEmails.filter(
-      (e) => !dto.memberEmails.includes(e),
+    const emailsToRemove = [...currentEmails].filter(
+      (email) => !memberEmails.includes(email),
     );
 
-    const usersToAdd = members.filter((m) => emailsToAdd.includes(m.email));
+    const usersToAdd = members.filter((member) =>
+      emailsToAdd.includes(member.email.toLowerCase()),
+    );
 
     if (usersToAdd.length > 0) {
       const memberIds = usersToAdd.map((m) => m.id);
@@ -476,6 +566,28 @@ export class TeamStudentService {
       }
     }
 
+    const conflictingInvitations = await this.prisma.teamInvitation.findMany({
+      where: {
+        email: { in: emailsToAdd },
+        status: TeamInvitationStatus.pending,
+        team: {
+          eventId,
+          id: { not: team.id },
+          status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
+        },
+      },
+    });
+    if (conflictingInvitations.length > 0) {
+      throw new ConflictException({
+        errorCode: "EMAIL_ALREADY_INVITED_TO_EVENT_TEAM",
+        message: `These emails already have a pending team invitation for this event: ${conflictingInvitations.map((invitation) => invitation.email).join(", ")}`,
+      });
+    }
+
+    const newInvitations = emailsToAdd.map((email) =>
+      this.createInvitation(email, event.registrationDeadline),
+    );
+
     const resultTeam = await this.prisma.$transaction(async (prisma) => {
       await prisma.team.update({
         where: { id: team.id },
@@ -488,45 +600,66 @@ export class TeamStudentService {
       });
 
       if (emailsToRemove.length > 0) {
-        const usersToRemove = team.members.filter((m) =>
-          emailsToRemove.includes(m.user.email),
-        );
         await prisma.teamMember.deleteMany({
-          where: { id: { in: usersToRemove.map((m) => m.id) } },
+          where: {
+            teamId: team.id,
+            role: TeamMemberRole.member,
+            user: { email: { in: emailsToRemove, mode: "insensitive" } },
+          },
+        });
+        await prisma.teamInvitation.updateMany({
+          where: {
+            teamId: team.id,
+            email: { in: emailsToRemove },
+            status: TeamInvitationStatus.pending,
+          },
+          data: { status: TeamInvitationStatus.cancelled },
         });
       }
 
-      if (usersToAdd.length > 0) {
-        await prisma.teamMember.createMany({
-          data: usersToAdd.map((member) => ({
+      for (const invitation of newInvitations) {
+        await prisma.teamInvitation.upsert({
+          where: {
+            teamId_email: { teamId: team.id, email: invitation.email },
+          },
+          update: {
+            tokenHash: invitation.tokenHash,
+            status: TeamInvitationStatus.pending,
+            invitedById: userId,
+            acceptedById: null,
+            expiresAt: invitation.expiresAt,
+          },
+          create: {
             teamId: team.id,
-            userId: member.id,
-            role: TeamMemberRole.member,
-            status: TeamMemberStatus.pending,
-          })),
+            email: invitation.email,
+            tokenHash: invitation.tokenHash,
+            status: TeamInvitationStatus.pending,
+            invitedById: userId,
+            expiresAt: invitation.expiresAt,
+          },
         });
       }
+
+      await prisma.team.update({
+        where: { id: team.id },
+        data: { status: TeamStatus.approved },
+      });
 
       return prisma.team.findUnique({ where: { id: team.id } });
     });
 
-    if (usersToAdd.length > 0) {
-      const leader = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
-      const event = await this.prisma.event.findUnique({
-        where: { id: eventId },
-      });
-
+    if (newInvitations.length > 0) {
       Promise.all(
-        usersToAdd.map((member) =>
-          this.mailService.sendTeamInvitationEmail(
-            member.email,
-            dto.teamName,
-            event?.name || "Sự kiện",
-            track.name,
-            leader?.name || "Một người bạn",
-          ),
+        newInvitations.map((invitation) =>
+          this.mailService.sendTeamInvitationEmail({
+            to: invitation.email,
+            teamName: dto.teamName,
+            eventName: event.name,
+            trackName: track.name,
+            leaderName: team.leader.name,
+            invitationUrl: this.getInvitationUrl(invitation.rawToken),
+            expiresAt: invitation.expiresAt,
+          }),
         ),
       ).catch((err) => this.logger.error("Failed to send invitations", err));
     }
@@ -535,99 +668,103 @@ export class TeamStudentService {
   }
 
   async getInvitations(userId: number) {
-    return this.prisma.teamMember.findMany({
-      where: {
-        userId,
-        status: TeamMemberStatus.pending,
-      },
-      include: {
-        team: {
-          include: {
-            event: true,
-            track: true,
-            leader: { select: { name: true, email: true } },
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("User not found");
+    const [invitations, legacyInvitations] = await Promise.all([
+      this.prisma.teamInvitation.findMany({
+        where: {
+          email: user.email.toLowerCase(),
+          status: TeamInvitationStatus.pending,
+          expiresAt: { gt: new Date() },
+        },
+        include: {
+          team: {
+            include: {
+              event: true,
+              track: true,
+              leader: { select: { name: true, email: true } },
+            },
           },
         },
-      },
-    });
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.teamMember.findMany({
+        where: { userId, status: TeamMemberStatus.pending },
+        include: {
+          team: {
+            include: {
+              event: true,
+              track: true,
+              leader: { select: { name: true, email: true } },
+            },
+          },
+        },
+      }),
+    ]);
+    return [...invitations, ...legacyInvitations];
   }
 
   async respondToInvitation(userId: number, teamId: number, accept: boolean) {
-    const membership = await this.prisma.teamMember.findUnique({
-      where: { teamId_userId: { teamId, userId } },
-      include: {
-        team: { include: { members: { include: { user: true } } } },
-        user: true,
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException("User not found");
+    const invitation = await this.prisma.teamInvitation.findFirst({
+      where: {
+        teamId,
+        email: user.email.toLowerCase(),
+        status: TeamInvitationStatus.pending,
       },
     });
+    if (!invitation)
+      return this.respondToLegacyInvitation(userId, teamId, accept);
+    return this.respondToStoredInvitation(userId, invitation.id, accept);
+  }
 
+  private async respondToLegacyInvitation(
+    userId: number,
+    teamId: number,
+    accept: boolean,
+  ) {
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { teamId_userId: { teamId, userId } },
+      include: { team: true },
+    });
     if (!membership || membership.status !== TeamMemberStatus.pending) {
       throw new BadRequestException(
         "Invitation not found or already processed",
       );
     }
-
-    if (accept) {
-      const existingAccepted = await this.prisma.teamMember.findFirst({
-        where: {
-          userId,
-          status: TeamMemberStatus.accepted,
-          team: {
-            eventId: membership.team.eventId,
-            status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
-          },
-        },
+    if (!accept) {
+      return this.prisma.teamMember.update({
+        where: { id: membership.id },
+        data: { status: TeamMemberStatus.rejected },
       });
+    }
 
-      if (existingAccepted) {
-        throw new BadRequestException(
-          "You are already a member of another team in this event.",
-        );
-      }
+    const existingAccepted = await this.prisma.teamMember.findFirst({
+      where: {
+        userId,
+        status: TeamMemberStatus.accepted,
+        team: {
+          eventId: membership.team.eventId,
+          status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
+        },
+      },
+    });
+    if (existingAccepted) {
+      throw new ConflictException(
+        "You are already a member of another team in this event.",
+      );
     }
 
     return this.prisma.$transaction(async (prisma) => {
-      if (!accept) {
-        const rejected = await prisma.teamMember.update({
-          where: { id: membership.id },
-          data: { status: TeamMemberStatus.rejected },
-        });
-
-        // Notify team leader or entire team
-        await prisma.notification.create({
-          data: {
-            userId:
-              membership.team.members.find(
-                (m) => m.role === TeamMemberRole.leader,
-              )?.userId || membership.team.members[0].userId,
-            eventId: membership.team.eventId,
-            type: "team_invite_rejected" as any,
-            title: "Invitation Rejected",
-            content: `${membership.user.name} has rejected the invitation to join ${membership.team.name}.`,
-          },
-        });
-
-        return rejected;
-      }
-
-      // If accepted
       const updated = await prisma.teamMember.update({
         where: { id: membership.id },
         data: { status: TeamMemberStatus.accepted },
       });
-
-      await prisma.teamMember.updateMany({
-        where: {
-          userId,
-          status: TeamMemberStatus.pending,
-          id: { not: membership.id },
-          team: { eventId: membership.team.eventId },
-        },
-        data: { status: TeamMemberStatus.rejected },
-      });
-
       await prisma.studentRegistration.upsert({
-        where: { userId_eventId: { userId, eventId: membership.team.eventId } },
+        where: {
+          userId_eventId: { userId, eventId: membership.team.eventId },
+        },
         create: {
           userId,
           eventId: membership.team.eventId,
@@ -635,37 +772,328 @@ export class TeamStudentService {
           hasTeam: true,
         },
         update: {
+          trackId: membership.team.trackId,
           hasTeam: true,
+          reviewedById: null,
+          reviewedAt: null,
+          note: null,
+          createdAt: new Date(),
+        },
+      });
+      return updated;
+    });
+  }
+
+  async getInvitationByToken(rawToken: string) {
+    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+    const invitation = await this.prisma.teamInvitation.findUnique({
+      where: { tokenHash },
+      include: {
+        team: {
+          include: {
+            event: {
+              select: { id: true, name: true, registrationDeadline: true },
+            },
+            track: { select: { id: true, name: true } },
+            leader: { select: { name: true } },
+          },
+        },
+      },
+    });
+    if (!invitation) throw new NotFoundException("Invitation not found");
+
+    const status =
+      invitation.status === TeamInvitationStatus.pending &&
+      invitation.expiresAt <= new Date()
+        ? TeamInvitationStatus.expired
+        : invitation.status;
+    return {
+      id: invitation.id,
+      email: invitation.email,
+      status,
+      expiresAt: invitation.expiresAt,
+      team: {
+        id: invitation.team.id,
+        name: invitation.team.name,
+        event: invitation.team.event,
+        track: invitation.team.track,
+        leader: invitation.team.leader,
+      },
+    };
+  }
+
+  async respondToInvitationToken(
+    userId: number,
+    rawToken: string,
+    accept: boolean,
+  ) {
+    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+    const invitation = await this.prisma.teamInvitation.findUnique({
+      where: { tokenHash },
+    });
+    if (!invitation) throw new NotFoundException("Invitation not found");
+    return this.respondToStoredInvitation(userId, invitation.id, accept);
+  }
+
+  async resendInvitation(userId: number, teamId: number, invitationId: number) {
+    const invitation = await this.prisma.teamInvitation.findFirst({
+      where: {
+        id: invitationId,
+        teamId,
+        status: TeamInvitationStatus.pending,
+        team: { leaderId: userId },
+      },
+      include: {
+        team: { include: { event: true, track: true, leader: true } },
+      },
+    });
+    if (!invitation)
+      throw new NotFoundException("Pending invitation not found");
+    if (
+      invitation.team.event.registrationDeadline &&
+      invitation.team.event.registrationDeadline < new Date()
+    ) {
+      throw new BadRequestException("Team roster is locked");
+    }
+    if (Date.now() - invitation.updatedAt.getTime() < 60_000) {
+      throw new HttpException(
+        "Wait 60 seconds before resending this invitation.",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const replacement = this.createInvitation(
+      invitation.email,
+      invitation.team.event.registrationDeadline,
+    );
+    const updated = await this.prisma.teamInvitation.update({
+      where: { id: invitation.id },
+      data: {
+        tokenHash: replacement.tokenHash,
+        expiresAt: replacement.expiresAt,
+      },
+    });
+    await this.mailService.sendTeamInvitationEmail({
+      to: invitation.email,
+      teamName: invitation.team.name,
+      eventName: invitation.team.event.name,
+      trackName: invitation.team.track.name,
+      leaderName: invitation.team.leader.name,
+      invitationUrl: this.getInvitationUrl(replacement.rawToken),
+      expiresAt: replacement.expiresAt,
+    });
+    return updated;
+  }
+
+  async cancelInvitation(userId: number, teamId: number, invitationId: number) {
+    const invitation = await this.prisma.teamInvitation.findFirst({
+      where: {
+        id: invitationId,
+        teamId,
+        status: TeamInvitationStatus.pending,
+        team: { leaderId: userId },
+      },
+      include: { team: { include: { event: true } } },
+    });
+    if (!invitation)
+      throw new NotFoundException("Pending invitation not found");
+    if (
+      invitation.team.event.registrationDeadline &&
+      invitation.team.event.registrationDeadline < new Date()
+    ) {
+      throw new BadRequestException("Team roster is locked");
+    }
+    return this.prisma.teamInvitation.update({
+      where: { id: invitation.id },
+      data: { status: TeamInvitationStatus.cancelled },
+    });
+  }
+
+  private async respondToStoredInvitation(
+    userId: number,
+    invitationId: number,
+    accept: boolean,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { studentProfile: true },
+    });
+    if (!user) throw new NotFoundException("User not found");
+    if (accept && user.role !== Role.student) {
+      throw new ForbiddenException("Only student accounts can join a team.");
+    }
+    if (accept && !user.isActive) {
+      throw new ForbiddenException(
+        "Verify your email before accepting the invitation.",
+      );
+    }
+    if (accept && !user.studentProfile) {
+      throw new BadRequestException({
+        errorCode: "STUDENT_PROFILE_REQUIRED",
+        message:
+          "Complete your student profile before accepting the invitation.",
+      });
+    }
+
+    return this.prisma.$transaction(async (prisma) => {
+      const invitation = await prisma.teamInvitation.findUnique({
+        where: { id: invitationId },
+        include: {
+          team: {
+            include: {
+              event: true,
+              members: true,
+            },
+          },
+        },
+      });
+      if (!invitation || invitation.status !== TeamInvitationStatus.pending) {
+        throw new BadRequestException(
+          "Invitation not found or already processed",
+        );
+      }
+      if (invitation.expiresAt <= new Date()) {
+        await prisma.teamInvitation.update({
+          where: { id: invitation.id },
+          data: { status: TeamInvitationStatus.expired },
+        });
+        throw new BadRequestException("Invitation has expired");
+      }
+      if (invitation.email !== user.email.trim().toLowerCase()) {
+        throw new ForbiddenException(
+          "Sign in with the same email address that received this invitation.",
+        );
+      }
+      if (
+        invitation.team.event.registrationDeadline &&
+        invitation.team.event.registrationDeadline < new Date()
+      ) {
+        throw new BadRequestException("Team roster is locked");
+      }
+
+      if (!accept) {
+        const rejected = await prisma.teamInvitation.update({
+          where: { id: invitation.id },
+          data: { status: TeamInvitationStatus.rejected },
+        });
+        await prisma.notification.create({
+          data: {
+            userId: invitation.team.leaderId,
+            eventId: invitation.team.eventId,
+            type: NotificationType.team_invite_rejected,
+            title: "Invitation Rejected",
+            content: `${user.name} has rejected the invitation to join ${invitation.team.name}.`,
+          },
+        });
+        return rejected;
+      }
+
+      await prisma.$queryRaw`
+        SELECT "id" FROM "teams" WHERE "id" = ${invitation.teamId} FOR UPDATE
+      `;
+      const acceptedCount = await prisma.teamMember.count({
+        where: {
+          teamId: invitation.teamId,
+          status: TeamMemberStatus.accepted,
+        },
+      });
+      if (acceptedCount >= invitation.team.event.maxMembersPerTeam) {
+        throw new ConflictException("Team has reached its member limit");
+      }
+      const existingAccepted = await prisma.teamMember.findFirst({
+        where: {
+          userId,
+          status: TeamMemberStatus.accepted,
+          team: {
+            eventId: invitation.team.eventId,
+            status: { notIn: [TeamStatus.rejected, TeamStatus.disqualified] },
+          },
+        },
+      });
+      if (existingAccepted && existingAccepted.teamId !== invitation.teamId) {
+        throw new ConflictException(
+          "You are already a member of another team in this event.",
+        );
+      }
+
+      const membership = await prisma.teamMember.upsert({
+        where: { teamId_userId: { teamId: invitation.teamId, userId } },
+        update: {
+          role: TeamMemberRole.member,
+          status: TeamMemberStatus.accepted,
+        },
+        create: {
+          teamId: invitation.teamId,
+          userId,
+          role: TeamMemberRole.member,
+          status: TeamMemberStatus.accepted,
+        },
+      });
+      await prisma.teamInvitation.update({
+        where: { id: invitation.id },
+        data: {
+          status: TeamInvitationStatus.accepted,
+          acceptedById: userId,
+        },
+      });
+      await prisma.teamInvitation.updateMany({
+        where: {
+          id: { not: invitation.id },
+          email: invitation.email,
+          status: TeamInvitationStatus.pending,
+          team: { eventId: invitation.team.eventId },
+        },
+        data: { status: TeamInvitationStatus.cancelled },
+      });
+
+      await prisma.studentRegistration.upsert({
+        where: {
+          userId_eventId: { userId, eventId: invitation.team.eventId },
+        },
+        create: {
+          userId,
+          eventId: invitation.team.eventId,
+          trackId: invitation.team.trackId,
+          hasTeam: true,
+        },
+        update: {
+          trackId: invitation.team.trackId,
+          hasTeam: true,
+          reviewedById: null,
+          reviewedAt: null,
+          note: null,
+          createdAt: new Date(),
         },
       });
 
-      // Send Notification to existing members
-      const notifyMembers = membership.team.members
-        .filter((m) => m.status === TeamMemberStatus.accepted)
+      const notifyMembers = invitation.team.members
+        .filter((member) => member.status === TeamMemberStatus.accepted)
         .map((m) => ({
           userId: m.userId,
-          eventId: membership.team.eventId,
-          type: "team_invite_accepted" as any,
+          eventId: invitation.team.eventId,
+          type: NotificationType.team_invite_accepted,
           title: "New Team Member",
-          content: `${membership.user.name} has joined the team!`,
+          content: `${user.name} has joined the team!`,
         }));
-
-      // Send Welcome Notification to the user who accepted
       notifyMembers.push({
         userId,
-        eventId: membership.team.eventId,
-        type: "team_invite_accepted" as any,
+        eventId: invitation.team.eventId,
+        type: NotificationType.team_invite_accepted,
         title: "Welcome to the Team",
-        content: `You have successfully joined ${membership.team.name}.`,
+        content: `You have successfully joined ${invitation.team.name}.`,
       });
+      await prisma.notification.createMany({ data: notifyMembers });
 
-      if (notifyMembers.length > 0) {
-        await prisma.notification.createMany({
-          data: notifyMembers,
+      if (acceptedCount + 1 >= invitation.team.event.minMembersPerTeam) {
+        await prisma.team.updateMany({
+          where: {
+            id: invitation.teamId,
+            status: TeamStatus.pending,
+          },
+          data: { status: TeamStatus.approved },
         });
       }
-
-      return updated;
+      return membership;
     });
   }
 
