@@ -44,7 +44,11 @@ import {
   OnlineMeetingCard,
   type OnlineMeetingDetails,
 } from "@/components/events/online-meeting-card";
-import { formatPrizeAmount, getPrizePlacementLabel } from "@/lib/events/prizes";
+import {
+  calculatePrizePoolTotals,
+  formatPrizeAmount,
+  getPrizePlacementLabel,
+} from "@/lib/events/prizes";
 
 type EventTrack = {
   id: number | string;
@@ -965,6 +969,7 @@ export default function EventDetailPage() {
   const eventContacts = normalizeContacts(event);
   const mentorSupportNote = event.support?.mentorNote;
   const eventImageUrl = event.imageUrl || event.image_url;
+  const prizePoolTotals = calculatePrizePoolTotals(event.prizes);
   const onlineMeeting: OnlineMeetingDetails | null = isOnlineMeetingPublished(
     event.status,
   )
@@ -1414,19 +1419,14 @@ export default function EventDetailPage() {
                   <Trophy className="h-5 w-5 text-yellow-500" />
                   <div>
                     <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                      Grand Prize
+                      Prize up to
                     </div>
-                    <div className="font-semibold text-foreground">
-                      {formatPrizeAmount(
-                        (
-                          event.prizes.find((prize) => prize.placement === 1) ||
-                          event.prizes[0]
-                        ).amount,
-                        (
-                          event.prizes.find((prize) => prize.placement === 1) ||
-                          event.prizes[0]
-                        ).currency,
-                      )}
+                    <div className="flex flex-wrap gap-x-2 font-semibold text-foreground">
+                      {prizePoolTotals.map((total) => (
+                        <span key={total.currency}>
+                          {formatPrizeAmount(total.amount, total.currency)}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1634,13 +1634,13 @@ export default function EventDetailPage() {
               <Trophy className="h-6 w-6 text-amber-500" />
               Prizes & Awards
             </h2>
-            {event.prizePoolTotals && event.prizePoolTotals.length > 0 && (
+            {prizePoolTotals.length > 0 && (
               <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4">
                 <span className="font-semibold text-foreground">
                   Total prize pool
                 </span>
                 <div className="flex flex-wrap gap-2">
-                  {event.prizePoolTotals.map((total) => (
+                  {prizePoolTotals.map((total) => (
                     <span
                       key={total.currency}
                       className="rounded-lg bg-background/70 px-3 py-1.5 font-bold text-amber-600"

@@ -2201,7 +2201,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                         control={control}
                         name={`prizes.${index}.quantity`}
                         render={({ field }) => (
-                          <FormItem className="md:col-span-1">
+                          <FormItem className="md:col-span-2">
                             <FormLabel className="text-foreground/80 font-medium">
                               Quantity
                             </FormLabel>
@@ -2209,7 +2209,9 @@ export default function EventForm({ initialData }: EventFormProps) {
                               <Input
                                 type="number"
                                 min="1"
-                                className="bg-background/50 rounded-xl"
+                                step="1"
+                                inputMode="numeric"
+                                className="bg-background/50 rounded-xl tabular-nums"
                                 {...field}
                               />
                             </FormControl>
@@ -2218,23 +2220,11 @@ export default function EventForm({ initialData }: EventFormProps) {
                         )}
                       />
 
-                      <div className="md:col-span-1 flex items-end justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-500 hover:bg-red-100/50 hover:text-red-600 rounded-xl"
-                          onClick={() => removePrize(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
                       <FormField
                         control={control}
                         name={`prizes.${index}.description`}
                         render={({ field }) => (
-                          <FormItem className="md:col-span-12">
+                          <FormItem className="md:col-span-11">
                             <FormLabel className="text-foreground/80 font-medium">
                               Other rewards
                             </FormLabel>
@@ -2249,6 +2239,19 @@ export default function EventForm({ initialData }: EventFormProps) {
                           </FormItem>
                         )}
                       />
+
+                      <div className="flex items-end justify-end md:col-span-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-xl text-red-500 hover:bg-red-100/50 hover:text-red-600"
+                          onClick={() => removePrize(index)}
+                          aria-label={`Remove prize ${index + 1}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   {prizeFields.length === 0 && (
