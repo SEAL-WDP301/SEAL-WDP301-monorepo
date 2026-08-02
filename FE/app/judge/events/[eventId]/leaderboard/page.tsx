@@ -121,7 +121,7 @@ function LeaderboardRow({ sub, index, handleVote, toggleVoteMutation }: any) {
                                 {rubric.name}
                               </h4>
                               <span className="text-sm font-bold bg-muted px-2 py-0.5 rounded-full shrink-0 tabular-nums">
-                                {score ? score.scoreValue : "-"} <span className="text-[10px] text-muted-foreground font-normal">/ {rubric.maxScore}</span>
+                                {score ? score.scoreValue : "-"} <span className="text-[10px] text-muted-foreground font-normal">/ 10</span>
                               </span>
                             </div>
                             <div className="flex justify-between items-center text-xs text-muted-foreground mt-2">

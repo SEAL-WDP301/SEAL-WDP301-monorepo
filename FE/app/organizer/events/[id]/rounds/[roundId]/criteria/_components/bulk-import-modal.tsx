@@ -59,9 +59,11 @@ export function BulkImportRubricsModal({
       ["--------------------------"],
       ["1. DO NOT change the column headers in the 'Template' sheet."],
       ["2. * indicates a REQUIRED field."],
-      ["3. 'Max Score' and 'Weight' must be positive numbers."],
-      ["4. 'Rubric Name' must be unique within the same Round (and Track)."],
-      isTrackSpecific ? ["5. 'Track' must exactly match one of the tracks listed below."] : [""],
+      ["3. 'Share' (or Weight) is parts of 10 and must be a positive number."],
+      ["4. All shares for the same round/track must total exactly 10."],
+      ["5. Judges always rate each criterion 0–10; contribution = (score/10)*share."],
+      ["6. 'Rubric Name' must be unique within the same Round (and Track)."],
+      isTrackSpecific ? ["7. 'Track' must exactly match one of the tracks listed below."] : [""],
       [""],
       ["Available Tracks:"],
       ...tracks.map(t => [`- ${t.name}`])
@@ -70,8 +72,8 @@ export function BulkImportRubricsModal({
 
     // Template sheet
     const headers = isTrackSpecific
-      ? ["Track*", "Rubric Name*", "Description", "Max Score*", "Weight*"]
-      : ["Rubric Name*", "Description", "Max Score*", "Weight*"];
+      ? ["Track*", "Rubric Name*", "Description", "Share*"]
+      : ["Rubric Name*", "Description", "Share*"];
 
     const wsTemplate = XLSX.utils.aoa_to_sheet([headers]);
     
@@ -159,11 +161,14 @@ export function BulkImportRubricsModal({
       
       const name = row["Rubric Name*"]?.trim() || row["Rubric Name"]?.trim();
       const desc = row["Description"]?.trim();
-      const rawMaxScore = row["Max Score*"] ?? row["Max Score"];
-      const rawWeight = row["Weight*"] ?? row["Weight"];
+      const rawWeight =
+        row["Share*"] ??
+        row["Share"] ??
+        row["Weight*"] ??
+        row["Weight"];
       const trackName = row["Track*"]?.trim() || row["Track"]?.trim();
 
-      if (!name && !rawMaxScore && !rawWeight && !trackName) {
+      if (!name && !rawWeight && !trackName) {
         // Skip completely empty rows
         return;
       }
@@ -173,15 +178,12 @@ export function BulkImportRubricsModal({
         return;
       }
 
-      const maxScore = Number(rawMaxScore);
-      if (isNaN(maxScore) || maxScore <= 0) {
-        newErrors.push({ row: rowNum, message: "Max Score must be a positive number." });
-        return;
-      }
-
       const weight = Number(rawWeight);
       if (isNaN(weight) || weight <= 0) {
-        newErrors.push({ row: rowNum, message: "Weight must be a positive number." });
+        newErrors.push({
+          row: rowNum,
+          message: "Share/Weight must be a positive number (parts of 10).",
+        });
         return;
       }
 
@@ -219,7 +221,7 @@ export function BulkImportRubricsModal({
       validRows.push({
         name,
         description: desc || undefined,
-        maxScore,
+        maxScore: 10,
         weight,
         roundId: round.id,
         trackId,

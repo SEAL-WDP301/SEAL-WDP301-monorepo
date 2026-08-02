@@ -175,27 +175,28 @@ export const judgeApi = {
   },
 };
 
+/** Judge rates each criterion 0–10; contribution = (score/10)*weight. Weights total 10. */
+export const JUDGE_SCORE_SCALE = 10;
+
 export function computeLocalWeightedScore(
   rubrics: JudgeRubric[],
   scores: Record<number, number>,
 ): number | null {
   if (!rubrics.length) return null;
 
-  let weightedSum = 0;
-  let totalWeight = 0;
+  let total = 0;
+  let scoredAny = false;
 
   for (const rubric of rubrics) {
     const value = scores[rubric.id];
     if (value === undefined) continue;
 
-    const weight = Number(rubric.weight);
-    const normalized = (value / rubric.maxScore) * 10;
-    weightedSum += normalized * weight;
-    totalWeight += weight;
+    scoredAny = true;
+    total += (value / JUDGE_SCORE_SCALE) * Number(rubric.weight);
   }
 
-  if (totalWeight === 0) return null;
-  return Math.round((weightedSum / totalWeight) * 100) / 100;
+  if (!scoredAny) return null;
+  return Math.round(total * 100) / 100;
 }
 
 export function mapScoringStatusLabel(status: JudgeScoringStatus) {
