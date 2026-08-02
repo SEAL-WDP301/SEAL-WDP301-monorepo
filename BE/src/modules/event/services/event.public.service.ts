@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { EventStatus, TeamStatus } from "@prisma/client";
+import { calculatePrizePoolTotals } from "../utils/prize-value.utils";
 
 @Injectable()
 export class EventPublicService {
@@ -13,6 +14,11 @@ export class EventPublicService {
       imageUrl?: string | null;
       endDate?: Date | string | null;
       location?: string | null;
+      prizes?: Array<{
+        amount?: number | null;
+        quantity?: number | null;
+        currency?: string | null;
+      }>;
     },
   >(event: T) {
     let publicLocation = event.location;
@@ -31,6 +37,7 @@ export class EventPublicService {
       location: publicLocation,
       image_url: event.imageUrl ?? null,
       end_date: event.endDate ?? null,
+      prizePoolTotals: calculatePrizePoolTotals(event.prizes),
     };
   }
 
@@ -134,7 +141,14 @@ export class EventPublicService {
               name: true,
               track: { select: { id: true, name: true } },
               award: {
-                select: { id: true, name: true, description: true },
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  amount: true,
+                  placement: true,
+                  currency: true,
+                },
               },
             },
             orderBy: [{ awardId: "asc" }, { name: "asc" }],

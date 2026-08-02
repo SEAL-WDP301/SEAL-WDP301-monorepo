@@ -64,6 +64,14 @@ export interface OrganizerPrizeInput {
   name: string;
   description?: string;
   quantity?: number;
+  amount?: number;
+  placement?: 1 | 2 | 3 | null;
+  currency?: string;
+}
+
+export interface PrizePoolTotal {
+  currency: string;
+  amount: number;
 }
 
 export interface OrganizerPrize extends OrganizerPrizeInput {
@@ -126,6 +134,7 @@ export interface OrganizerEvent extends Omit<
   tracks?: OrganizerTrack[];
   rounds?: OrganizerRound[];
   prizes?: OrganizerPrize[];
+  prizePoolTotals?: PrizePoolTotal[];
   registeredTeams?: number;
   calendarMeeting?: EventCalendarMeeting | null;
   _count?: {

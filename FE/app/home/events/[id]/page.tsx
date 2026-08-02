@@ -44,6 +44,7 @@ import {
   OnlineMeetingCard,
   type OnlineMeetingDetails,
 } from "@/components/events/online-meeting-card";
+import { formatPrizeAmount, getPrizePlacementLabel } from "@/lib/events/prizes";
 
 type EventTrack = {
   id: number | string;
@@ -81,7 +82,11 @@ type EventDetail = {
     name: string;
     description?: string;
     quantity: number;
+    amount: number;
+    placement?: 1 | 2 | 3 | null;
+    currency: string;
   }[];
+  prizePoolTotals?: Array<{ currency: string; amount: number }>;
   eventAchievements?: EventAchievement[];
   githubOrgUrl?: string | null;
   tracks?: EventTrack[];
@@ -1412,7 +1417,16 @@ export default function EventDetailPage() {
                       Grand Prize
                     </div>
                     <div className="font-semibold text-foreground">
-                      {event.prizes[0].name}
+                      {formatPrizeAmount(
+                        (
+                          event.prizes.find((prize) => prize.placement === 1) ||
+                          event.prizes[0]
+                        ).amount,
+                        (
+                          event.prizes.find((prize) => prize.placement === 1) ||
+                          event.prizes[0]
+                        ).currency,
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1620,6 +1634,23 @@ export default function EventDetailPage() {
               <Trophy className="h-6 w-6 text-amber-500" />
               Prizes & Awards
             </h2>
+            {event.prizePoolTotals && event.prizePoolTotals.length > 0 && (
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4">
+                <span className="font-semibold text-foreground">
+                  Total prize pool
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {event.prizePoolTotals.map((total) => (
+                    <span
+                      key={total.currency}
+                      className="rounded-lg bg-background/70 px-3 py-1.5 font-bold text-amber-600"
+                    >
+                      {formatPrizeAmount(total.amount, total.currency)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid sm:grid-cols-2 gap-6">
               {event.prizes.map((prize, index) => (
                 <div
@@ -1633,14 +1664,17 @@ export default function EventDetailPage() {
                     <h3 className="text-xl font-bold text-amber-500 mb-2">
                       {prize.name}
                     </h3>
+                    <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      {getPrizePlacementLabel(prize.placement)}
+                    </p>
+                    <p className="mb-3 text-2xl font-black text-foreground">
+                      {formatPrizeAmount(prize.amount, prize.currency)}
+                    </p>
                     {prize.description && (
                       <p className="text-muted-foreground text-sm font-medium mb-4">
                         {prize.description}
                       </p>
                     )}
-                    <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-600 px-3 py-1.5 rounded-lg text-sm font-semibold">
-                      <span>Quantity: {prize.quantity}</span>
-                    </div>
                   </div>
                 </div>
               ))}

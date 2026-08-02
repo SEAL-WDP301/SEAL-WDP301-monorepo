@@ -6,12 +6,13 @@ import {
   ForbiddenException,
 } from "@nestjs/common";
 import { PrismaService } from "../../../database/prisma/prisma.service";
-import { CreateEventDto } from "../dto/create-event.dto";
+import { CreateEventDto, CreatePrizeDto } from "../dto/create-event.dto";
 import { UpdateEventDto } from "../dto/update-event.dto";
 import { EventStatus, Prisma, RoundStatus, TeamStatus } from "@prisma/client";
 import { TeamGithubService } from "../../team/services/team-github.service";
 
 import { RoundAutomationSchedulerService } from "../../round/services/round-automation-scheduler.service";
+import { calculatePrizePoolTotals } from "../utils/prize-value.utils";
 
 @Injectable()
 export class EventOrganizerService {
@@ -36,9 +37,97 @@ export class EventOrganizerService {
     }
   }
 
+  private validatePrizeStructure(prizes: readonly CreatePrizeDto[] = []) {
+    const primaryPrizes = new Map<number, CreatePrizeDto>();
+
+    for (const prize of prizes) {
+      const amount = prize.amount ?? 0;
+      const quantity = prize.quantity ?? 1;
+      const currency = prize.currency ?? "VND";
+
+      if (!Number.isInteger(amount) || amount < 0) {
+        throw new BadRequestException({
+          errorCode: "INVALID_PRIZE_AMOUNT",
+          message: "Prize amount must be a non-negative integer",
+        });
+      }
+      if (!Number.isInteger(quantity) || quantity < 1) {
+        throw new BadRequestException({
+          errorCode: "INVALID_PRIZE_QUANTITY",
+          message: "Prize quantity must be at least 1",
+        });
+      }
+      if (!/^[A-Z]{3}$/.test(currency)) {
+        throw new BadRequestException({
+          errorCode: "INVALID_PRIZE_CURRENCY",
+          message: "Prize currency must be a three-letter uppercase code",
+        });
+      }
+      if (prize.placement == null) continue;
+      if (![1, 2, 3].includes(prize.placement)) {
+        throw new BadRequestException({
+          errorCode: "INVALID_PRIZE_PLACEMENT",
+          message: "Prize placement must be 1, 2, 3, or null",
+        });
+      }
+      if (primaryPrizes.has(prize.placement)) {
+        throw new BadRequestException({
+          errorCode: "DUPLICATE_PRIZE_PLACEMENT",
+          message: `Only one prize can use placement ${prize.placement}`,
+        });
+      }
+      primaryPrizes.set(prize.placement, prize);
+    }
+
+    const rankedPrizes = [1, 2, 3]
+      .map((placement) => primaryPrizes.get(placement))
+      .filter((prize): prize is CreatePrizeDto => Boolean(prize));
+    const currencies = new Set(
+      rankedPrizes.map((prize) => prize.currency ?? "VND"),
+    );
+    if (currencies.size > 1) {
+      throw new BadRequestException({
+        errorCode: "MIXED_PRIMARY_PRIZE_CURRENCIES",
+        message: "First, second, and third prizes must use the same currency",
+      });
+    }
+
+    const comparisons: Array<[number, number]> = [
+      [1, 2],
+      [2, 3],
+    ];
+    for (const [higherPlacement, lowerPlacement] of comparisons) {
+      const higher = primaryPrizes.get(higherPlacement);
+      const lower = primaryPrizes.get(lowerPlacement);
+      if (higher && lower && (higher.amount ?? 0) <= (lower.amount ?? 0)) {
+        throw new BadRequestException({
+          errorCode: "INVALID_PRIZE_ORDER",
+          message:
+            "Prize amounts must follow: first prize > second prize > third prize",
+        });
+      }
+    }
+  }
+
+  private withPrizePoolTotals<
+    T extends {
+      prizes?: Array<{
+        amount?: number | null;
+        quantity?: number | null;
+        currency?: string | null;
+      }>;
+    },
+  >(event: T) {
+    return {
+      ...event,
+      prizePoolTotals: calculatePrizePoolTotals(event.prizes),
+    };
+  }
+
   async createEvent(userId: number, dto: CreateEventDto) {
     this.validateTeamMemberLimits(dto.minMembersPerTeam, dto.maxMembersPerTeam);
     const { tracks, rounds, prizes, ...eventData } = dto;
+    this.validatePrizeStructure(prizes);
     const { faq, ...restEventData } = eventData;
 
     const data: Prisma.EventCreateInput = {
@@ -62,7 +151,7 @@ export class EventOrganizerService {
         : undefined,
     };
 
-    return this.prisma.event.create({
+    const createdEvent = await this.prisma.event.create({
       data,
       include: {
         tracks: true,
@@ -70,6 +159,7 @@ export class EventOrganizerService {
         prizes: true,
       },
     });
+    return this.withPrizePoolTotals(createdEvent);
   }
 
   async getAllEvents(userId: number, includeAll = false) {
@@ -94,7 +184,7 @@ export class EventOrganizerService {
     });
 
     return events.map((event) => ({
-      ...event,
+      ...this.withPrizePoolTotals(event),
       registeredTeams: event._count.teams,
     }));
   }
@@ -128,13 +218,13 @@ export class EventOrganizerService {
       },
     });
 
-    return {
+    return this.withPrizePoolTotals({
       ...event,
       _count: {
         teams: event._count?.teams ?? 0,
         submissions: submissionCount,
       },
-    };
+    });
   }
 
   async getManagedEventById(id: number, userId: number, includeAll = false) {
@@ -160,6 +250,7 @@ export class EventOrganizerService {
     );
 
     const { tracks, rounds, prizes, ...eventData } = dto;
+    this.validatePrizeStructure(prizes);
     const { faq, ...restEventData } = eventData;
 
     const tracksUpdate = tracks
@@ -227,6 +318,9 @@ export class EventOrganizerService {
               name: p.name,
               description: p.description,
               quantity: p.quantity,
+              amount: p.amount,
+              placement: p.placement,
+              currency: p.currency,
             })),
           update: prizes
             .filter((p) => p.id)
@@ -236,6 +330,9 @@ export class EventOrganizerService {
                 name: p.name,
                 description: p.description,
                 quantity: p.quantity,
+                amount: p.amount,
+                placement: p.placement,
+                currency: p.currency,
               },
             })),
         }
@@ -284,7 +381,7 @@ export class EventOrganizerService {
       }
     }
 
-    return updatedEvent;
+    return this.withPrizePoolTotals(updatedEvent);
   }
 
   async updateEventStatus(id: number, status: EventStatus) {

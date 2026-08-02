@@ -11,6 +11,8 @@ import {
   ArrayMinSize,
   Min,
   Max,
+  IsIn,
+  Matches,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Season, EventStatus } from "@prisma/client";
@@ -36,8 +38,37 @@ export class CreatePrizeDto {
 
   @ApiPropertyOptional()
   @IsInt()
+  @Min(1)
   @IsOptional()
   quantity?: number;
+
+  @ApiPropertyOptional({
+    description: "Cash value for one prize",
+    minimum: 0,
+    default: 0,
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  amount?: number;
+
+  @ApiPropertyOptional({
+    description: "1 = first, 2 = second, 3 = third, null = special prize",
+    enum: [1, 2, 3],
+    nullable: true,
+  })
+  @IsInt()
+  @IsIn([1, 2, 3])
+  @IsOptional()
+  placement?: number | null;
+
+  @ApiPropertyOptional({ default: "VND", example: "VND" })
+  @IsString()
+  @Matches(/^[A-Z]{3}$/, {
+    message: "Currency must be a three-letter uppercase code",
+  })
+  @IsOptional()
+  currency?: string;
 }
 
 export class EventFaqItemDto {
