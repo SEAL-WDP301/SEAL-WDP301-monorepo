@@ -52,6 +52,7 @@ describe("TeamStudentService event capacity", () => {
     {} as StorageService,
     eventEmitter as unknown as EventEmitter2,
     { get: jest.fn().mockReturnValue("http://localhost:3001") } as never,
+    { get: jest.fn(), set: jest.fn(), del: jest.fn() } as never,
   );
 
   beforeEach(() => {

@@ -310,7 +310,7 @@ export default function EventSubmissionsPage() {
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const paginatedSubmissions = filteredSubmissions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const [timeRemaining, setTimeRemaining] = useState<{text: string, color: string} | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<{text: string, isExpired: boolean} | null>(null);
 
   useEffect(() => {
     if (!currentRound?.submissionDeadline) {
@@ -321,7 +321,7 @@ export default function EventSubmissionsPage() {
     const updateTimer = () => {
       const diff = new Date(currentRound.submissionDeadline).getTime() - new Date().getTime();
       if (diff <= 0) {
-        setTimeRemaining({ text: "Time's up", color: "text-red-500 font-bold" });
+        setTimeRemaining({ text: "Time's up", isExpired: true });
         return;
       }
       
@@ -330,15 +330,13 @@ export default function EventSubmissionsPage() {
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
       
-      if (days > 3) {
-        setTimeRemaining({ text: `${days}d ${hours}h ${minutes}m ${seconds}s left`, color: "text-green-600 dark:text-green-400 font-medium" });
-      } else if (days > 0) {
-        setTimeRemaining({ text: `${days}d ${hours}h ${minutes}m ${seconds}s left`, color: "text-orange-500 font-medium" });
-      } else if (hours > 0) {
-        setTimeRemaining({ text: `${hours}h ${minutes}m ${seconds}s left`, color: "text-red-500 font-bold" });
-      } else {
-        setTimeRemaining({ text: `${minutes}m ${seconds}s left`, color: "text-red-600 font-bold animate-pulse" });
-      }
+      const parts = [];
+      if (days > 0) parts.push(`${days}d`);
+      if (hours > 0 || days > 0) parts.push(`${hours}h`);
+      if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
+      parts.push(`${seconds}s`);
+
+      setTimeRemaining({ text: `${parts.join(" ")} left`, isExpired: false });
     };
 
     updateTimer();
@@ -445,10 +443,21 @@ export default function EventSubmissionsPage() {
             Export All
           </Button>
           {timeRemaining && (
-            <div className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg border border-border">
-              <Clock className="h-5 w-5 text-muted-foreground" />
-              {/* tăng kích thước text timeRemaining */}
-              <span className={`${timeRemaining.color} text-lg`}>{timeRemaining.text}</span>
+            <div
+              className={`flex items-center gap-2 text-sm px-4 py-2 rounded-xl border ${
+                timeRemaining.isExpired
+                  ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                  : "border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400"
+              } font-semibold shadow-sm`}
+            >
+              <Clock
+                className={`h-4 w-4 ${
+                  timeRemaining.isExpired ? "text-red-500" : "text-orange-500 animate-pulse"
+                }`}
+              />
+              <span className="font-mono text-base font-bold tracking-tight">
+                {timeRemaining.text}
+              </span>
             </div>
           )}
         </div>

@@ -71,7 +71,35 @@ export function FloatingTeamChat({ teamId, inline = false, defaultOpen = false, 
 
   const unreadCount = messages.filter((m) => m.senderId !== user?.id && !m.reads?.some((r) => r.userId === user?.id)).length;
 
-  // Mark as read when opened or new message arrives while open
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+
+  useEffect(() => {
+    const handleAssistantOpened = () => {
+      setIsOpen(false);
+      setIsAssistantOpen(true);
+    };
+    const handleAssistantClosed = () => {
+      setIsAssistantOpen(false);
+    };
+    window.addEventListener("seal-assistant-opened", handleAssistantOpened);
+    window.addEventListener("seal-assistant-closed", handleAssistantClosed);
+    return () => {
+      window.removeEventListener("seal-assistant-opened", handleAssistantOpened);
+      window.removeEventListener("seal-assistant-closed", handleAssistantClosed);
+    };
+  }, []);
+
+  const handleOpenChat = () => {
+    setIsOpen(true);
+    setShowTooltip(false);
+    window.dispatchEvent(new CustomEvent("seal-chat-opened"));
+  };
+
+  const handleCloseChat = () => {
+    setIsOpen(false);
+    window.dispatchEvent(new CustomEvent("seal-chat-closed"));
+  };
+
   useEffect(() => {
     if (!readOnly && isOpen && unreadCount > 0 && socket && isConnected && user?.id) {
       socket.emit("mark_as_read", teamId);
@@ -287,8 +315,8 @@ export function FloatingTeamChat({ teamId, inline = false, defaultOpen = false, 
 
   return (
     <>
-      {!inline && (
-        <div className={`fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3 ${isOpen ? 'hidden' : 'flex'}`}>
+      {!inline && !isAssistantOpen && (
+        <div className={`fixed bottom-[84px] right-6 z-40 flex flex-col items-end gap-3 ${isOpen ? 'hidden' : 'flex'}`}>
           {/* Tooltip Welcome Bubble */}
           <AnimatePresence>
             {showTooltip && (
@@ -315,10 +343,7 @@ export function FloatingTeamChat({ teamId, inline = false, defaultOpen = false, 
               </div>
             )}
             <Button
-              onClick={() => {
-                setIsOpen(true);
-                setShowTooltip(false);
-              }}
+              onClick={handleOpenChat}
               className="h-14 w-14 rounded-full shadow-[0_0_20px_rgba(249,115,22,0.4)] animate-bounce hover:animate-none bg-gradient-to-tr from-orange-600 to-orange-400 hover:scale-105 transition-transform relative z-10"
             >
               <MessageSquare className="h-6 w-6 text-white" />
@@ -355,7 +380,7 @@ export function FloatingTeamChat({ teamId, inline = false, defaultOpen = false, 
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 rounded-full"
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleCloseChat}
                 >
                   <X className="h-4 w-4" />
                 </Button>

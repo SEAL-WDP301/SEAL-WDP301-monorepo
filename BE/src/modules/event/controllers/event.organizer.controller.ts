@@ -101,6 +101,25 @@ export class EventOrganizerController {
     return { message: "Event status updated successfully", data: event };
   }
 
+  @Patch(":id/registration-deadline")
+  @ApiOperation({
+    summary:
+      "Update event registration deadline and reschedule BullMQ delayed job",
+  })
+  async updateRegistrationDeadline(
+    @Param("id", ParseIntPipe) id: number,
+    @Body() dto: { registrationDeadline: string },
+  ) {
+    const event = await this.eventOrganizerService.updateRegistrationDeadline(
+      id,
+      dto.registrationDeadline,
+    );
+    return {
+      message: "Registration deadline updated successfully",
+      data: event,
+    };
+  }
+
   @Patch(":id/rounds/:roundId/status")
   @ApiOperation({ summary: "Update round status" })
   async updateRoundStatus(

@@ -58,6 +58,37 @@ export function SealAssistant() {
       quickReplies: quickRepliesForAudience(initialAudience),
     },
   ]);
+  const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
+
+  useEffect(() => {
+    const handleChatOpened = () => {
+      setOpen(false);
+      setIsTeamChatOpen(true);
+    };
+    const handleChatClosed = () => {
+      setIsTeamChatOpen(false);
+    };
+
+    window.addEventListener("seal-chat-opened", handleChatOpened);
+    window.addEventListener("seal-chat-closed", handleChatClosed);
+    return () => {
+      window.removeEventListener("seal-chat-opened", handleChatOpened);
+      window.removeEventListener("seal-chat-closed", handleChatClosed);
+    };
+  }, []);
+
+  const toggleOpen = () => {
+    setOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        window.dispatchEvent(new CustomEvent("seal-assistant-opened"));
+      } else {
+        window.dispatchEvent(new CustomEvent("seal-assistant-closed"));
+      }
+      return next;
+    });
+  };
+
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const focusEventIdRef = useRef<number | undefined>(undefined);
   const messagesRef = useRef(messages);
@@ -166,7 +197,8 @@ export function SealAssistant() {
     pathname.startsWith("/register") ||
     pathname.startsWith("/forgot") ||
     pathname.startsWith("/verify") ||
-    pathname.startsWith("/reset")
+    pathname.startsWith("/reset") ||
+    isTeamChatOpen
   ) {
     return null;
   }
@@ -316,7 +348,7 @@ export function SealAssistant() {
         type="button"
         variant="orange"
         className="h-14 rounded-full px-5 shadow-[0_0_24px_rgba(243,112,33,0.35)]"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         {open ? "Đóng" : "Trợ lý SEAL"}

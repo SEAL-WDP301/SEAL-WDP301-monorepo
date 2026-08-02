@@ -1,14 +1,14 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../../database/prisma/prisma.service";
-import { EventEmitter2 } from "@nestjs/event-emitter";
-import { Observable, fromEvent } from "rxjs";
+import { RedisService } from "../../../core/redis/redis.service";
+import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
 @Injectable()
 export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -16,7 +16,7 @@ export class NotificationService {
    */
   async getUserNotifications(userId: number, page: number = 1, limit: number = 25) {
     const skip = (page - 1) * limit;
-    
+
     const [data, total] = await Promise.all([
       this.prisma.notification.findMany({
         where: { userId },
@@ -44,17 +44,23 @@ export class NotificationService {
   }
 
   /**
-   * Stream real-time notifications via SSE.
+   * Stream real-time notifications via SSE backed 100% by Redis Pub/Sub.
    */
   streamNotifications(userId: number): Observable<MessageEvent> {
-    // Lắng nghe các event nội bộ có dạng 'notification.user.<userId>'
-    return fromEvent(this.eventEmitter, `notification.user.${userId}`).pipe(
-      map(
-        (payload: any) =>
-          ({
-            data: payload,
-          }) as MessageEvent,
-      ),
+    const channel = `notifications:user:${userId}`;
+
+    return this.redisService.subscribeChannel(channel).pipe(
+      map((rawJson: string) => {
+        try {
+          return {
+            data: JSON.parse(rawJson),
+          } as MessageEvent;
+        } catch {
+          return {
+            data: { title: "Notification", content: rawJson },
+          } as MessageEvent;
+        }
+      }),
     );
   }
 
@@ -127,7 +133,13 @@ export class NotificationService {
         isEmailSent: true,
       },
     });
-    this.eventEmitter.emit(`notification.user.${data.userId}`, notification);
+
+    // Pure Redis Pub/Sub broadcast across all Backend Pods
+    await this.redisService.publish(
+      `notifications:user:${data.userId}`,
+      JSON.stringify(notification),
+    );
+
     return notification;
   }
 
@@ -151,14 +163,19 @@ export class NotificationService {
 
     if (notifications.length > 0) {
       await this.prisma.notification.createMany({ data: notifications });
-      
-      // Need to find them to get the IDs, but for SSE we can just emit the payloads
+
       notifications.forEach((notif) => {
-        this.eventEmitter.emit(`notification.user.${notif.userId}`, {
+        const payload = {
           ...notif,
           createdAt: new Date(),
           isRead: false,
-        });
+        };
+
+        // Pure Redis Pub/Sub broadcast across all Backend Pods
+        this.redisService.publish(
+          `notifications:user:${notif.userId}`,
+          JSON.stringify(payload),
+        );
       });
     }
   }

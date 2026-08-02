@@ -1,19 +1,62 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, OnModuleDestroy } from "@nestjs/common";
 import Redis from "ioredis";
+import { Observable } from "rxjs";
 import { APP_CONSTANTS } from "../../common/constants/app.constant";
 
 /**
  * RedisService — abstraction layer over raw ioredis client.
  *
- * Provides clean async methods for common Redis operations.
- * Inject this service instead of the raw client in application code.
+ * Provides clean async methods for common Redis operations
+ * including Key-Value cache, rate limiting, and Pub/Sub streams.
  */
 @Injectable()
-export class RedisService {
+export class RedisService implements OnModuleDestroy {
+  private subClient: Redis | null = null;
+
   constructor(
     @Inject(APP_CONSTANTS.REDIS_CLIENT)
     private readonly redis: Redis,
   ) {}
+
+  onModuleDestroy() {
+    if (this.subClient) {
+      this.subClient.disconnect();
+    }
+  }
+
+  /**
+   * Publish a message to a Redis Pub/Sub channel.
+   */
+  async publish(channel: string, message: string): Promise<number> {
+    return this.redis.publish(channel, message);
+  }
+
+  /**
+   * Subscribe to a Redis channel and stream messages as an RxJS Observable.
+   * Automatically unsubscribes when the RxJS subscriber disconnects.
+   */
+  subscribeChannel(channel: string): Observable<string> {
+    if (!this.subClient) {
+      this.subClient = this.redis.duplicate();
+    }
+    const sub = this.subClient;
+
+    return new Observable<string>((observer) => {
+      const messageHandler = (ch: string, message: string) => {
+        if (ch === channel) {
+          observer.next(message);
+        }
+      };
+
+      sub.subscribe(channel).catch((err) => observer.error(err));
+      sub.on("message", messageHandler);
+
+      return () => {
+        sub.off("message", messageHandler);
+        sub.unsubscribe(channel).catch(() => {});
+      };
+    });
+  }
 
   /**
    * Set a key-value pair with optional TTL (seconds).

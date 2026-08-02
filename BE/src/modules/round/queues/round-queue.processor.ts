@@ -5,12 +5,12 @@ import { PrismaService } from "../../../database/prisma/prisma.service";
 import { GithubWebhookService } from "../../github/services/github.webhook.service";
 import { SubmissionOrganizerService } from "../../submission/services/submission.organizer.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { RoundStatus } from "@prisma/client";
+import { RoundStatus, EventStatus } from "@prisma/client";
 
 export interface RoundJobData {
-  roundId: number;
+  roundId?: number;
   eventId: number;
-  type: "auto-freeze" | "bulk-reminder-15m";
+  type: "auto-freeze" | "bulk-reminder-15m" | "registration-deadline-expired";
 }
 
 @Processor("round-automation")
@@ -28,8 +28,48 @@ export class RoundQueueProcessor extends WorkerHost {
 
   async process(job: Job<RoundJobData>): Promise<any> {
     this.logger.log(
-      `[BullMQ Worker] Processing Job ${job.id} of type: ${job.data.type} for Round ID ${job.data.roundId}`,
+      `[BullMQ Worker] Processing Job ${job.id} of type: ${job.data.type} for Event ID ${job.data.eventId}`,
     );
+
+    if (job.data.type === "registration-deadline-expired") {
+      this.logger.log(
+        `[BullMQ Worker] Registration deadline expired for Event ID ${job.data.eventId}. Transitioning Event -> ongoing, Round 1 -> open.`,
+      );
+
+      // 1. Update Event status to ongoing
+      await this.prisma.event.update({
+        where: { id: job.data.eventId },
+        data: { status: EventStatus.ongoing },
+      });
+
+      // 2. Find Round 1 and update status to open
+      const round1 = await this.prisma.round.findFirst({
+        where: { eventId: job.data.eventId, roundNumber: 1 },
+      });
+
+      if (round1 && round1.status === RoundStatus.not_started) {
+        await this.prisma.round.update({
+          where: { id: round1.id },
+          data: { status: RoundStatus.open },
+        });
+        this.logger.log(
+          `[BullMQ Worker] Round 1 (ID: ${round1.id}) status updated to OPEN for Event ${job.data.eventId}`,
+        );
+      }
+
+      this.eventEmitter.emit("event.registration_deadline_expired", {
+        eventId: job.data.eventId,
+        round1Id: round1?.id,
+        timestamp: new Date(),
+      });
+
+      return { status: "registration_closed", eventId: job.data.eventId };
+    }
+
+    if (!job.data.roundId) {
+      this.logger.warn(`Round ID missing for job ${job.id}. Skipping.`);
+      return { skipped: true };
+    }
 
     const round = await this.prisma.round.findUnique({
       where: { id: job.data.roundId },
