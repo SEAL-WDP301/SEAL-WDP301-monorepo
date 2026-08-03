@@ -1,5 +1,5 @@
 apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+kind: PodMonitor
 metadata:
   name: traefik-metrics-monitor
   namespace: monitoring
@@ -13,6 +13,6 @@ spec:
   namespaceSelector:
     matchNames:
       - kube-system
-  endpoints:
+  podMetricsEndpoints:
     - port: metrics
       interval: 10s
