@@ -99,6 +99,7 @@ alertmanager:
         email_configs:
           - to: 'phucpham.fullstack@gmail.com'
             send_resolved: true
+      - name: 'null'
 
 nodeExporter:
   enabled: true
