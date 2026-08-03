@@ -202,12 +202,16 @@ export class CreateEventDto {
   @IsOptional()
   prizes?: CreatePrizeDto[];
 
-  @ApiProperty({ type: [CreateTrackDto] })
+  @ApiProperty({
+    type: [CreateTrackDto],
+    description:
+      "Optional. Omit or pass [] when the event does not use tracks yet; organizers can add tracks later.",
+  })
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => CreateTrackDto)
-  tracks: CreateTrackDto[];
+  @IsOptional()
+  tracks?: CreateTrackDto[];
 
   @ApiProperty({ type: [CreateRoundDto] })
   @IsArray()

@@ -11,6 +11,9 @@ type RoundLike = {
 /**
  * Resolve the problem file a viewer should see for a round + optional team track.
  * Hidden while round is still not_started.
+ *
+ * - Track-specific rounds (incl. Flow B): only the team's track file.
+ * - Shared rounds: only round.problemFileUrl (ignore leftover trackProblems).
  */
 export function resolveProblemFileUrl(
   round: RoundLike,
@@ -18,10 +21,11 @@ export function resolveProblemFileUrl(
 ): string | null {
   if (round.status === "not_started") return null;
 
-  if (round.isTrackSpecific && teamTrackId != null && round.trackProblems?.length) {
+  if (round.isTrackSpecific) {
+    if (teamTrackId == null || !round.trackProblems?.length) return null;
     const hit = round.trackProblems.find((p) => p.trackId === teamTrackId);
-    if (hit?.problemFileUrl) return hit.problemFileUrl;
+    return hit?.problemFileUrl?.trim() || null;
   }
 
-  return round.problemFileUrl ?? null;
+  return round.problemFileUrl?.trim() || null;
 }

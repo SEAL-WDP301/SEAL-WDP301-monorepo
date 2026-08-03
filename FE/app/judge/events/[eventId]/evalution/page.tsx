@@ -332,7 +332,9 @@ export default function EvaluationPage() {
 
   const roundStatus = submissionDetail?.round.status;
   const submissionDeadline = submissionDetail?.round.submissionDeadline;
+  const mentoredConflict = Boolean(submissionDetail?.mentoredByMe);
   const scoringLocked =
+    mentoredConflict ||
     !roundStatus ||
     roundStatus === "results_published" ||
     roundStatus === "not_started" ||
@@ -510,14 +512,21 @@ export default function EvaluationPage() {
                       <AlertCircle className="h-5 w-5 shrink-0" />
                       <div>
                         <h4 className="font-semibold text-sm">
-                          Scoring is currently locked
+                          {mentoredConflict
+                            ? "Conflict of interest"
+                            : "Scoring is currently locked"}
                         </h4>
                         <p className="mt-1 text-xs opacity-90">
-                          {roundStatus === "not_started" &&
+                          {mentoredConflict
+                            ? "You mentor this team, so you cannot score or vote on their submission."
+                            : null}
+                          {!mentoredConflict && roundStatus === "not_started" &&
                             "The round has not started yet."}
-                          {roundStatus === "results_published" &&
+                          {!mentoredConflict &&
+                            roundStatus === "results_published" &&
                             "Results for this round have been published. Scores cannot be changed."}
-                          {roundStatus === "open" &&
+                          {!mentoredConflict &&
+                            roundStatus === "open" &&
                             "Submissions are still open. Judges can only score when the deadline has passed or the round is Closed/Judging."}
                         </p>
                       </div>

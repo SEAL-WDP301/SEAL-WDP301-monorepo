@@ -40,75 +40,74 @@ export class SubmissionJudgeService {
       ),
     ];
 
-    const submissions = await this.prisma.submission.findMany({
-      where: {
-        roundId,
-        status: { not: SubmissionStatus.disqualified },
-        team: {
-          status: TeamStatus.approved,
-          ...(!hasGlobalAssignment &&
-            assignedTrackIds.length > 0 && {
-              trackId: { in: assignedTrackIds },
-            }),
-        },
-      },
-      include: {
-        team: {
-          include: {
-            track: { select: { id: true, name: true } },
+    // Avoid per-submission DB calls — they explode DO Postgres connection slots.
+    const [submissions, rubrics] = await Promise.all([
+      this.prisma.submission.findMany({
+        where: {
+          roundId,
+          status: { not: SubmissionStatus.disqualified },
+          team: {
+            status: TeamStatus.approved,
+            ...(!hasGlobalAssignment &&
+              assignedTrackIds.length > 0 && {
+                trackId: { in: assignedTrackIds },
+              }),
           },
         },
-        scores: {
-          where: { judgeId },
-          select: { criterionId: true, scoreValue: true },
+        include: {
+          team: {
+            include: {
+              track: { select: { id: true, name: true } },
+            },
+          },
+          scores: {
+            where: { judgeId },
+            select: { criterionId: true, scoreValue: true },
+          },
+          judgeVotes: {
+            where: { judgeId },
+            select: { id: true },
+          },
         },
-        judgeVotes: {
-          where: { judgeId },
-          select: { id: true },
-        },
-      },
-      orderBy: { id: "asc" },
-    });
+        orderBy: { id: "asc" },
+      }),
+      this.getApplicableCriteria(roundId),
+    ]);
 
-    const criteriaByTrack = new Map<number | null, number>();
+    const criteriaCount = rubrics.length;
     const anonymousLabels = this.buildAnonymousLabelMap(submissions);
 
-    return Promise.all(
-      submissions.map(async (submission) => {
-        const trackId = submission.team.trackId;
-        if (!criteriaByTrack.has(trackId)) {
-          const criteria = await this.getApplicableCriteria(roundId, trackId);
-          criteriaByTrack.set(trackId, criteria.length);
-        }
-
-        const criteriaCount = criteriaByTrack.get(trackId) ?? 0;
-        const scoredCount = submission.scores.length;
-        const weightedScore = await this.computeWeightedScoreForSubmission(
-          submission.id,
-          judgeId,
-          roundId,
-          trackId,
-        );
-
-        const anonymous = anonymousLabels.get(submission.id)!;
-
-        return {
-          submissionId: submission.id,
-          id: submission.id,
-          teamName: submission.team.name,
-          anonymousIndex: anonymous.index,
-          track: submission.team.track,
-          status: submission.status,
-          submittedAt: submission.submittedAt,
-          githubUrl: submission.githubUrl ?? submission.team.githubRepoUrl,
-          scoringStatus: this.resolveScoringStatus(scoredCount, criteriaCount),
-          scoredCriteria: scoredCount,
-          totalCriteria: criteriaCount,
-          weightedScore,
-          isVotedByMe: submission.judgeVotes.length > 0,
-        };
-      }),
+    const mentoredTeamIds = await this.getMentoredTeamIds(
+      judgeId,
+      submissions.map((s) => s.teamId),
     );
+
+    return submissions.map((submission) => {
+      const scoredCount = submission.scores.length;
+      const weightedScore = computeJudgeWeightedScore(
+        rubrics,
+        submission.scores,
+      );
+      const anonymous = anonymousLabels.get(submission.id)!;
+      const mentoredByMe = mentoredTeamIds.has(submission.teamId);
+
+      return {
+        submissionId: submission.id,
+        id: submission.id,
+        teamName: submission.team.name,
+        anonymousIndex: anonymous.index,
+        track: submission.team.track,
+        status: submission.status,
+        submittedAt: submission.submittedAt,
+        githubUrl: submission.githubUrl ?? submission.team.githubRepoUrl,
+        scoringStatus: this.resolveScoringStatus(scoredCount, criteriaCount),
+        scoredCriteria: scoredCount,
+        totalCriteria: criteriaCount,
+        weightedScore,
+        isVotedByMe: submission.judgeVotes.length > 0,
+        mentoredByMe,
+      };
+    });
   }
 
   async getSubmissionDetail(judgeId: number, submissionId: number) {
@@ -143,6 +142,11 @@ export class SubmissionJudgeService {
       judgeId,
       submission.roundId,
       submission.team.trackId,
+    );
+
+    const mentoredByMe = await this.isMentoringTeam(
+      judgeId,
+      submission.teamId,
     );
 
     const rubrics = await this.getApplicableCriteria(
@@ -204,6 +208,7 @@ export class SubmissionJudgeService {
       scoringStatus: this.resolveScoringStatus(myScores.length, rubrics.length),
       weightedScore,
       isVotedByMe: submission.judgeVotes.length > 0,
+      mentoredByMe,
     };
   }
 
@@ -211,7 +216,7 @@ export class SubmissionJudgeService {
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
-        team: { select: { trackId: true } },
+        team: { select: { id: true, trackId: true } },
       },
     });
 
@@ -220,6 +225,7 @@ export class SubmissionJudgeService {
     }
 
     await this.assertJudgeRoundAccess(judgeId, submission.roundId, submission.team.trackId);
+    await this.assertNotMentoringTeam(judgeId, submission.team.id);
 
     const rubrics = await this.getApplicableCriteria(submission.roundId, submission.team.trackId);
     const scoredCount = await this.prisma.score.count({
@@ -263,7 +269,7 @@ export class SubmissionJudgeService {
     const submission = await this.prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
-        team: { select: { trackId: true, status: true } },
+        team: { select: { id: true, trackId: true, status: true } },
         round: {
           select: { id: true, status: true, submissionDeadline: true },
         },
@@ -287,6 +293,7 @@ export class SubmissionJudgeService {
       submission.roundId,
       submission.team.trackId,
     );
+    await this.assertNotMentoringTeam(judgeId, submission.team.id);
     this.assertRoundAllowsScoring(submission.round);
 
     const rubrics = await this.getApplicableCriteria(
@@ -295,12 +302,12 @@ export class SubmissionJudgeService {
     );
     if (rubrics.length === 0) {
       throw new BadRequestException(
-        "No scoring criteria are configured for this track/round",
+        "No scoring criteria are configured for this round",
       );
     }
     if (!isRubricWeightTotalValid(rubrics)) {
       throw new BadRequestException(
-        `Criterion weights for this track/round must total ${RUBRIC_WEIGHT_TOTAL} (currently ${sumRubricWeights(rubrics).toFixed(2)}). Ask the organizer to finish the rubric setup.`,
+        `Criterion weights must total ${RUBRIC_WEIGHT_TOTAL}% (currently ${sumRubricWeights(rubrics).toFixed(2)}%). Ask the organizer to finish the rubric setup.`,
       );
     }
     const rubricMap = new Map(rubrics.map((r) => [r.id, r]));
@@ -453,6 +460,38 @@ export class SubmissionJudgeService {
     });
   }
 
+  private async isMentoringTeam(
+    mentorId: number,
+    teamId: number,
+  ): Promise<boolean> {
+    const row = await this.prisma.mentorAssignment.findUnique({
+      where: { mentorId_teamId: { mentorId, teamId } },
+      select: { id: true },
+    });
+    return Boolean(row);
+  }
+
+  private async getMentoredTeamIds(
+    mentorId: number,
+    teamIds: number[],
+  ): Promise<Set<number>> {
+    if (teamIds.length === 0) return new Set();
+    const rows = await this.prisma.mentorAssignment.findMany({
+      where: { mentorId, teamId: { in: teamIds } },
+      select: { teamId: true },
+    });
+    return new Set(rows.map((r) => r.teamId));
+  }
+
+  /** Judges may also be mentors, but cannot score / vote on teams they mentor. */
+  async assertNotMentoringTeam(judgeId: number, teamId: number) {
+    if (await this.isMentoringTeam(judgeId, teamId)) {
+      throw new ForbiddenException(
+        "Conflict of interest: you mentor this team and cannot score or vote on it.",
+      );
+    }
+  }
+
   private async assertJudgeRoundAccess(
     judgeId: number,
     roundId: number,
@@ -505,12 +544,10 @@ export class SubmissionJudgeService {
     return assignment;
   }
 
-  private async getApplicableCriteria(roundId: number, trackId: number) {
+  private async getApplicableCriteria(roundId: number, _trackId?: number) {
+    // One rubric per round, shared by every track in that round.
     return this.prisma.criterion.findMany({
-      where: {
-        roundId,
-        OR: [{ trackId: null }, { trackId }],
-      },
+      where: { roundId, trackId: null },
       orderBy: { id: "asc" },
     });
   }

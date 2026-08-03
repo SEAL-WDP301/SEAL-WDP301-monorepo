@@ -3,6 +3,7 @@ import { TrackAssignmentService } from "./track-assignment.service";
 describe("TrackAssignmentService even distribution", () => {
   const prisma = {
     event: { findUnique: jest.fn() },
+    round: { count: jest.fn() },
     team: { findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
     teamMember: { findMany: jest.fn() },
     studentRegistration: { updateMany: jest.fn() },
@@ -15,12 +16,28 @@ describe("TrackAssignmentService even distribution", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.round.count.mockResolvedValue(0);
     prisma.team.update.mockImplementation(({ where, data }: any) =>
       Promise.resolve({ id: where.id, ...data }),
     );
     prisma.studentRegistration.updateMany.mockResolvedValue({ count: 0 });
     prisma.teamMember.findMany.mockResolvedValue([]);
     prisma.team.count.mockResolvedValue(0);
+  });
+
+  it("blocks force-reassign after a round has started", async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 1,
+      deferredTrackAssignment: true,
+      tracks: [{ id: 1, name: "Only" }],
+    });
+    prisma.round.count.mockResolvedValue(1);
+
+    await expect(
+      service.assignDeferredTracks(1, { forceReassign: true }),
+    ).rejects.toThrow(
+      "Cannot force-reassign tracks after a round has started.",
+    );
   });
 
   it("assigns 10 teams across 5 tracks with 2 each", async () => {

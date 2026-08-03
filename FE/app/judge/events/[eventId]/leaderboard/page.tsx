@@ -125,7 +125,7 @@ function LeaderboardRow({ sub, index, handleVote, toggleVoteMutation }: any) {
                               </span>
                             </div>
                             <div className="flex justify-between items-center text-xs text-muted-foreground mt-2">
-                              <span>Weight: {rubric.weight}</span>
+                              <span>Weight: {rubric.weight}%</span>
                               {score?.comment && (
                                 <span className="italic line-clamp-1 max-w-[150px]" title={score.comment}>
                                   &ldquo;{score.comment}&rdquo;

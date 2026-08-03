@@ -162,9 +162,11 @@ export class EventPublicService {
           })
         : [];
 
+    // Never expose problem files on the public event API — only team/judge/mentor
+    // authorized views may resolve đề (per-track or shared).
     const sanitizedRounds = event.rounds.map((r) => ({
       ...r,
-      problemFileUrl: r.status === "not_started" ? null : r.problemFileUrl,
+      problemFileUrl: null,
     }));
 
     const tracksRevealed =

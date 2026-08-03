@@ -176,14 +176,20 @@ export function TeamListPanel({
                       </div>
 
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        <span className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
-                          statusLabel === "Pending" ? "bg-amber-500/10 text-amber-500" :
-                          statusLabel === "Completed" ? "bg-green-500/10 text-green-600 dark:text-green-400" :
-                          "bg-blue-500/10 text-blue-500"
-                        )}>
-                          {statusLabel}
-                        </span>
+                        {team.mentoredByMe ? (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-red-500/10 text-red-500">
+                            Mentored — cannot score
+                          </span>
+                        ) : (
+                          <span className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                            statusLabel === "Pending" ? "bg-amber-500/10 text-amber-500" :
+                            statusLabel === "Completed" ? "bg-green-500/10 text-green-600 dark:text-green-400" :
+                            "bg-blue-500/10 text-blue-500"
+                          )}>
+                            {statusLabel}
+                          </span>
+                        )}
                         <span className="text-xs text-muted-foreground">
                           {team.scoredCriteria}/{team.totalCriteria} criteria
                         </span>

@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { PrismaModule } from "../../database/prisma/prisma.module";
 import { NotificationModule } from "../notification/notification.module";
 import { GithubModule } from "../github/github.module";
@@ -7,6 +7,7 @@ import { TeamModule } from "../team/team.module";
 import { MailModule } from "../../core/mail/mail.module";
 import { RoundAutomationSchedulerService } from "./services/round-automation-scheduler.service";
 import { RoundRankingService } from "../event/services/round-ranking.service";
+import { EventModule } from "../event/event.module";
 
 import { BullModule } from "@nestjs/bullmq";
 import { RoundQueueProcessor } from "./queues/round-queue.processor";
@@ -19,6 +20,7 @@ import { RoundQueueProcessor } from "./queues/round-queue.processor";
     SubmissionModule,
     TeamModule,
     MailModule,
+    forwardRef(() => EventModule),
     BullModule.registerQueue({
       name: "round-automation",
     }),

@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { EventOrganizerController } from "./controllers/event.organizer.controller";
 import { EventPublicController } from "./controllers/event.public.controller";
 import { EventOrganizerService } from "./services/event.organizer.service";
@@ -18,7 +18,13 @@ import { NotificationModule } from "../notification/notification.module";
 import { RoundModule } from "../round/round.module";
 
 @Module({
-  imports: [PrismaModule, MailModule, TeamModule, NotificationModule, RoundModule],
+  imports: [
+    PrismaModule,
+    MailModule,
+    TeamModule,
+    NotificationModule,
+    forwardRef(() => RoundModule),
+  ],
   controllers: [
     EventOrganizerController,
     EventPublicController,

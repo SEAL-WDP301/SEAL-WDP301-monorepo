@@ -260,6 +260,10 @@ export class SubmissionAiService {
       judgeId,
       submissionId,
     );
+    const teamId = detail.teamId ?? detail.team.id;
+    if (teamId != null) {
+      await this.judgeService.assertNotMentoringTeam(judgeId, teamId);
+    }
     this.judgeService.assertRoundAllowsScoring({
       status: detail.round.status as RoundStatus,
       submissionDeadline: detail.round.submissionDeadline

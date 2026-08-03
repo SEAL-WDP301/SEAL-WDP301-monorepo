@@ -30,6 +30,7 @@ describe("AssignmentOrganizerService stakeholder roles", () => {
       eventId: 3,
       name: "Round 1",
       isTrackSpecific: false,
+      event: { deferredTrackAssignment: false },
     });
     prisma.judgeAssignment.deleteMany.mockResolvedValue({ count: 0 });
     prisma.judgeAssignment.createMany.mockResolvedValue({ count: 1 });
@@ -49,6 +50,23 @@ describe("AssignmentOrganizerService stakeholder roles", () => {
         },
       ],
     });
+  });
+
+  it("rejects track-scoped judge assign without trackIds", async () => {
+    prisma.round.findUnique.mockResolvedValue({
+      id: 7,
+      eventId: 3,
+      name: "Round 1",
+      isTrackSpecific: true,
+      event: { deferredTrackAssignment: false },
+    });
+
+    await expect(
+      service.assignJudges(3, [11], 7, undefined, 99),
+    ).rejects.toThrow(
+      "Select at least one track when assigning judges to a track-scoped round.",
+    );
+    expect(prisma.judgeAssignment.createMany).not.toHaveBeenCalled();
   });
 
   it("allows a judge to also be assigned as a mentor", async () => {

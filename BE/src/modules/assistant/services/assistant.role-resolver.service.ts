@@ -370,10 +370,7 @@ export class AssistantRoleResolverService {
     const criteria = await this.prisma.criterion.findMany({
       where: {
         roundId: picked.roundId,
-        OR: [
-          { trackId: null },
-          ...(picked.trackId ? [{ trackId: picked.trackId }] : []),
-        ],
+        trackId: null,
       },
       select: {
         name: true,
@@ -623,7 +620,7 @@ export class AssistantRoleResolverService {
     }
 
     const criteria = await this.prisma.criterion.findMany({
-      where: { roundId: round.id },
+      where: { roundId: round.id, trackId: null },
       select: {
         name: true,
         description: true,

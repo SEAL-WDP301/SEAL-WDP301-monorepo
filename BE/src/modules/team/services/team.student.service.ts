@@ -78,6 +78,17 @@ export class TeamStudentService {
       // Ignore client-provided track — reveal happens when a round opens.
       return null;
     }
+
+    const trackCount = await this.prisma.track.count({
+      where: { eventId: event.id },
+    });
+    // Flow A requires tracks at register — null track is only for deferred (Flow B).
+    if (trackCount === 0) {
+      throw new BadRequestException(
+        "This event has no tracks yet. Registration is unavailable until the organizer adds tracks.",
+      );
+    }
+
     if (requestedTrackId == null) {
       throw new BadRequestException(
         "Track is required for this event. Choose a track to register.",
@@ -1339,7 +1350,16 @@ export class TeamStudentService {
         teamRound: teamRound
           ? { status: teamRound.status, score: teamRound.score }
           : null,
-        submission,
+        // Hide judge scores until results are published (competition confidentiality).
+        submission: submission
+          ? {
+              ...submission,
+              scores:
+                round.status === RoundStatus.results_published
+                  ? submission.scores
+                  : [],
+            }
+          : null,
         canSubmit:
           access.canSubmit && teamMember.team.trackId != null,
         canView: access.canView,
