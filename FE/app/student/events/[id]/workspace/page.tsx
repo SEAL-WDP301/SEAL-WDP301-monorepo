@@ -451,7 +451,7 @@ export default function WorkspaceOverviewPage() {
 
       {displayRound?.trackPending && (
         <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
-          Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
+          Track / Problem Statement has not been published yet. Please wait for organizers to open the round.
         </GlassCard>
       )}
 
