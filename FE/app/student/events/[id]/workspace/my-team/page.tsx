@@ -176,6 +176,28 @@ export default function TeamMembersPage() {
 
   const minMembers = event?.minMembersPerTeam ?? 1;
   const maxMembers = event?.maxMembersPerTeam ?? 4;
+  const totalOccupied = activeMembers.length + pendingInvitations.length;
+  const isTeamFull = totalOccupied >= maxMembers;
+  const isRegistrationClosed = registrationDeadline && registrationDeadline < new Date();
+
+  const getInviteDisabledReason = () => {
+    if (!isLeader) {
+      return "Only the team leader can invite new members.";
+    }
+    if (isReadOnly || event?.status !== "active") {
+      return "This event is no longer active (Workspace is view-only).";
+    }
+    if (isRegistrationClosed) {
+      return "Registration deadline has passed. Team roster is locked.";
+    }
+    if (isTeamFull) {
+      return `Team is full (${totalOccupied}/${maxMembers} members reached).`;
+    }
+    return "";
+  };
+
+  const inviteDisabledReason = getInviteDisabledReason();
+  const canInvite = !inviteDisabledReason;
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 animate-in fade-in duration-500">
@@ -247,32 +269,31 @@ export default function TeamMembersPage() {
               {activeMembers.length} / {maxMembers} Members · Min {minMembers}
             </Badge>
             {isLeader ? (
-              <Dialog
-                open={isInviteDialogOpen}
-                onOpenChange={(open) =>
-                  isEventActive && setIsInviteDialogOpen(open)
-                }
+              <span
+                title={inviteDisabledReason || "Invite a new member to join your team"}
+                className={!canInvite ? "inline-block cursor-not-allowed" : "inline-block"}
               >
-                <DialogTrigger
-                  render={
-                    <Button
-                      variant="orange"
-                      className="rounded-xl px-5 shadow-[0_0_15px_rgba(243,112,33,0.3)]"
-                      disabled={!isEventActive}
-                      title={
-                        !isEventActive
-                          ? "Team roster is locked after the event starts."
-                          : "Invite a new member"
-                      }
-                    />
+                <Dialog
+                  open={isInviteDialogOpen}
+                  onOpenChange={(open) =>
+                    canInvite && setIsInviteDialogOpen(open)
                   }
                 >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Invite Member
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md rounded-2xl border-border bg-background/95 backdrop-blur-xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                  <DialogTrigger
+                    render={
+                      <Button
+                        variant="orange"
+                        className="rounded-xl px-5 shadow-[0_0_15px_rgba(243,112,33,0.3)] disabled:pointer-events-none"
+                        disabled={!canInvite}
+                      />
+                    }
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite Member
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md rounded-2xl border-border bg-background/95 backdrop-blur-xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-bold flex items-center gap-2">
                       <UserPlus className="h-5 w-5 text-orange-500" />
                       Invite to {team.name}
                     </DialogTitle>
@@ -314,6 +335,7 @@ export default function TeamMembersPage() {
                   </div>
                 </DialogContent>
               </Dialog>
+            </span>
             ) : null}
           </div>
         </div>

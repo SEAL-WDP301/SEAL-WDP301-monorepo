@@ -444,7 +444,7 @@ export default function SubmissionsPage() {
 
         {displayRound?.trackPending && (
           <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
-            Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
+            Track / Problem Statement has not been published yet. Please wait for organizers to open the round.
           </GlassCard>
         )}
 
@@ -529,8 +529,11 @@ export default function SubmissionsPage() {
                 <h3 className="font-semibold text-lg mb-4 border-b border-border pb-4">Detailed Scores from Judges</h3>
                 <div className="space-y-4">
                   {judgeList.map((j: any) => {
-                    const totalJudgeScore = j.scores.reduce((sum: number, s: any) => sum + Number(s.scoreValue), 0);
-                    const totalMaxScore = j.scores.reduce((sum: number, s: any) => sum + Number(s.criterion.maxScore), 0);
+                    const judgeWeightedScore = j.scores.reduce((sum: number, s: any) => {
+                      const score = Number(s.scoreValue) || 0; // 0..10
+                      const weight = Number(s.criterion?.weight) || 0; // weight e.g. 2.5
+                      return sum + (score / 10) * weight;
+                    }, 0);
                     
                     return (
                       <details key={j.judge.id} className="group rounded-2xl border border-border bg-muted/20 overflow-hidden open:bg-muted/40 transition-colors">
@@ -545,7 +548,7 @@ export default function SubmissionsPage() {
                             )}
                             <div>
                               <p className="font-bold text-foreground">{j.judge.name}</p>
-                              <p className="text-sm font-semibold text-orange-500">Score: {totalJudgeScore} <span className="text-muted-foreground font-normal">/ {totalMaxScore}</span></p>
+                              <p className="text-sm font-semibold text-orange-500">Score: {judgeWeightedScore.toFixed(2)} <span className="text-muted-foreground font-normal">/ 10</span></p>
                             </div>
                           </div>
                           <div className="p-2 rounded-full bg-background/50 group-open:rotate-180 transition-transform">
@@ -557,12 +560,17 @@ export default function SubmissionsPage() {
                           <div className="grid gap-3 mt-2">
                             {j.scores.map((s: any) => (
                               <div key={s.id} className="bg-background/80 p-4 rounded-xl border border-border/50 shadow-sm">
-                                <div className="flex justify-between items-start mb-2">
+                                <div className="flex justify-between items-start gap-4 mb-2">
                                   <div>
                                     <p className="font-bold text-sm text-foreground">{s.criterion.name}</p>
+                                    {s.criterion?.weight !== undefined && (
+                                      <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                                        Weight: <span className="font-semibold text-foreground">{Number(s.criterion.weight)} / 10</span>
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap">
-                                    {Number(s.scoreValue)} / {Number(s.criterion.maxScore)}
+                                    {Number(s.scoreValue)} / 10
                                   </div>
                                 </div>
                                 {s.comment && (
@@ -1036,31 +1044,40 @@ export default function SubmissionsPage() {
           </GlassCard>
         )}
 
-        {!isGithubRound && isLeader && (
-        <Button 
-          type="submit" 
-          variant="orange" 
-          className="w-full h-14 text-lg rounded-xl shadow-[0_0_20px_rgba(243,112,33,0.3)]"
-          disabled={
-            isReadOnly ||
-            isDeadlinePassed ||
-            submitMutation.isPending ||
-            !canSubmit ||
-            !canSubmitPayload
-          }
-        >
-          {submitMutation.isPending ? (
-            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          ) : (
-            <CheckCircle2 className="h-5 w-5 mr-2" />
-          )}
-          {isReadOnly
-            ? "View Only"
-            : latestSubmission
-              ? "Resubmit Project"
-              : "Submit Project"}
-        </Button>
-        )}
+        {!isGithubRound && isLeader && (() => {
+            const isSubmitDisabled = isReadOnly || isDeadlinePassed || submitMutation.isPending || !canSubmit || !canSubmitPayload;
+            const submitReason = isReadOnly
+              ? "This event has ended. Workspace is in view-only mode."
+              : isDeadlinePassed
+              ? "Submission deadline has passed for this round."
+              : teamStatus !== "approved"
+              ? "Team is not approved by organizers yet (Current status: " + (teamStatus || "pending") + ")."
+              : !canSubmitPayload
+              ? (isFileRound && !file && !latestSubmission ? "Please select a project file (PDF/ZIP) to upload." : "Please complete all submission requirements.")
+              : "Submit project for current round";
+
+            return (
+              <span title={submitReason} className={isSubmitDisabled ? "inline-block w-full cursor-not-allowed" : "inline-block w-full"}>
+                <Button 
+                  type="submit" 
+                  variant="orange" 
+                  className="w-full h-14 text-lg rounded-xl shadow-[0_0_20px_rgba(243,112,33,0.3)] disabled:pointer-events-none"
+                  disabled={isSubmitDisabled}
+                >
+                  {submitMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  ) : (
+                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                  )}
+                  {isReadOnly
+                    ? "View Only"
+                    : latestSubmission
+                      ? "Resubmit Project"
+                      : "Submit Project"}
+                </Button>
+              </span>
+            );
+          })()}
       </form>
   </div>
   );
