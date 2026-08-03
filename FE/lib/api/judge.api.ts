@@ -36,6 +36,8 @@ export interface JudgeRoundSubmission {
   totalCriteria: number;
   weightedScore?: number | null;
   isVotedByMe?: boolean;
+  /** True when this judge also mentors the team — scoring blocked. */
+  mentoredByMe?: boolean;
 }
 
 export interface JudgeRubric {
@@ -85,6 +87,7 @@ export interface JudgeSubmissionDetail {
   scoringStatus: JudgeScoringStatus;
   weightedScore?: number | null;
   isVotedByMe?: boolean;
+  mentoredByMe?: boolean;
 }
 
 export interface AiScoreSuggestion {
@@ -175,8 +178,20 @@ export const judgeApi = {
   },
 };
 
-/** Judge rates each criterion 0–10; contribution = (score/10)*weight. Weights total 10. */
+/** Judge rates each criterion 0–10; weight is % of final (total 100%). */
 export const JUDGE_SCORE_SCALE = 10;
+export const RUBRIC_WEIGHT_TOTAL = 100;
+
+export function criterionContribution(
+  scoreValue: number,
+  weightPercent: number,
+): number {
+  return (
+    (scoreValue / JUDGE_SCORE_SCALE) *
+    (weightPercent / 100) *
+    JUDGE_SCORE_SCALE
+  );
+}
 
 export function computeLocalWeightedScore(
   rubrics: JudgeRubric[],
@@ -192,7 +207,7 @@ export function computeLocalWeightedScore(
     if (value === undefined) continue;
 
     scoredAny = true;
-    total += (value / JUDGE_SCORE_SCALE) * Number(rubric.weight);
+    total += criterionContribution(value, Number(rubric.weight));
   }
 
   if (!scoredAny) return null;

@@ -241,6 +241,12 @@ const createEventSchema = (isEdit: boolean) =>
         .int("Maximum teams must be an integer")
         .min(1, "Maximum teams must be at least 1")
         .max(1000, "Maximum teams cannot exceed 1000"),
+      /**
+       * ON  → define tracks now; students pick a track when registering.
+       * OFF → create without tracks (Flow B); add later in Tracks & Rounds,
+       *       then assign randomly when a round opens.
+       */
+      useTracks: z.boolean().default(false),
       deferredTrackAssignment: z.boolean().default(true),
       minMembersPerTeam: z.coerce
         .number()
@@ -338,8 +344,7 @@ const createEventSchema = (isEdit: boolean) =>
             description: z.string().optional(),
           }),
         )
-        .min(1, "At least one track is required")
-        .default([{ name: "", description: "" }]),
+        .default([]),
       rounds: z
         .array(
           z.object({
@@ -355,7 +360,7 @@ const createEventSchema = (isEdit: boolean) =>
               .min(1, "Must be >= 1")
               .max(500, "Max 500MB")
               .default(20),
-            isTrackSpecific: z.boolean().default(true),
+            isTrackSpecific: z.boolean().default(false),
           }),
         )
         .min(1, "At least one round is required")
@@ -366,7 +371,7 @@ const createEventSchema = (isEdit: boolean) =>
             submissionType: "file",
             submissionDeadline: "",
             maxFileSizeMb: 20,
-            isTrackSpecific: true,
+            isTrackSpecific: false,
           },
         ]),
       location: z
@@ -552,13 +557,15 @@ const createEventSchema = (isEdit: boolean) =>
           });
         }
 
-        data.tracks.forEach((track, index) => {
-          requireText(
-            track.description,
-            ["tracks", index, "description"],
-            "Track description",
-          );
-        });
+        if (data.useTracks) {
+          data.tracks.forEach((track, index) => {
+            requireText(
+              track.description,
+              ["tracks", index, "description"],
+              "Track description",
+            );
+          });
+        }
 
         data.rounds.forEach((round, index) => {
           requireText(
@@ -566,6 +573,14 @@ const createEventSchema = (isEdit: boolean) =>
             ["rounds", index, "submissionDeadline"],
             "Round deadline",
           );
+        });
+      }
+
+      if (data.useTracks && data.tracks.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Add at least one track, or turn off Use tracks",
+          path: ["tracks"],
         });
       }
 
@@ -688,17 +703,19 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
-      const trackNames = data.tracks.map((t) => t.name.trim().toLowerCase());
-      if (new Set(trackNames).size !== trackNames.length) {
-        trackNames.forEach((name, idx) => {
-          if (trackNames.indexOf(name) !== idx) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: "Track names must be unique",
-              path: ["tracks", idx, "name"],
-            });
-          }
-        });
+      if (data.useTracks) {
+        const trackNames = data.tracks.map((t) => t.name.trim().toLowerCase());
+        if (new Set(trackNames).size !== trackNames.length) {
+          trackNames.forEach((name, idx) => {
+            if (trackNames.indexOf(name) !== idx) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "Track names must be unique",
+                path: ["tracks", idx, "name"],
+              });
+            }
+          });
+        }
       }
 
       const roundNumbers = data.rounds.map((r) => r.roundNumber);
@@ -816,7 +833,6 @@ const eventFormSteps: Array<{
       "season",
       "year",
       "maxTeams",
-      "deferredTrackAssignment",
       "minMembersPerTeam",
       "maxMembersPerTeam",
       "registrationDeadline",
@@ -837,9 +853,9 @@ const eventFormSteps: Array<{
   {
     id: "event-form-tracks",
     title: "Tracks",
-    description: "Competition categories",
+    description: "Optional — or add later in settings",
     icon: GitMerge,
-    fields: ["tracks"],
+    fields: ["useTracks", "tracks", "deferredTrackAssignment"],
   },
   {
     id: "event-form-rounds",
@@ -913,7 +929,14 @@ export default function EventForm({ initialData }: EventFormProps) {
     season: initialData?.season || "Spring",
     year: initialData?.year || new Date().getFullYear(),
     maxTeams: initialData?.maxTeams ?? 50,
-    deferredTrackAssignment: initialData?.deferredTrackAssignment ?? true,
+    // useTracks = students pick track at register (= !deferred). Never infer from track count
+    // (Flow B may already have tracks added on Tracks & Rounds).
+    useTracks: isEdit
+      ? !(initialData?.deferredTrackAssignment ?? false)
+      : false,
+    deferredTrackAssignment: isEdit
+      ? (initialData?.deferredTrackAssignment ?? false)
+      : true,
     minMembersPerTeam: initialData?.minMembersPerTeam ?? 3,
     maxMembersPerTeam: initialData?.maxMembersPerTeam ?? 5,
     status: initialData?.status || "draft",
@@ -970,10 +993,11 @@ export default function EventForm({ initialData }: EventFormProps) {
         currency: "VND",
       },
     ],
-    tracks: initialData?.tracks?.map((track) => ({
-      ...track,
-      description: track.description || "",
-    })) || [{ name: "", description: "" }],
+    tracks:
+      initialData?.tracks?.map((track) => ({
+        ...track,
+        description: track.description || "",
+      })) || [],
     rounds: initialData?.rounds?.map((r) => ({
       ...r,
       submissionDeadline: r.submissionDeadline
@@ -981,7 +1005,7 @@ export default function EventForm({ initialData }: EventFormProps) {
         : "",
       maxFileSizeMb: r.maxFileSizeMb || 20,
       isTrackSpecific:
-        r.isTrackSpecific !== undefined ? r.isTrackSpecific : true,
+        r.isTrackSpecific !== undefined ? r.isTrackSpecific : false,
     })) || [
       {
         roundNumber: 1,
@@ -1061,16 +1085,22 @@ export default function EventForm({ initialData }: EventFormProps) {
     control: form.control,
     name: "prizes",
   });
+  const useTracks = useWatch({
+    control: form.control,
+    name: "useTracks",
+  });
   const prizePoolTotals = useMemo(
     () => calculatePrizePoolTotals(watchedPrizes),
     [watchedPrizes],
   );
 
+  // Match Tracks page / BE: editable until any round leaves not_started.
   const canModifyStructure =
     !isEdit ||
-    (watchedStatus === "draft" &&
-      (!watchedRegistrationDeadline ||
-        new Date(watchedRegistrationDeadline) > new Date()));
+    (watchedStatus !== "closed" &&
+      (initialData?.rounds || []).every(
+        (round) => (round.status || "not_started") === "not_started",
+      ));
 
   const control = form.control;
 
@@ -1338,6 +1368,7 @@ export default function EventForm({ initialData }: EventFormProps) {
         calendarAttendeeEmails,
         sendCalendarInvitations,
         notifyParticipants,
+        useTracks,
         ...restData
       } = data;
 
@@ -1363,11 +1394,22 @@ export default function EventForm({ initialData }: EventFormProps) {
           placement: p.placement ?? null,
           currency: p.currency,
         })),
-        tracks: data.tracks?.map((t) => ({
-          id: t.id,
-          name: t.name,
-          description: t.description,
-        })),
+        // Flow A: send tracks from form. Flow B create: empty. Flow B edit: omit so
+        // Tracks & Rounds catalog is not wiped by Save Changes.
+        ...(useTracks
+          ? {
+              tracks: data.tracks?.map((t) => ({
+                id: t.id,
+                name: t.name,
+                description: t.description,
+              })),
+            }
+          : isEdit
+            ? {}
+            : { tracks: [] }),
+        // Checked useTracks → pick track at register.
+        // Unchecked → assign tracks later when a round opens.
+        deferredTrackAssignment: !useTracks,
         rounds: data.rounds?.map((r) => ({
           id: r.id,
           roundNumber: r.roundNumber,
@@ -1377,7 +1419,8 @@ export default function EventForm({ initialData }: EventFormProps) {
             ? new Date(r.submissionDeadline).toISOString()
             : undefined,
           maxFileSizeMb: r.maxFileSizeMb,
-          isTrackSpecific: r.isTrackSpecific,
+          // Flow B (no tracks at create): per-track đề when round opens.
+          isTrackSpecific: useTracks ? r.isTrackSpecific : true,
         })),
         location: JSON.stringify({
           venueName: location.venueName || undefined,
@@ -1772,37 +1815,6 @@ export default function EventForm({ initialData }: EventFormProps) {
 
                   <FormField
                     control={control}
-                    name="deferredTrackAssignment"
-                    render={({ field }) => (
-                      <FormItem className="md:col-span-12 rounded-xl border border-border/60 bg-muted/30 p-4">
-                        <div className="flex items-start gap-3">
-                          <FormControl>
-                            <input
-                              type="checkbox"
-                              className="mt-1 h-4 w-4 rounded border-border"
-                              checked={Boolean(field.value)}
-                              onChange={(e) => field.onChange(e.target.checked)}
-                            />
-                          </FormControl>
-                          <div>
-                            <FormLabel className="text-foreground/90 font-medium">
-                              Reveal tracks when a round opens
-                            </FormLabel>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Students register without choosing a track. When
-                              you open a round, tracks are assigned evenly
-                              across teams. Turn off to keep the classic
-                              pick-a-track registration flow.
-                            </p>
-                          </div>
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={control}
                     name="minMembersPerTeam"
                     render={({ field }) => (
                       <FormItem className="md:col-span-4">
@@ -2117,202 +2129,206 @@ export default function EventForm({ initialData }: EventFormProps) {
                   </Button>
                 </div>
 
-                <div className="space-y-4">
-                  {prizeFields.map((field, index) => (
-                    <div
-                      key={field.id}
-                      className="grid grid-cols-1 md:grid-cols-12 gap-6 p-6 bg-background/50 rounded-2xl border border-border/50 relative"
-                    >
-                      <FormField
-                        control={control}
-                        name={`prizes.${index}.name`}
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-3">
-                            <FormLabel className="text-foreground/80 font-medium">
-                              Prize Name
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                className="bg-background/50 rounded-xl"
-                                placeholder="E.g. First Prize"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={control}
-                        name={`prizes.${index}.placement`}
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel className="text-foreground/80 font-medium">
-                              Placement
-                            </FormLabel>
-                            <Select
-                              value={
-                                field.value == null
-                                  ? "special"
-                                  : String(field.value)
-                              }
-                              onValueChange={(value) =>
-                                field.onChange(
-                                  value === "special" ? null : Number(value),
-                                )
-                              }
-                            >
-                              <FormControl>
-                                <SelectTrigger className="bg-background/50 rounded-xl">
-                                  <SelectValue />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="1">First Prize</SelectItem>
-                                <SelectItem value="2">Second Prize</SelectItem>
-                                <SelectItem value="3">Third Prize</SelectItem>
-                                <SelectItem value="special">
-                                  Special Prize
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={control}
-                        name={`prizes.${index}.amount`}
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-3">
-                            <FormLabel className="text-foreground/80 font-medium">
-                              Amount per prize
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                className="bg-background/50 rounded-xl"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={control}
-                        name={`prizes.${index}.currency`}
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel className="text-foreground/80 font-medium">
-                              Currency
-                            </FormLabel>
-                            <Select
-                              value={field.value}
-                              onValueChange={field.onChange}
-                            >
-                              <FormControl>
-                                <SelectTrigger className="bg-background/50 rounded-xl">
-                                  <SelectValue />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="VND">VND</SelectItem>
-                                <SelectItem value="USD">USD</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={control}
-                        name={`prizes.${index}.quantity`}
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel className="text-foreground/80 font-medium">
-                              Quantity
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="1"
-                                step="1"
-                                inputMode="numeric"
-                                className="bg-background/50 rounded-xl tabular-nums"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={control}
-                        name={`prizes.${index}.description`}
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-11">
-                            <FormLabel className="text-foreground/80 font-medium">
-                              Other rewards
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                className="bg-background/50 rounded-xl"
-                                placeholder="E.g. Gold Trophy and certificate"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <div className="flex items-end justify-end md:col-span-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-xl text-red-500 hover:bg-red-100/50 hover:text-red-600"
-                          onClick={() => removePrize(index)}
-                          aria-label={`Remove prize ${index + 1}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  {prizeFields.length === 0 && (
-                    <div className="text-center p-8 border-2 border-dashed border-border/50 rounded-2xl">
-                      <p className="text-muted-foreground">
-                        No prizes added yet.
-                      </p>
-                    </div>
-                  )}
-                  {prizePoolTotals.length > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4">
-                      <span className="font-semibold text-foreground">
-                        Total prize pool
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {prizePoolTotals.map((total) => (
-                          <span
-                            key={total.currency}
-                            className="rounded-lg bg-background/70 px-3 py-1.5 font-bold text-amber-600"
+                {prizeFields.length > 0 ? (
+                  <div className="space-y-2">
+                    {prizeFields.map((field, index) => (
+                      <div
+                        key={field.id}
+                        className="rounded-xl border border-border/60 bg-background/40 p-3"
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-12">
+                            <FormField
+                              control={control}
+                              name={`prizes.${index}.name`}
+                              render={({ field }) => (
+                                <FormItem className="col-span-2 space-y-1 sm:col-span-4 lg:col-span-4">
+                                  <FormLabel className="text-[11px] text-muted-foreground">
+                                    Prize Name
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      className="h-9 bg-background/50"
+                                      placeholder="Example: Champion"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name={`prizes.${index}.placement`}
+                              render={({ field }) => (
+                                <FormItem className="space-y-1 lg:col-span-2">
+                                  <FormLabel className="text-[11px] text-muted-foreground">
+                                    Placement
+                                  </FormLabel>
+                                  <Select
+                                    value={
+                                      field.value == null
+                                        ? "special"
+                                        : String(field.value)
+                                    }
+                                    onValueChange={(value) =>
+                                      field.onChange(
+                                        value === "special"
+                                          ? null
+                                          : Number(value),
+                                      )
+                                    }
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger className="h-9 bg-background/50">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="1">
+                                        First Prize
+                                      </SelectItem>
+                                      <SelectItem value="2">
+                                        Second Prize
+                                      </SelectItem>
+                                      <SelectItem value="3">
+                                        Third Prize
+                                      </SelectItem>
+                                      <SelectItem value="special">
+                                        Special Prize
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name={`prizes.${index}.amount`}
+                              render={({ field }) => (
+                                <FormItem className="space-y-1 lg:col-span-2">
+                                  <FormLabel className="text-[11px] text-muted-foreground">
+                                    Amount per prize
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      step="1"
+                                      className="h-9 bg-background/50 tabular-nums"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name={`prizes.${index}.currency`}
+                              render={({ field }) => (
+                                <FormItem className="space-y-1 lg:col-span-2">
+                                  <FormLabel className="text-[11px] text-muted-foreground">
+                                    Currency
+                                  </FormLabel>
+                                  <Select
+                                    value={field.value}
+                                    onValueChange={field.onChange}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger className="h-9 bg-background/50">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="VND">VND</SelectItem>
+                                      <SelectItem value="USD">USD</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name={`prizes.${index}.quantity`}
+                              render={({ field }) => (
+                                <FormItem className="space-y-1 lg:col-span-2">
+                                  <FormLabel className="text-[11px] text-muted-foreground">
+                                    Quantity
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      inputMode="numeric"
+                                      className="h-9 bg-background/50 tabular-nums"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={control}
+                              name={`prizes.${index}.description`}
+                              render={({ field }) => (
+                                <FormItem className="col-span-2 space-y-1 sm:col-span-4 lg:col-span-12">
+                                  <FormLabel className="text-[11px] text-muted-foreground">
+                                    Other rewards
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      className="h-9 bg-background/50"
+                                      placeholder="Example: Gold Trophy and certificate"
+                                      {...field}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="mt-5 shrink-0 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                            onClick={() => removePrize(index)}
+                            aria-label={`Remove prize ${index + 1}`}
                           >
-                            {formatPrizeAmount(total.amount, total.currency)}
-                          </span>
-                        ))}
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
+                    No prizes yet. Click Add Prize to start.
+                  </div>
+                )}
+
+                {prizePoolTotals.length > 0 && (
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
+                    <span className="text-sm font-semibold text-foreground">
+                      Total prize pool
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {prizePoolTotals.map((total) => (
+                        <span
+                          key={total.currency}
+                          className="rounded-lg bg-background/70 px-3 py-1 text-sm font-bold text-amber-600"
+                        >
+                          {formatPrizeAmount(total.amount, total.currency)}
+                        </span>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </motion.div>
 
@@ -2338,11 +2354,12 @@ export default function EventForm({ initialData }: EventFormProps) {
                         Tracks
                       </h3>
                       <p className="text-muted-foreground mt-1">
-                        Define categories or themes for the competition.
+                        Choose whether this event uses tracks, then configure
+                        them here.
                       </p>
                     </div>
                   </div>
-                  {canModifyStructure && (
+                  {canModifyStructure && useTracks && (
                     <Button
                       type="button"
                       variant="outline"
@@ -2359,9 +2376,87 @@ export default function EventForm({ initialData }: EventFormProps) {
                   )}
                 </div>
 
+                <FormField
+                  control={control}
+                  name="useTracks"
+                  render={({ field }) => (
+                    <FormItem className="mb-6 rounded-xl border border-border/60 bg-muted/30 p-4">
+                      <div className="flex items-start gap-3">
+                        <FormControl>
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-border"
+                            checked={Boolean(field.value)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              field.onChange(checked);
+                              if (checked) {
+                                if (form.getValues("tracks").length === 0) {
+                                  appendTrack({
+                                    name: "",
+                                    description: "",
+                                  });
+                                }
+                                form.setValue(
+                                  "deferredTrackAssignment",
+                                  false,
+                                  { shouldDirty: true },
+                                );
+                              } else {
+                                form.setValue("tracks", [], {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                                form.setValue(
+                                  "deferredTrackAssignment",
+                                  true,
+                                  { shouldDirty: true },
+                                );
+                                const rounds = form.getValues("rounds");
+                                rounds.forEach((_, index) => {
+                                  // Flow B needs per-track đề when round opens.
+                                  form.setValue(
+                                    `rounds.${index}.isTrackSpecific`,
+                                    true,
+                                    { shouldDirty: true },
+                                  );
+                                });
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        <div>
+                          <FormLabel className="text-foreground/90 font-medium">
+                            Use tracks for this event
+                          </FormLabel>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Checked: define tracks now. Students choose a track
+                            when they register. Unchecked: students register
+                            without choosing a track; you set tracks later in
+                            Tracks &amp; Rounds and they are assigned when a
+                            round opens.
+                          </p>
+                        </div>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {!useTracks ? (
+                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                    Not using tracks for now. You can add tracks anytime from{" "}
+                    <strong className="text-foreground">
+                      Tracks &amp; Rounds
+                    </strong>{" "}
+                    after the event is created.
+                  </div>
+                ) : null}
+
                 <div className="space-y-4">
                   <AnimatePresence mode="popLayout">
-                    {trackFields.map((field, index) => (
+                    {useTracks &&
+                      trackFields.map((field, index) => (
                       <motion.div
                         key={field.id}
                         layout
@@ -2383,7 +2478,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                 <FormControl>
                                   <Input
                                     className="bg-card/50 rounded-lg"
-                                    placeholder="e.g. AI Track"
+                                    placeholder="Example: AI Track"
                                     {...field}
                                   />
                                 </FormControl>
@@ -2470,6 +2565,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                           submissionType: "file",
                           submissionDeadline: "",
                           maxFileSizeMb: 20,
+                          // Flow B (!useTracks) always needs per-track đề.
                           isTrackSpecific: true,
                         })
                       }
@@ -2525,7 +2621,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                 <FormControl>
                                   <Input
                                     className="bg-card/50 rounded-lg"
-                                    placeholder="e.g. Semi-final"
+                                    placeholder="Example: Semi-final"
                                     {...field}
                                   />
                                 </FormControl>
@@ -2628,33 +2724,35 @@ export default function EventForm({ initialData }: EventFormProps) {
                             </Button>
                           )}
                         </div>
-                        <div className="md:col-span-12 flex items-center justify-between mt-2 pt-4 border-t border-border/50">
-                          <FormField
-                            control={control}
-                            name={`rounds.${index}.isTrackSpecific`}
-                            render={({ field }) => (
-                              <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                <FormControl>
-                                  <input
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-border text-blue-600 focus:ring-blue-500"
-                                    checked={field.value}
-                                    onChange={field.onChange}
-                                  />
-                                </FormControl>
-                                <div className="space-y-1 leading-none">
-                                  <FormLabel className="text-sm font-medium text-foreground">
-                                    Separate submissions by Track
-                                  </FormLabel>
-                                  <p className="text-xs text-muted-foreground">
-                                    If checked, files will be saved in
-                                    track-specific folders.
-                                  </p>
-                                </div>
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+                        {useTracks ? (
+                          <div className="md:col-span-12 flex items-center justify-between mt-2 pt-4 border-t border-border/50">
+                            <FormField
+                              control={control}
+                              name={`rounds.${index}.isTrackSpecific`}
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                  <FormControl>
+                                    <input
+                                      type="checkbox"
+                                      className="h-4 w-4 rounded border-border text-blue-600 focus:ring-blue-500"
+                                      checked={field.value}
+                                      onChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <div className="space-y-1 leading-none">
+                                    <FormLabel className="text-sm font-medium text-foreground">
+                                      Separate submissions by Track
+                                    </FormLabel>
+                                    <p className="text-xs text-muted-foreground">
+                                      If checked, each track gets its own problem
+                                      file under the round.
+                                    </p>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        ) : null}
                       </motion.div>
                     ))}
                   </AnimatePresence>

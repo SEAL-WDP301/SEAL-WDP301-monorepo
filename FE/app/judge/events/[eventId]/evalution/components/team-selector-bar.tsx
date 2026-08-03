@@ -126,11 +126,12 @@ export function TeamSelectorBar({
                       <span className="text-muted-foreground text-xs">·</span>
                       <span className={cn(
                         "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider",
+                        team.mentoredByMe ? "bg-red-500/10 text-red-500" :
                         isPending ? "bg-amber-500/10 text-amber-500" :
                         isEvaluated ? "bg-green-500/10 text-green-600 dark:text-green-400" :
                         "bg-blue-500/10 text-blue-500"
                       )}>
-                        {statusLabel}
+                        {team.mentoredByMe ? "Mentored" : statusLabel}
                       </span>
                       {team.weightedScore != null && (
                         <>

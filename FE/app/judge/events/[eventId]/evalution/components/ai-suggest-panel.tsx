@@ -75,7 +75,7 @@ export function AiSuggestPanel({
             AI assist only — judge is final
           </p>
           <p className="text-xs leading-relaxed text-orange-100/80">
-            Suggestions follow the event rubric criteria for this round. AI does
+            Suggestions follow the event rubric. AI does
             not replace human judging, does not auto-save scores, and may miss
             evidence when a repo/file cannot be fully read. Always review before
             Apply and Save.
@@ -122,7 +122,7 @@ export function AiSuggestPanel({
                       </div>
                       {rubric && (
                         <div className="mt-0.5 text-xs text-muted-foreground">
-                          share {rubric.weight}/10
+                          weight {rubric.weight}%
                           {rubric.description
                             ? ` · ${rubric.description}`
                             : ""}

@@ -33,12 +33,16 @@ export default function EventStakeholdersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [modalSearchQuery, setModalSearchQuery] = useState("");
   const [selectedTeamIdForDetails, setSelectedTeamIdForDetails] = useState<number | null>(null);
+  const [dualRoleConfirm, setDualRoleConfirm] = useState<null | {
+    kind: "judge" | "mentor";
+    names: string[];
+  }>(null);
 
-  // Queries
+  // Queries — organizer API (public hides tracks/đề for deferred events).
   const { data: event } = useQuery({
     queryKey: ["organizerEvent", eventId],
     queryFn: async () => {
-      const res = await axiosClient.get(`/public/events/${eventId}`);
+      const res = await axiosClient.get(`/organizer/events/${eventId}`);
       return res.data.data;
     },
   });
@@ -79,6 +83,9 @@ export default function EventStakeholdersPage() {
   ) || [];
 
   const roundObj = event?.rounds?.find((r: any) => r.id === Number(roundId));
+  const requireJudgeTracks =
+    Boolean(roundObj?.isTrackSpecific) ||
+    Boolean(event?.deferredTrackAssignment);
 
   // Mutations
   const assignJudgeMutation = useMutation({
@@ -160,21 +167,59 @@ export default function EventStakeholdersPage() {
     setModalSearchQuery("");
   };
 
-  const handleAssignJudge = () => {
-    if (selectedUsers.length === 0) return;
+  const doAssignJudge = () => {
     assignJudgeMutation.mutate({
       stakeholderIds: selectedUsers,
       roundId: Number(roundId),
-      trackIds: roundObj?.isTrackSpecific ? selectedTrackIds : [],
+      trackIds: requireJudgeTracks ? selectedTrackIds : undefined,
     });
   };
 
-  const handleAssignMentor = () => {
-    if (!selectedUser || selectedTeamIds.length === 0) return;
+  const doAssignMentor = () => {
+    if (!selectedUser) return;
     assignMentorMutation.mutate({
       stakeholderId: selectedUser,
       teamIds: selectedTeamIds,
     });
+  };
+
+  const handleAssignJudge = () => {
+    if (selectedUsers.length === 0) return;
+    if (requireJudgeTracks && selectedTrackIds.length === 0) {
+      enqueueSnackbar("Select at least one track for this round.", {
+        variant: "warning",
+      });
+      return;
+    }
+    const alreadyMentors = (stakeholders || []).filter(
+      (u: any) =>
+        selectedUsers.includes(u.id) &&
+        u.mentorAssignments &&
+        u.mentorAssignments.length > 0,
+    );
+    if (alreadyMentors.length > 0) {
+      setDualRoleConfirm({
+        kind: "judge",
+        names: alreadyMentors.map((u: any) => u.name),
+      });
+      return;
+    }
+    doAssignJudge();
+  };
+
+  const handleAssignMentor = () => {
+    if (!selectedUser || selectedTeamIds.length === 0) return;
+    const user = (stakeholders || []).find((u: any) => u.id === selectedUser);
+    const alreadyJudge =
+      user?.judgeAssignments && user.judgeAssignments.length > 0;
+    if (alreadyJudge) {
+      setDualRoleConfirm({
+        kind: "mentor",
+        names: [user.name],
+      });
+      return;
+    }
+    doAssignMentor();
   };
 
   const filteredTeams = teams?.filter((t: any) =>
@@ -218,7 +263,7 @@ export default function EventStakeholdersPage() {
           <TabsList className="mb-6 bg-muted/50 p-1 w-full max-w-md grid grid-cols-3">
             <TabsTrigger value="mentors">Mentors ({mentors.length})</TabsTrigger>
             <TabsTrigger value="judges">Judges ({judges.length})</TabsTrigger>
-            <TabsTrigger value="available">Available ({available.length})</TabsTrigger>
+            <TabsTrigger value="available">Unassigned ({available.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="mentors">
@@ -246,7 +291,16 @@ export default function EventStakeholdersPage() {
                         <div className="text-xs text-muted-foreground">{user.stakeholderProfile?.organization || "N/A"}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-semibold text-amber-500">{user.mentorAssignments.length}</span> teams
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>
+                            <span className="font-semibold text-amber-500">{user.mentorAssignments.length}</span> teams
+                          </span>
+                          {user.judgeAssignments?.some((ja: any) => ja.roundId === Number(roundId)) && (
+                            <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                              Also judge
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button variant="ghost" size="sm" onClick={() => setDrawerUser(user)}>
@@ -287,7 +341,18 @@ export default function EventStakeholdersPage() {
                         <div className="text-xs text-muted-foreground">{user.stakeholderProfile?.organization || "N/A"}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-semibold text-blue-500">{user.judgeAssignments.length}</span> assignments
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span>
+                            <span className="font-semibold text-blue-500">{user.judgeAssignments.length}</span> assignments
+                          </span>
+                          {user.mentorAssignments?.some((ma: any) =>
+                            ma.team?.teamRounds?.some((tr: any) => tr.roundId === Number(roundId)),
+                          ) && (
+                            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                              Also mentor
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Button variant="ghost" size="sm" onClick={() => setDrawerUser(user)}>
@@ -304,6 +369,10 @@ export default function EventStakeholdersPage() {
           </TabsContent>
 
           <TabsContent value="available">
+            <p className="mb-4 text-sm text-muted-foreground">
+              Stakeholders with no mentor/judge role in this round yet. Mentors can still be assigned as judges (and vice versa) via{" "}
+              <strong>Assign Mentor</strong> / <strong>Assign Judge</strong>.
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                 <thead className="text-xs uppercase bg-muted/50 text-muted-foreground">
@@ -444,7 +513,7 @@ export default function EventStakeholdersPage() {
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">Select Stakeholders</label>
               <p className="mb-2 text-xs text-muted-foreground">
-                Mentors can also be assigned as judges for this event.
+                All stakeholders are selectable. Mentors can also be judges (they cannot score teams they mentor).
               </p>
               <div className="space-y-2 border border-border rounded-lg p-2">
                 <input
@@ -473,6 +542,9 @@ export default function EventStakeholdersPage() {
                   </label>
                   {filteredModalUsers?.map((u: any) => {
                     const isMentor = u.mentorAssignments && u.mentorAssignments.length > 0;
+                    const isJudgeHere = u.judgeAssignments?.some(
+                      (ja: any) => ja.roundId === Number(roundId),
+                    );
                     return (
                       <label
                         key={u.id}
@@ -487,13 +559,20 @@ export default function EventStakeholdersPage() {
                             else setSelectedUsers(selectedUsers.filter(id => id !== u.id));
                           }}
                         />
-                        <span className="text-sm flex items-center justify-between w-full pr-2">
+                        <span className="text-sm flex items-center justify-between w-full pr-2 gap-2">
                           <span>{u.name} <span className="text-muted-foreground text-xs">({u.email})</span></span>
-                          {isMentor && (
-                            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                              Mentor
-                            </span>
-                          )}
+                          <span className="flex shrink-0 gap-1">
+                            {isMentor && (
+                              <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                                Mentor
+                              </span>
+                            )}
+                            {isJudgeHere && (
+                              <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+                                Judge
+                              </span>
+                            )}
+                          </span>
                         </span>
                       </label>
                     );
@@ -505,7 +584,7 @@ export default function EventStakeholdersPage() {
               </div>
             </div>
 
-            {roundObj && roundObj.isTrackSpecific && (
+            {requireJudgeTracks && (
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">Select Tracks (Required)</label>
                 <div className="space-y-2 max-h-[150px] overflow-y-auto border border-border rounded-lg p-2">
@@ -529,7 +608,15 @@ export default function EventStakeholdersPage() {
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setIsJudgeModalOpen(false)}>Cancel</Button>
-              <Button onClick={handleAssignJudge} disabled={selectedUsers.length === 0 || assignJudgeMutation.isPending} className="bg-blue-600 hover:bg-blue-700">
+              <Button
+                onClick={handleAssignJudge}
+                disabled={
+                  selectedUsers.length === 0 ||
+                  assignJudgeMutation.isPending ||
+                  (requireJudgeTracks && selectedTrackIds.length === 0)
+                }
+                className="bg-blue-600 hover:bg-blue-700"
+              >
                 {assignJudgeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : `Assign ${selectedUsers.length > 0 ? selectedUsers.length : ''} Judges to ${roundObj?.name || 'Round'}`}
               </Button>
             </div>
@@ -548,6 +635,9 @@ export default function EventStakeholdersPage() {
           <div className="space-y-4 mt-4">
             <div>
               <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">Select Stakeholder</label>
+              <p className="mb-2 text-xs text-muted-foreground">
+                All stakeholders are selectable, including current judges.
+              </p>
               <input
                 type="text"
                 placeholder="Search by name or email..."
@@ -563,9 +653,15 @@ export default function EventStakeholdersPage() {
                 <option value="">Choose...</option>
                 {filteredModalUsers?.map((u: any) => {
                   const isJudge = u.judgeAssignments && u.judgeAssignments.length > 0;
+                  const isMentor = u.mentorAssignments && u.mentorAssignments.length > 0;
+                  const tags = [
+                    isJudge ? "Judge" : null,
+                    isMentor ? "Mentor" : null,
+                  ].filter(Boolean);
                   return (
                     <option key={u.id} value={u.id}>
-                      {u.name} ({u.email}){isJudge ? " — Judge · Can also mentor" : ""}
+                      {u.name} ({u.email})
+                      {tags.length ? ` — ${tags.join(" · ")}` : ""}
                     </option>
                   );
                 })}
@@ -649,6 +745,55 @@ export default function EventStakeholdersPage() {
         team={currentTeamDetails}
         eventId={eventId}
       />
+
+      <Dialog
+        open={!!dualRoleConfirm}
+        onOpenChange={(open) => {
+          if (!open) setDualRoleConfirm(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[420px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Confirm dual role</DialogTitle>
+            <DialogDescription>
+              {dualRoleConfirm?.kind === "judge" ? (
+                <>
+                  <strong>{dualRoleConfirm.names.join(", ")}</strong>{" "}
+                  {dualRoleConfirm.names.length === 1 ? "is" : "are"} already a
+                  mentor. Assign as judge too? They will not be able to score
+                  teams they mentor.
+                </>
+              ) : (
+                <>
+                  <strong>{dualRoleConfirm?.names.join(", ")}</strong> is
+                  already a judge. Assign as mentor too? They will not be able
+                  to score the team(s) they mentor.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setDualRoleConfirm(null)}>
+              No
+            </Button>
+            <Button
+              className={
+                dualRoleConfirm?.kind === "judge"
+                  ? "bg-blue-600 hover:bg-blue-700"
+                  : "bg-amber-600 hover:bg-amber-700"
+              }
+              onClick={() => {
+                const kind = dualRoleConfirm?.kind;
+                setDualRoleConfirm(null);
+                if (kind === "judge") doAssignJudge();
+                else doAssignMentor();
+              }}
+            >
+              Yes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

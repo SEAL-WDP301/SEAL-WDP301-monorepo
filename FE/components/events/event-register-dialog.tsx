@@ -88,6 +88,13 @@ function getRegistrationBlockReason(
     return `This event has reached its team capacity (${event.registeredTeams ?? event.maxTeams}/${event.maxTeams} teams).`;
   }
 
+  // Flow A: must pick a track — block if catalog is empty (do not pretend deferred).
+  const deferred = Boolean(event.deferredTrackAssignment);
+  const hasTracks = (event.tracks?.length ?? 0) > 0;
+  if (!deferred && !hasTracks) {
+    return "This event has no tracks configured yet. Registration opens after the organizer adds tracks.";
+  }
+
   return null;
 }
 
@@ -154,6 +161,7 @@ export function EventRegisterDialog({
 
   const registrationBlockReason = getRegistrationBlockReason(event, isEditing);
   const isRegistrationBlocked = Boolean(registrationBlockReason);
+  // Only Flow B (flag). Do not treat "0 visible tracks" as deferred.
   const deferred = Boolean(event?.deferredTrackAssignment);
   const minMembersPerTeam = event?.minMembersPerTeam ?? 1;
   const maxMembersPerTeam = event?.maxMembersPerTeam ?? 4;
@@ -354,7 +362,7 @@ export function EventRegisterDialog({
                 <div className="mb-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm">
                   <p className="font-semibold text-foreground">Team size</p>
                   <p className="mt-1 text-muted-foreground">
-                    Each team must have {minMembersPerTeam}–{maxMembersPerTeam}{" "}
+                    Each team must have {minMembersPerTeam}-{maxMembersPerTeam}{" "}
                     members, including the leader.
                   </p>
                 </div>
@@ -380,9 +388,9 @@ export function EventRegisterDialog({
                         Tracks stay hidden for now
                       </p>
                       <p className="mt-1 text-muted-foreground">
-                        Register your team without choosing a track. Tracks are
-                        assigned evenly when the organizer opens the first
-                        round.
+                        Register your team without choosing a track. When the
+                        organizer opens a round, your team is assigned a track
+                        at random and receives that track&apos;s problem file.
                       </p>
                     </div>
                   ) : (
@@ -413,7 +421,7 @@ export function EventRegisterDialog({
                               {track.name}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Event team policy: {minMembersPerTeam}–
+                              Event team policy: {minMembersPerTeam}-
                               {maxMembersPerTeam} members
                             </div>
                           </div>

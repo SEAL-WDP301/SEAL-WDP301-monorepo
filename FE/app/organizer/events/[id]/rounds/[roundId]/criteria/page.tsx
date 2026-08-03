@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { enqueueSnackbar } from "notistack";
-import { Edit2, Loader2, Plus, RefreshCcw, Save, Trash2, X, Info, AlignLeft, UploadCloud, ChevronLeft, ChevronRight } from "lucide-react";
+import { Edit2, Loader2, Plus, Save, Trash2, AlignLeft, UploadCloud, ChevronLeft, ChevronRight, Sparkles, AlertTriangle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
-  DialogFooter
 } from "@/components/ui/dialog";
 import {
   createOrganizerRubric,
@@ -33,6 +32,7 @@ import {
 } from "@/lib/api/organizer-events.api";
 import { cn } from "@/lib/utils";
 import { BulkImportRubricsModal } from "./_components/bulk-import-modal";
+import { AiSuggestRubricsModal } from "./_components/ai-suggest-rubrics-modal";
 
 type RubricDraft = {
   roundId: string;
@@ -47,7 +47,7 @@ const emptyRubric = (): RubricDraft => ({
   trackId: "",
   name: "",
   description: "",
-  weight: 1,
+  weight: 10,
 });
 
 function getApiMessage(error: unknown, fallback: string) {
@@ -65,13 +65,13 @@ export default function EventCriteriaPage() {
   const currentRoundId = params.roundId as string;
   const queryClient = useQueryClient();
 
-  const [trackFilter, setTrackFilter] = useState("all");
   const [rubricDraft, setRubricDraft] = useState<RubricDraft>(() => ({
     ...emptyRubric(),
     roundId: currentRoundId,
   }));
   const [editingRubricId, setEditingRubricId] = useState<number | null>(null);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isAiSuggestOpen, setIsAiSuggestOpen] = useState(false);
   const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   
@@ -95,79 +95,65 @@ export default function EventCriteriaPage() {
     () => [...(event?.rounds || [])].sort((a, b) => a.roundNumber - b.roundNumber),
     [event?.rounds]
   );
-  const tracks = useMemo(() => event?.tracks || [], [event?.tracks]);
-  
-  const canEditCriteria = (id: string | number | null | undefined) => {
-    if (event?.status === "closed") return false;
-    if (!id) return true;
-    const round = roundById.get(Number(id));
-    return !round || round.status === "not_started" || round.status === "open";
-  };
-
-  const getDisabledReason = () => {
-    if (event?.status === "closed") return "Event is closed. Cannot modify criteria.";
-    if (!currentRound) return "Round not found.";
-    if (!canEditCriteria(currentRound.id)) return "Cannot modify criteria for rounds that have already ended.";
-    return undefined;
-  };
 
   const roundById = useMemo(
     () => new Map(rounds.map((round) => [round.id, round])),
     [rounds]
   );
-  const trackById = useMemo(
-    () => new Map(tracks.map((track) => [track.id, track])),
-    [tracks]
-  );
 
   const rubrics = useMemo(() => rubricsQuery.data || [], [rubricsQuery.data]);
-  
   const currentRound = roundById.get(Number(currentRoundId));
-  const isTrackSpecific = currentRound?.isTrackSpecific ?? false;
 
-  const filteredRubrics = useMemo(
+  const canEditCriteria = useMemo(() => {
+    if (event?.status === "closed") return false;
+    if (!currentRound) return false;
+    return (
+      currentRound.status === "not_started" || currentRound.status === "open"
+    );
+  }, [event?.status, currentRound]);
+
+  const getDisabledReason = () => {
+    if (event?.status === "closed") return "Event is closed.";
+    if (!currentRound) return "Round not found.";
+    if (!canEditCriteria) return "Cannot edit after this round has ended.";
+    return undefined;
+  };
+
+  const roundRubrics = useMemo(
     () =>
-      rubrics.filter((rubric) => {
-        const matchesRound = String(rubric.roundId) === currentRoundId;
-        const matchesTrack =
-          trackFilter === "all" || String(rubric.trackId) === trackFilter;
-        return matchesRound && matchesTrack;
-      }),
-    [currentRoundId, rubrics, trackFilter]
+      rubrics.filter((rubric) => String(rubric.roundId) === currentRoundId),
+    [currentRoundId, rubrics],
   );
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredRubrics.length / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(roundRubrics.length / ITEMS_PER_PAGE);
   const paginatedRubrics = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredRubrics.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredRubrics, currentPage]);
+    return roundRubrics.slice(start, start + ITEMS_PER_PAGE);
+  }, [roundRubrics, currentPage]);
 
-  const TARGET_WEIGHT_TOTAL = 10;
+  const TARGET_WEIGHT_TOTAL = 100;
 
-  const selectedScopeWeight = useMemo(() => {
-    if (!currentRoundId) return 0;
-    const draftTrackKey =
-      isTrackSpecific && rubricDraft.trackId ? String(rubricDraft.trackId) : "null";
+  const weightTotal = useMemo(
+    () => roundRubrics.reduce((sum, r) => sum + Number(r.weight || 0), 0),
+    [roundRubrics],
+  );
 
-    return rubrics.reduce((sum, rubric) => {
-      if (rubric.id === editingRubricId) return sum;
-      if (String(rubric.roundId) !== String(currentRoundId)) return sum;
-      const rubricTrackKey =
-        rubric.trackId == null ? "null" : String(rubric.trackId);
-      if (rubricTrackKey !== draftTrackKey) return sum;
-      return sum + Number(rubric.weight || 0);
-    }, 0);
-  }, [
-    currentRoundId,
-    editingRubricId,
-    isTrackSpecific,
-    rubricDraft.trackId,
-    rubrics,
-  ]);
+  const selectedScopeWeight = useMemo(
+    () =>
+      roundRubrics.reduce((sum, r) => {
+        if (r.id === editingRubricId) return sum;
+        return sum + Number(r.weight || 0);
+      }, 0),
+    [editingRubricId, roundRubrics],
+  );
 
   const projectedScopeWeight =
     selectedScopeWeight + (Number(rubricDraft.weight) || 0);
+  const weightOverBudget = weightTotal > TARGET_WEIGHT_TOTAL + 0.01;
+  const weightIncomplete =
+    roundRubrics.length > 0 &&
+    weightTotal < TARGET_WEIGHT_TOTAL - 0.01 &&
+    !weightOverBudget;
 
   const resetForm = () => {
     setEditingRubricId(null);
@@ -177,30 +163,32 @@ export default function EventCriteriaPage() {
 
   const saveRubricMutation = useMutation({
     mutationFn: async () => {
-      if (!canEditCriteria(currentRoundId)) {
-        throw new Error("Can only manage criteria for rounds that are not started or open.");
+      if (!canEditCriteria) {
+        throw new Error("Cannot manage criteria after a round has ended.");
       }
-      if (isTrackSpecific && !rubricDraft.trackId) throw new Error("Track is required for track-specific rounds.");
       if (!rubricDraft.name.trim()) throw new Error("Criterion name is required.");
 
       const weight = Number(rubricDraft.weight);
 
       if (!Number.isFinite(weight) || weight <= 0) {
-        throw new Error("Share (weight) must be greater than 0.");
+        throw new Error("Weight (%) must be greater than 0.");
       }
-      if (projectedScopeWeight > TARGET_WEIGHT_TOTAL + 0.001) {
-        throw new Error(
-          `Criterion shares for this round/track must total ${TARGET_WEIGHT_TOTAL}. Current ${selectedScopeWeight.toFixed(2)} + ${weight} = ${projectedScopeWeight.toFixed(2)}.`,
-        );
+      if (weight > TARGET_WEIGHT_TOTAL) {
+        throw new Error("Weight (%) cannot exceed 100.");
+      }
+      if (projectedScopeWeight > TARGET_WEIGHT_TOTAL + 0.01) {
+        const message = `Weight exceeds 100%: current ${selectedScopeWeight.toFixed(2)}% + ${weight}% = ${projectedScopeWeight.toFixed(2)}%.`;
+        enqueueSnackbar(message, { variant: "warning" });
+        throw new Error(message);
       }
 
       const payload: OrganizerRubricPayload = {
         name: rubricDraft.name.trim(),
         description: rubricDraft.description.trim() || undefined,
-        maxScore: 10, // fixed; judges always rate 0–10
+        maxScore: 10,
         weight,
         roundId: Number(currentRoundId),
-        trackId: isTrackSpecific && rubricDraft.trackId ? Number(rubricDraft.trackId) : null,
+        trackId: null,
       };
 
       return editingRubricId
@@ -246,7 +234,7 @@ export default function EventCriteriaPage() {
     setEditingRubricId(rubric.id);
     setRubricDraft({
       roundId: currentRoundId,
-      trackId: rubric.trackId ? String(rubric.trackId) : "",
+      trackId: "",
       name: rubric.name,
       description: rubric.description || "",
       weight: rubric.weight,
@@ -285,8 +273,11 @@ export default function EventCriteriaPage() {
   }
 
   const hasRequiredConfiguration = rounds.length > 0;
-  const isTrackValid = !isTrackSpecific || Boolean(rubricDraft.trackId);
-  const canSubmit = canEditCriteria(currentRoundId) && Boolean(rubricDraft.name.trim()) && isTrackValid && !saveRubricMutation.isPending;
+  const canSubmit =
+    canEditCriteria &&
+    Boolean(rubricDraft.name.trim()) &&
+    !saveRubricMutation.isPending &&
+    projectedScopeWeight <= TARGET_WEIGHT_TOTAL + 0.01;
 
   return (
     <div className="space-y-6">
@@ -300,15 +291,26 @@ export default function EventCriteriaPage() {
           </div>
           <h1 className="text-3xl font-bold tracking-tight">Grading Criteria</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add, edit, and delete rubrics for Round {currentRound?.roundNumber}: {currentRound?.name}.
+            Round {currentRound?.roundNumber}: {currentRound?.name}. One rubric
+            shared by all tracks in this round. Weights total 100%.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            className="gap-2 bg-orange-600 hover:bg-orange-700 text-white"
+            disabled={!canEditCriteria || !currentRound}
+            onClick={() => setIsAiSuggestOpen(true)}
+            title={getDisabledReason()}
+          >
+            <Sparkles className="h-4 w-4" />
+            AI Suggest
+          </Button>
           <Button
             type="button"
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            disabled={event?.status === "closed" || !currentRound || !canEditCriteria(currentRound.id)}
+            disabled={!canEditCriteria || !currentRound}
             onClick={() => setIsBulkImportOpen(true)}
             title={getDisabledReason()}
           >
@@ -318,7 +320,7 @@ export default function EventCriteriaPage() {
           <Button
             type="button"
             className="shrink-0"
-            disabled={event?.status === "closed" || !currentRound || !canEditCriteria(currentRound.id)}
+            disabled={!canEditCriteria || !currentRound}
             onClick={() => { setEditingRubricId(null); setIsAddEditModalOpen(true); }}
             title={getDisabledReason()}
           >
@@ -330,56 +332,65 @@ export default function EventCriteriaPage() {
 
       {!hasRequiredConfiguration && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
-          At least one round and one track must be configured before a rubric can be added.
+          Create at least one round before adding rubrics.
         </div>
       )}
 
-      <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Scoring rule</p>
-        <p className="mt-1">
-          Each criterion has a <strong className="text-foreground">share</strong>{" "}
-          (e.g. 2+3+2+3). Shares must total{" "}
-          <strong className="text-foreground">10</strong>. Judges always rate
-          each criterion 0–10; contribution = (score ÷ 10) × share. Example:
-          share 2 and score 8 → 1.6. Final team score is the average across
-          judges who finished all criteria.
-        </p>
-      </div>
+      {weightOverBudget && (
+        <div className="flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-600 dark:text-red-400">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>
+            Weights total <strong>{weightTotal.toFixed(2)}%</strong> (max 100%).
+            Over by{" "}
+            <strong>{(weightTotal - TARGET_WEIGHT_TOTAL).toFixed(2)}%</strong>.
+          </p>
+        </div>
+      )}
+
+      {weightIncomplete && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>
+            Weights total <strong>{weightTotal.toFixed(2)}%</strong>. Remaining{" "}
+            <strong>
+              {(TARGET_WEIGHT_TOTAL - weightTotal).toFixed(2)}%
+            </strong>
+            .
+          </p>
+        </div>
+      )}
 
       <GlassCard className="min-w-0 rounded-[24px] p-5">
         <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-xl font-bold">Rubric List</h2>
             <p className="text-sm text-muted-foreground">
-              {filteredRubrics.length} of {rubrics.length} criteria
+              {roundRubrics.length} criteria ·{" "}
+              <span
+                className={cn(
+                  "font-semibold",
+                  weightOverBudget
+                    ? "text-red-600"
+                    : Math.abs(weightTotal - TARGET_WEIGHT_TOTAL) <= 0.01
+                      ? "text-emerald-600"
+                      : "text-amber-600",
+                )}
+              >
+                {weightTotal.toFixed(2)}% / 100%
+              </span>
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <Field label="Filter by track">
-              <select
-                value={trackFilter}
-                onChange={(event) => { setTrackFilter(event.target.value); setCurrentPage(1); setSelectedIds([]); }}
-                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+            {selectedIds.length > 0 && (
+              <Button
+                variant="destructive"
+                onClick={() => setIsConfirmDeleteModalOpen(true)}
               >
-                <option value="all">All tracks</option>
-                {tracks.map((track) => (
-                  <option key={track.id} value={track.id}>{track.name}</option>
-                ))}
-              </select>
-            </Field>
-
-            <div className="h-10 self-end flex items-center">
-              {selectedIds.length > 0 && (
-                <Button 
-                  variant="destructive" 
-                  onClick={() => setIsConfirmDeleteModalOpen(true)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Selected ({selectedIds.length})
-                </Button>
-              )}
-            </div>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Selected ({selectedIds.length})
+              </Button>
+            )}
           </div>
         </div>
 
@@ -388,18 +399,18 @@ export default function EventCriteriaPage() {
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             Loading rubrics...
           </div>
-        ) : filteredRubrics.length === 0 ? (
+        ) : roundRubrics.length === 0 ? (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center">
             <Plus className="mb-3 h-8 w-8 text-muted-foreground" />
-            <p className="font-semibold">No rubrics found</p>
+            <p className="font-semibold">No rubrics yet</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Click Add Rubric or Bulk Import to get started.
+              Add Rubric, Bulk Import, or AI Suggest.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[780px] text-left text-sm">
+              <table className="w-full min-w-[640px] text-left text-sm">
                 <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-semibold w-12">
@@ -411,18 +422,12 @@ export default function EventCriteriaPage() {
                       />
                     </th>
                     <th className="px-4 py-3 font-semibold">Rubric</th>
-                    <th className="px-4 py-3 font-semibold">Round</th>
-                    <th className="px-4 py-3 font-semibold">Track</th>
-                    <th className="w-28 px-4 py-3 text-center font-semibold">Share /10</th>
+                    <th className="w-28 px-4 py-3 text-center font-semibold">Weight %</th>
                     <th className="w-28 px-4 py-3 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedRubrics.map((rubric) => {
-                    const round = rubric.round || roundById.get(rubric.roundId);
-                    const track = rubric.track || (rubric.trackId ? trackById.get(rubric.trackId) : undefined);
-
-                    return (
+                  {paginatedRubrics.map((rubric) => (
                       <tr key={rubric.id} className="border-t border-border bg-background/40 align-top hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-4">
                           <input 
@@ -458,21 +463,19 @@ export default function EventCriteriaPage() {
                             <div className="mt-1 text-xs text-muted-foreground italic">No description</div>
                           )}
                         </td>
-                        <td className="px-4 py-4">{round ? round.name : "Unknown"}</td>
-                        <td className="px-4 py-4">
-                          {track ? <Badge variant="outline">{track.name}</Badge> : <Badge variant="outline">All tracks</Badge>}
-                        </td>
                         <td className="px-4 py-4 text-center font-semibold tabular-nums">
-                          {rubric.weight}
+                          {Number(rubric.weight).toFixed(
+                            Number(rubric.weight) % 1 === 0 ? 0 : 2,
+                          )}
+                          %
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex justify-end gap-2" title={event?.status === "closed" ? "Read-only: Event is closed." : !canEditCriteria(rubric.roundId) ? "Read-only: This round has already ended." : undefined}>
+                          <div className="flex justify-end gap-2" title={getDisabledReason()}>
                             <Button
                               type="button"
                               variant="outline"
                               size="icon-sm"
-                              title={canEditCriteria(rubric.roundId) ? "Edit rubric" : undefined}
-                              disabled={!canEditCriteria(rubric.roundId)}
+                              disabled={!canEditCriteria}
                               onClick={() => startEditRubric(rubric)}
                             >
                               <Edit2 className="h-4 w-4" />
@@ -481,8 +484,7 @@ export default function EventCriteriaPage() {
                               type="button"
                               variant="ghost"
                               size="icon-sm"
-                              title={canEditCriteria(rubric.roundId) ? "Delete rubric" : undefined}
-                              disabled={!canEditCriteria(rubric.roundId) || deleteRubricMutation.isPending}
+                              disabled={!canEditCriteria || deleteRubricMutation.isPending}
                               onClick={() => {
                                 if (window.confirm(`Delete rubric "${rubric.name}"?`)) {
                                   deleteRubricMutation.mutate(rubric.id);
@@ -494,17 +496,15 @@ export default function EventCriteriaPage() {
                           </div>
                         </td>
                       </tr>
-                    );
-                  })}
+                    ))}
                 </tbody>
               </table>
             </div>
             
-            {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-2 py-2">
                 <div className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredRubrics.length)} of {filteredRubrics.length}
+                  Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, roundRubrics.length)} of {roundRubrics.length}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -533,34 +533,17 @@ export default function EventCriteriaPage() {
         )}
       </GlassCard>
       
-      {/* Add / Edit Rubric Modal */}
       <Dialog open={isAddEditModalOpen} onOpenChange={setIsAddEditModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>{editingRubricId ? "Edit Rubric" : "Add Rubric"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
-            {isTrackSpecific && (
-              <Field label="Track *">
-                <select
-                  value={rubricDraft.trackId}
-                  disabled={!canEditCriteria(currentRoundId)}
-                  onChange={(event) => setRubricDraft((draft) => ({ ...draft, trackId: event.target.value }))}
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="">Select track</option>
-                  {tracks.map((track) => (
-                    <option key={track.id} value={track.id}>{track.name}</option>
-                  ))}
-                </select>
-              </Field>
-            )}
-
             <Field label="Rubric name *">
               <Input
                 value={rubricDraft.name}
                 placeholder="Technical Implementation"
-                disabled={!canEditCriteria(currentRoundId)}
+                disabled={!canEditCriteria}
                 onChange={(event) => setRubricDraft((draft) => ({ ...draft, name: event.target.value }))}
               />
             </Field>
@@ -569,19 +552,20 @@ export default function EventCriteriaPage() {
               <Textarea
                 value={rubricDraft.description}
                 className="min-h-24 resize-none"
-                placeholder="Describe what judges should evaluate."
-                disabled={!canEditCriteria(currentRoundId)}
+                placeholder="What judges should evaluate."
+                disabled={!canEditCriteria}
                 onChange={(event) => setRubricDraft((draft) => ({ ...draft, description: event.target.value }))}
               />
             </Field>
 
-            <Field label="Share (parts of 10) *">
+            <Field label="Weight (%) *">
               <Input
                 type="number"
                 min={0.01}
+                max={100}
                 step="0.01"
                 value={rubricDraft.weight}
-                disabled={!canEditCriteria(currentRoundId)}
+                disabled={!canEditCriteria}
                 onChange={(event) =>
                   setRubricDraft((draft) => ({
                     ...draft,
@@ -589,33 +573,35 @@ export default function EventCriteriaPage() {
                   }))
                 }
               />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Example: 2 means this criterion is worth 2 of the final /10
-                points. All shares in the round/track must add up to 10.
-              </p>
             </Field>
 
             <div
               className={cn(
                 "rounded-xl border px-3 py-2 text-xs",
-                Math.abs(projectedScopeWeight - TARGET_WEIGHT_TOTAL) <= 0.001
+                Math.abs(projectedScopeWeight - TARGET_WEIGHT_TOTAL) <= 0.01
                   ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                   : projectedScopeWeight > TARGET_WEIGHT_TOTAL
                     ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
                     : "border-border bg-muted/30 text-muted-foreground",
               )}
             >
-              Weight total for this round/track:{" "}
+              Round total:{" "}
               <strong className="text-foreground">
-                {projectedScopeWeight.toFixed(2)} / {TARGET_WEIGHT_TOTAL}
+                {projectedScopeWeight.toFixed(2)}% / {TARGET_WEIGHT_TOTAL}%
               </strong>
-              {projectedScopeWeight < TARGET_WEIGHT_TOTAL - 0.001 && (
+              {projectedScopeWeight > TARGET_WEIGHT_TOTAL + 0.01 ? (
+                <span>
+                  {" "}
+                  — over by{" "}
+                  {(projectedScopeWeight - TARGET_WEIGHT_TOTAL).toFixed(2)}%
+                </span>
+              ) : projectedScopeWeight < TARGET_WEIGHT_TOTAL - 0.01 ? (
                 <span>
                   {" "}
                   (remaining{" "}
-                  {(TARGET_WEIGHT_TOTAL - projectedScopeWeight).toFixed(2)})
+                  {(TARGET_WEIGHT_TOTAL - projectedScopeWeight).toFixed(2)}%)
                 </span>
-              )}
+              ) : null}
             </div>
 
             <div className="pt-4 flex justify-end gap-3 border-t border-border mt-6">
@@ -654,13 +640,22 @@ export default function EventCriteriaPage() {
       </Dialog>
       
       {event && currentRound && (
-        <BulkImportRubricsModal
-          open={isBulkImportOpen}
-          onOpenChange={setIsBulkImportOpen}
-          event={event}
-          round={currentRound}
-          existingRubrics={rubrics}
-        />
+        <>
+          <BulkImportRubricsModal
+            open={isBulkImportOpen}
+            onOpenChange={setIsBulkImportOpen}
+            event={event}
+            round={currentRound}
+            existingRubrics={roundRubrics}
+          />
+          <AiSuggestRubricsModal
+            open={isAiSuggestOpen}
+            onOpenChange={setIsAiSuggestOpen}
+            event={event}
+            round={currentRound}
+            existingRubrics={roundRubrics}
+          />
+        </>
       )}
     </div>
   );

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { TeamMemberStatus, TeamStatus } from "@prisma/client";
+import { RoundStatus, TeamMemberStatus, TeamStatus } from "@prisma/client";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 
 export type TrackAssignmentResult = {
@@ -34,10 +34,29 @@ export class TrackAssignmentService {
       },
     });
     if (!event) throw new NotFoundException("Event not found");
+
+    if (options?.forceReassign) {
+      const startedRounds = await this.prisma.round.count({
+        where: {
+          eventId,
+          status: { not: RoundStatus.not_started },
+        },
+      });
+      if (startedRounds > 0) {
+        throw new BadRequestException(
+          "Cannot force-reassign tracks after a round has started.",
+        );
+      }
+    }
+
     if (!event.tracks.length) {
-      throw new BadRequestException(
-        "Event has no tracks. Create tracks before revealing assignments.",
-      );
+      // Event may be created without tracks; organizer adds them later.
+      return {
+        assignedCount: 0,
+        skippedAlreadyAssigned: 0,
+        trackCounts: [],
+        assignments: [],
+      };
     }
 
     const teams = await this.prisma.team.findMany({

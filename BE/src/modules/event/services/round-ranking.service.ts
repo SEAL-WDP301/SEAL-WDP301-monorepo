@@ -78,6 +78,7 @@ export class RoundRankingService {
         roundNumber: round.roundNumber,
         status: round.status,
         isFinalRound,
+        isTrackSpecific: round.isTrackSpecific,
       },
       tracks: rankingsByTrack,
     };
@@ -135,8 +136,6 @@ export class RoundRankingService {
       );
     }
 
-    const advancingSet = new Set(dto.advancingTeamIds);
-
     const tracks = await this.prisma.track.findMany({
       where: { eventId },
       orderBy: { id: "asc" },
@@ -146,6 +145,45 @@ export class RoundRankingService {
       where: { eventId, roundNumber: round.roundNumber + 1 },
     });
     const isFinalRound = !nextRound;
+    const isTrackSpecific = round.isTrackSpecific;
+
+    const advanceCount =
+      dto.advanceCount == null ? null : Number(dto.advanceCount);
+
+    if (!isFinalRound) {
+      if (
+        advanceCount == null ||
+        !Number.isInteger(advanceCount) ||
+        advanceCount < 1
+      ) {
+        throw new BadRequestException(
+          "advanceCount is required (number of top teams to advance).",
+        );
+      }
+    }
+
+    const rankingsByTrack = await Promise.all(
+      tracks.map(async (track) => ({
+        track,
+        entries: await this.buildTrackRanking(roundId, track.id),
+      })),
+    );
+
+    const advancingSet = isFinalRound
+      ? new Set<number>()
+      : this.resolveAdvancingTeamIds(
+          rankingsByTrack,
+          advanceCount!,
+          isTrackSpecific,
+        );
+
+    const prizeSlots = isFinalRound
+      ? await this.loadPrizeSlots(eventId)
+      : [];
+
+    const awardByTeamId = isFinalRound
+      ? this.resolveAutoAwards(rankingsByTrack, prizeSlots, isTrackSpecific)
+      : new Map<number, number>();
 
     const summary: Array<{
       trackId: number;
@@ -155,8 +193,7 @@ export class RoundRankingService {
     }> = [];
 
     await this.prisma.$transaction(async (tx) => {
-      for (const track of tracks) {
-        const entries = await this.buildTrackRanking(roundId, track.id);
+      for (const { track, entries } of rankingsByTrack) {
         const advancedIds = isFinalRound
           ? []
           : entries
@@ -208,7 +245,6 @@ export class RoundRankingService {
               update: {},
             });
           } else if (isEliminated && nextRound) {
-            // Delete next round teamRound if it exists, since they are eliminated
             await tx.teamRound.deleteMany({
               where: {
                 teamId: entry.teamId,
@@ -216,17 +252,13 @@ export class RoundRankingService {
               },
             });
           }
-        }
 
-        // Handle awards if final round
-        if (isFinalRound && dto.awards) {
-          for (const awardDto of dto.awards) {
-            if (entries.some((e) => e.teamId === awardDto.teamId)) {
-              await tx.team.update({
-                where: { id: awardDto.teamId },
-                data: { awardId: awardDto.awardId || null },
-              });
-            }
+          if (isFinalRound) {
+            const awardId = awardByTeamId.get(entry.teamId) ?? null;
+            await tx.team.update({
+              where: { id: entry.teamId },
+              data: { awardId },
+            });
           }
         }
 
@@ -238,7 +270,6 @@ export class RoundRankingService {
         });
       }
 
-      // Mark any remaining teams that did not submit as eliminated
       if (!isFinalRound) {
         await tx.teamRound.updateMany({
           where: {
@@ -283,12 +314,113 @@ export class RoundRankingService {
     return {
       roundId,
       status: RoundStatus.results_published,
-      advancingTeamIds: dto.advancingTeamIds,
+      advanceCount: dto.advanceCount ?? null,
+      advancingTeamIds: Array.from(advancingSet),
+      awards: Array.from(awardByTeamId.entries()).map(([teamId, awardId]) => ({
+        teamId,
+        awardId,
+      })),
       nextRoundId: nextRound?.id ?? null,
       repoSyncStarted,
       summary,
       rankings: await this.getRoundRankings(eventId, roundId),
     };
+  }
+
+  private compareRankedEntries(a: RankedTeamEntry, b: RankedTeamEntry): number {
+    if (a.finalScore === null && b.finalScore === null) return 0;
+    if (a.finalScore === null) return 1;
+    if (b.finalScore === null) return -1;
+    if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
+    const bVotes = b.totalVotes ?? 0;
+    const aVotes = a.totalVotes ?? 0;
+    if (bVotes !== aVotes) return bVotes - aVotes;
+    return a.submittedAt.getTime() - b.submittedAt.getTime();
+  }
+
+  private resolveAdvancingTeamIds(
+    rankingsByTrack: Array<{ entries: RankedTeamEntry[] }>,
+    advanceCount: number,
+    isTrackSpecific: boolean,
+  ): Set<number> {
+    const advancing = new Set<number>();
+
+    if (isTrackSpecific) {
+      for (const { entries } of rankingsByTrack) {
+        const scored = entries.filter((e) => e.finalScore !== null);
+        for (const entry of scored.slice(0, advanceCount)) {
+          advancing.add(entry.teamId);
+        }
+      }
+      return advancing;
+    }
+
+    const pooled = rankingsByTrack
+      .flatMap((g) => g.entries)
+      .filter((e) => e.finalScore !== null)
+      .sort((a, b) => this.compareRankedEntries(a, b));
+
+    for (const entry of pooled.slice(0, advanceCount)) {
+      advancing.add(entry.teamId);
+    }
+    return advancing;
+  }
+
+  private async loadPrizeSlots(eventId: number): Promise<
+    Array<{ awardId: number; name: string }>
+  > {
+    const prizes = await this.prisma.eventPrize.findMany({
+      where: { eventId },
+      orderBy: [{ placement: "asc" }, { id: "asc" }],
+      select: { id: true, name: true, quantity: true, placement: true },
+    });
+
+    // NULL placement last (Postgres ASC puts nulls last by default; Prisma may not — sort manually)
+    prizes.sort((a, b) => {
+      if (a.placement == null && b.placement == null) return a.id - b.id;
+      if (a.placement == null) return 1;
+      if (b.placement == null) return -1;
+      if (a.placement !== b.placement) return a.placement - b.placement;
+      return a.id - b.id;
+    });
+
+    const slots: Array<{ awardId: number; name: string }> = [];
+    for (const prize of prizes) {
+      const qty = Math.max(0, prize.quantity ?? 1);
+      for (let i = 0; i < qty; i++) {
+        slots.push({ awardId: prize.id, name: prize.name });
+      }
+    }
+    return slots;
+  }
+
+  private resolveAutoAwards(
+    rankingsByTrack: Array<{ entries: RankedTeamEntry[] }>,
+    prizeSlots: Array<{ awardId: number; name: string }>,
+    isTrackSpecific: boolean,
+  ): Map<number, number> {
+    const awardByTeamId = new Map<number, number>();
+    if (prizeSlots.length === 0) return awardByTeamId;
+
+    const assignToList = (entries: RankedTeamEntry[]) => {
+      const scored = entries
+        .filter((e) => e.finalScore !== null)
+        .sort((a, b) => this.compareRankedEntries(a, b));
+      const limit = Math.min(prizeSlots.length, scored.length);
+      for (let i = 0; i < limit; i++) {
+        awardByTeamId.set(scored[i].teamId, prizeSlots[i].awardId);
+      }
+    };
+
+    if (isTrackSpecific) {
+      for (const { entries } of rankingsByTrack) {
+        assignToList(entries);
+      }
+    } else {
+      assignToList(rankingsByTrack.flatMap((g) => g.entries));
+    }
+
+    return awardByTeamId;
   }
 
   private async buildTrackRanking(
@@ -545,12 +677,9 @@ export class RoundRankingService {
     }));
   }
 
-  private async getApplicableCriteria(roundId: number, trackId: number) {
+  private async getApplicableCriteria(roundId: number, _trackId?: number) {
     return this.prisma.criterion.findMany({
-      where: {
-        roundId,
-        OR: [{ trackId: null }, { trackId }],
-      },
+      where: { roundId, trackId: null },
       orderBy: { id: "asc" },
     });
   }

@@ -5,7 +5,11 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { JUDGE_SCORE_SCALE, type JudgeRubric } from "@/lib/api/judge.api";
+import {
+  criterionContribution,
+  JUDGE_SCORE_SCALE,
+  type JudgeRubric,
+} from "@/lib/api/judge.api";
 
 interface Props {
   rubrics: JudgeRubric[];
@@ -27,7 +31,7 @@ export function CriteriaScoring({
   if (!rubrics.length) {
     return (
       <GlassCard className="p-8 text-sm text-muted-foreground">
-        No rubric available for this round/track. Organizer needs to configure scoring criteria first.
+        No rubric configured yet. Ask the organizer to add grading criteria.
       </GlassCard>
     );
   }
@@ -44,20 +48,19 @@ export function CriteriaScoring({
               <div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <h3 className="text-xl font-semibold">{item.name}</h3>
-                  <Badge variant="highlight">Share {weight}/10</Badge>
+                  <Badge variant="highlight">Weight {weight}%</Badge>
                 </div>
                 {item.description && (
                   <p className="mt-2 text-sm text-muted-foreground">
                     {item.description}
                   </p>
                 )}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Rate 0–{JUDGE_SCORE_SCALE}. Contribution = (score ÷{" "}
-                  {JUDGE_SCORE_SCALE}) × {weight}
-                  {score > 0
-                    ? ` → ${((score / JUDGE_SCORE_SCALE) * weight).toFixed(2)}`
-                    : ""}
-                </p>
+                {score > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Contribution {criterionContribution(score, weight).toFixed(2)}{" "}
+                    / {JUDGE_SCORE_SCALE}
+                  </p>
+                )}
               </div>
 
               <div className="text-right shrink-0">

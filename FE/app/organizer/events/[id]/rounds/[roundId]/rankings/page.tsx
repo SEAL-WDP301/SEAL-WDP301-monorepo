@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Award, Crown, Medal, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, TrendingUp, TrendingDown, Minus, Star, Heart,
@@ -30,9 +32,24 @@ import {
   OrganizerPrize
 } from "@/lib/api/organizer-events.api";
 import { format } from "date-fns";
-import { formatPrizeAmount } from "@/lib/events/prizes";
 
 const ANOMALY_THRESHOLD = 1.5;
+
+function compareRankedEntries(
+  a: DetailedRankedTeamEntry,
+  b: DetailedRankedTeamEntry,
+) {
+  if (a.finalScore === null && b.finalScore === null) return 0;
+  if (a.finalScore === null) return 1;
+  if (b.finalScore === null) return -1;
+  if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
+  const bVotes = b.totalVotes ?? 0;
+  const aVotes = a.totalVotes ?? 0;
+  if (bVotes !== aVotes) return bVotes - aVotes;
+  const aTime = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+  const bTime = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+  return aTime - bTime;
+}
 
 const AWARD_PRESENTATION_STYLES = [
   {
@@ -271,25 +288,19 @@ function DeviationBadge({ deviation }: { deviation: number }) {
 function TeamRow({ 
   entry, 
   rank, 
-  isSelected, 
-  onToggle,
+  willAdvance,
   isPublished,
   isFinalRound,
   awardValue,
-  onAwardChange,
   prizes,
-  teamAwards
 }: { 
   entry: DetailedRankedTeamEntry; 
   rank: number;
-  isSelected: boolean;
-  onToggle: () => void;
+  willAdvance: boolean;
   isPublished: boolean;
   isFinalRound?: boolean;
   awardValue?: OrganizerPrize | null;
-  onAwardChange?: (val: OrganizerPrize | null) => void;
   prizes: OrganizerPrize[];
-  teamAwards?: Record<number, OrganizerPrize | null>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const hasAnomalous = entry.judges.some(j => Math.abs(j.deviationFromAverage) >= ANOMALY_THRESHOLD);
@@ -299,7 +310,7 @@ function TeamRow({
 
   const isPassed = !isFinalRound && isPublished && entry.status === "advanced";
   const isEliminated = !isFinalRound && isPublished && entry.status === "eliminated";
-  const isSelecting = !isPublished && isSelected;
+  const isSelecting = !isPublished && !isFinalRound && willAdvance;
   const rowClass = awardPresentation
     ? awardPresentation.rowClass
     : isPassed
@@ -325,53 +336,14 @@ function TeamRow({
     <div 
       className={`relative rounded-xl overflow-hidden mb-3 transition-all duration-300 ease-in-out ${rowClass}`}
     >
-      {/* Background Glow for Passed */}
       {isPassed && <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent pointer-events-none" />}
       {awardPresentation && (
         <div className="pointer-events-none absolute inset-0 hidden dark:block dark:bg-[radial-gradient(circle_at_18%_20%,rgba(255,255,255,0.1),transparent_28%)]" />
       )}
 
-      {/* Team Header Row */}
       <div
         className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors relative z-10 ${headerClass}`}
       >
-        {!isPublished && !isFinalRound && (
-          <div className="shrink-0 pt-1">
-            <input 
-              type="checkbox" 
-              checked={isSelected}
-              onChange={onToggle}
-              className="w-5 h-5 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-            />
-          </div>
-        )}
-        {!isPublished && isFinalRound && (
-          <div className="shrink-0">
-             <select 
-               className="w-[260px] shrink-0 bg-background border border-border text-sm font-medium rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 shadow-sm truncate"
-               value={awardValue?.id || ""}
-               onChange={(e) => {
-                 const prizeId = Number(e.target.value);
-                 const prize = prizes.find(p => p.id === prizeId);
-                 onAwardChange?.(prize || null);
-               }}
-             >
-               <option value="">No Award</option>
-               {prizes.map((prize) => {
-                 const assignedCount = Object.values(teamAwards || {}).filter(a => a?.id === prize.id).length;
-                 const isCurrentSelection = awardValue?.id === prize.id;
-                 const maxQty = prize.quantity ?? 1;
-                 const isFull = !isCurrentSelection && assignedCount >= maxQty;
-                 return (
-                   <option key={prize.id} value={prize.id} disabled={isFull}>
-                     {prize.name} · {formatPrizeAmount(prize.amount, prize.currency)} ({assignedCount}/{maxQty}){isFull ? " — FULL" : ""}
-                   </option>
-                 );
-               })}
-             </select>
-          </div>
-        )}
-        
         <RankBadge rank={rank} award={activeAward} />
 
         <div className="flex-1 min-w-0" onClick={() => setExpanded(!expanded)} style={{cursor: "pointer"}}>
@@ -549,15 +521,8 @@ export default function RankingsPage() {
 
   const [selectedTrackIdx, setSelectedTrackIdx] = useState(0);
   const [sortMode, setSortMode] = useState<"score" | "votes">("score");
-  const [autoSelectTopN, setAutoSelectTopN] = useState(3);
-  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
-  const [teamAwards, setTeamAwards] = useState<Record<number, OrganizerPrize | null>>({});
+  const [advanceCount, setAdvanceCount] = useState(3);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const awardedTeamEntries = useMemo(
-    () => Object.entries(teamAwards).filter((entry): entry is [string, OrganizerPrize] => Boolean(entry[1])),
-    [teamAwards],
-  );
-  const awardedCount = awardedTeamEntries.length;
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["detailedRankings", eventId, roundId],
@@ -567,17 +532,11 @@ export default function RankingsPage() {
 
   const { mutate: publish, isPending: isPublishing } = useMutation({
     mutationFn: async () => {
-       const payload: PublishResultsPayload = {};
-       if (data?.round?.isFinalRound) {
-         payload.awards = awardedTeamEntries.map(([teamId, award]) => ({
-           teamId: Number(teamId),
-           awardId: award.id
-         }));
-       } else {
-         payload.advancingTeamIds = Array.from(selectedTeamIds);
-       }
-       const result = await publishRoundResults(eventId, roundId, payload);
-       return result as { repoSyncStarted?: boolean };
+      const payload: PublishResultsPayload = data?.round?.isFinalRound
+        ? {}
+        : { advanceCount };
+      const result = await publishRoundResults(eventId, roundId, payload);
+      return result as { repoSyncStarted?: boolean };
     },
     onSuccess: (res: { repoSyncStarted?: boolean }) => {
       if (res.repoSyncStarted) {
@@ -601,6 +560,75 @@ export default function RankingsPage() {
     refetchOnWindowFocus: false,
   });
   const isResultsPublished = round?.status === "results_published";
+  const isTrackSpecific = round?.isTrackSpecific !== false;
+
+  const advancingTeamIds = useMemo(() => {
+    const next = new Set<number>();
+    if (!data?.tracks || round?.isFinalRound) return next;
+
+    if (isTrackSpecific) {
+      for (const trackGroup of data.tracks) {
+        const scored = [...trackGroup.entries]
+          .filter((e) => e.finalScore !== null)
+          .sort(compareRankedEntries);
+        scored.slice(0, advanceCount).forEach((e) => next.add(e.teamId));
+      }
+    } else {
+      const pooled = data.tracks
+        .flatMap((t) => t.entries)
+        .filter((e) => e.finalScore !== null)
+        .sort(compareRankedEntries);
+      pooled.slice(0, advanceCount).forEach((e) => next.add(e.teamId));
+    }
+    return next;
+  }, [data?.tracks, round?.isFinalRound, isTrackSpecific, advanceCount]);
+
+  const previewAwards = useMemo(() => {
+    const map: Record<number, OrganizerPrize> = {};
+    if (!data?.tracks || !round?.isFinalRound) return map;
+
+    const prizes = [...(eventData?.prizes || [])].sort((a, b) => {
+      if (a.placement == null && b.placement == null) return a.id - b.id;
+      if (a.placement == null) return 1;
+      if (b.placement == null) return -1;
+      if (a.placement !== b.placement) return a.placement - b.placement;
+      return a.id - b.id;
+    });
+
+    const slots: OrganizerPrize[] = [];
+    for (const prize of prizes) {
+      const qty = Math.max(0, prize.quantity ?? 1);
+      for (let i = 0; i < qty; i++) slots.push(prize);
+    }
+    if (slots.length === 0) return map;
+
+    const assign = (entries: DetailedRankedTeamEntry[]) => {
+      const scored = [...entries]
+        .filter((e) => e.finalScore !== null)
+        .sort(compareRankedEntries);
+      const limit = Math.min(slots.length, scored.length);
+      for (let i = 0; i < limit; i++) {
+        map[scored[i].teamId] = slots[i];
+      }
+    };
+
+    if (isTrackSpecific) {
+      for (const trackGroup of data.tracks) assign(trackGroup.entries);
+    } else {
+      assign(data.tracks.flatMap((t) => t.entries));
+    }
+    return map;
+  }, [data?.tracks, round?.isFinalRound, eventData?.prizes, isTrackSpecific]);
+
+  const previewAwardCount = Object.keys(previewAwards).length;
+  const prizeSlotCount = useMemo(
+    () =>
+      (eventData?.prizes || []).reduce(
+        (sum, p) => sum + Math.max(0, p.quantity ?? 1),
+        0,
+      ),
+    [eventData?.prizes],
+  );
   
   const tracks = useMemo<RankingTrackGroup[]>(() => {
     if (!data?.tracks) return [];
@@ -671,50 +699,6 @@ export default function RankingsPage() {
     results_published: "text-emerald-500",
   };
 
-  const handleToggleTeam = (teamId: number) => {
-    const next = new Set(selectedTeamIds);
-    if (next.has(teamId)) {
-      next.delete(teamId);
-    } else {
-      next.add(teamId);
-    }
-    setSelectedTeamIds(next);
-  };
-
-  const handleAutoSelect = () => {
-    const next = new Set<number>();
-    data?.tracks?.forEach((trackGroup) => {
-      const topEntries = trackGroup.entries
-        .filter((entry) => entry.finalScore !== null)
-        .slice(0, autoSelectTopN);
-      topEntries.forEach((entry) => next.add(entry.teamId));
-    });
-    setSelectedTeamIds(next);
-    enqueueSnackbar(`Auto-selected top ${autoSelectTopN} teams for all tracks.`, { variant: "info" });
-  };
-
-  const handleAwardChange = (teamId: number, award: OrganizerPrize | null) => {
-    setTeamAwards((prev) => {
-      const next = { ...prev };
-
-      if (!award) {
-        delete next[teamId];
-        return next;
-      }
-
-      if (award && (award.quantity ?? 1) <= 1) { // assuming quantity 1 means exclusive
-        Object.entries(next).forEach(([id, existingAward]) => {
-          if (Number(id) !== teamId && existingAward === award) {
-            delete next[Number(id)];
-          }
-        });
-      }
-
-      next[teamId] = award;
-      return next;
-    });
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -746,17 +730,52 @@ export default function RankingsPage() {
           )}
         </div>
 
-        {/* Publish Panel */}
-        {round?.status === "closed" && (
-          <GlassCard className="p-4 flex items-center gap-3 shrink-0">
-            <Button
-              onClick={() => setShowConfirmModal(true)}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-              disabled={round?.isFinalRound ? awardedCount === 0 : selectedTeamIds.size === 0}
-            >
-              <Send className="w-4 h-4" />
-              Publish Results ({round?.isFinalRound ? awardedCount : selectedTeamIds.size} teams)
-            </Button>
+        {!isResultsPublished && round && (
+          <GlassCard className="p-4 flex flex-col sm:flex-row sm:items-end gap-3 shrink-0">
+            {!round.isFinalRound && (
+              <div className="space-y-1.5">
+                <Label htmlFor="advance-top-n" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Top N {isTrackSpecific ? "(per track)" : "(this round)"}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="advance-top-n"
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={advanceCount}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      if (!Number.isFinite(n)) return;
+                      setAdvanceCount(Math.max(1, Math.floor(n)));
+                    }}
+                    className="w-24 h-10 font-bold tabular-nums"
+                  />
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    → {advancingTeamIds.size} advance
+                  </span>
+                </div>
+              </div>
+            )}
+            {round.status === "closed" ? (
+              <Button
+                onClick={() => setShowConfirmModal(true)}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 h-10"
+                disabled={!round.isFinalRound && advanceCount < 1}
+              >
+                <Send className="w-4 h-4" />
+                Publish Results
+                {!round.isFinalRound
+                  ? ` (${advancingTeamIds.size})`
+                  : previewAwardCount > 0
+                    ? ` (${previewAwardCount} awards)`
+                    : ""}
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground max-w-[200px] pb-1">
+                Close the round to publish. Top N preview updates as you type.
+              </p>
+            )}
           </GlassCard>
         )}
         {round?.status === "results_published" && (
@@ -812,34 +831,18 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {/* Top-N Highlight Control */}
-      {round?.status === "closed" && !round?.isFinalRound && (
-        <div className="flex items-center justify-between bg-muted/30 p-3 rounded-xl border border-border">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Auto-select Top</span>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setAutoSelectTopN(Math.max(1, autoSelectTopN - 1))} className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted font-bold bg-background">−</button>
-              <span className="font-bold text-foreground w-5 text-center">{autoSelectTopN}</span>
-              <button onClick={() => setAutoSelectTopN(autoSelectTopN + 1)} className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted font-bold bg-background">+</button>
-            </div>
-            <span>teams per track</span>
-          </div>
-          <Button variant="outline" onClick={handleAutoSelect} className="h-8 text-xs">
-            Apply Auto-Select
-          </Button>
-        </div>
-      )}
-
-      {/* Prize Allocation Summary Bar (Final Round) */}
       {round?.isFinalRound && !isResultsPublished && (eventData?.prizes?.length ?? 0) > 0 && (
         <div className="flex flex-wrap items-center gap-3 bg-card/80 p-4 rounded-2xl border border-border shadow-sm">
           <span className="text-sm font-bold text-foreground flex items-center gap-2">
             <Trophy className="w-4 h-4 text-yellow-500" />
-            Prize Allocation Status:
+            Auto prize preview
+            {isTrackSpecific ? " (per track)" : " (whole round)"}:
           </span>
           <div className="flex flex-wrap items-center gap-2">
             {eventData?.prizes?.map((prize) => {
-              const assignedCount = Object.values(teamAwards).filter(a => a?.id === prize.id).length;
+              const assignedCount = Object.values(previewAwards).filter(
+                (a) => a?.id === prize.id,
+              ).length;
               const maxQty = prize.quantity ?? 1;
               const isFull = assignedCount >= maxQty;
               return (
@@ -853,12 +856,12 @@ export default function RankingsPage() {
                   }`}
                 >
                   <span>{prize.name}:</span>
-                  <span className="font-bold tabular-nums">{assignedCount} / {maxQty}</span>
+                  <span className="font-bold tabular-nums">
+                    {assignedCount} / {maxQty}
+                  </span>
                   {isFull ? (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                  ) : (
-                    <span className="text-[10px] opacity-75">({maxQty - assignedCount} left)</span>
-                  )}
+                  ) : null}
                 </Badge>
               );
             })}
@@ -898,8 +901,10 @@ export default function RankingsPage() {
                     );
                   })}
                 </>
-              ) : !isResultsPublished ? (
-                <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Selected to Advance</span>
+              ) : !isResultsPublished && !round?.isFinalRound ? (
+                <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Will advance on publish</span>
+              ) : !isResultsPublished && round?.isFinalRound ? (
+                <span className="flex items-center gap-1"><Trophy className="w-3.5 h-3.5 text-yellow-500" /> Prize preview (auto)</span>
               ) : (
                 <>
                   <span className="flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Passed (Advanced)</span>
@@ -919,14 +924,11 @@ export default function RankingsPage() {
                 key={entry.teamId} 
                 entry={entry} 
                 rank={entry.rank || idx + 1} 
-                isSelected={selectedTeamIds.has(entry.teamId)}
-                onToggle={() => handleToggleTeam(entry.teamId)}
+                willAdvance={advancingTeamIds.has(entry.teamId)}
                 isPublished={isResultsPublished}
                 isFinalRound={round?.isFinalRound}
-                awardValue={teamAwards[entry.teamId]}
-                onAwardChange={(val) => handleAwardChange(entry.teamId, val)}
+                awardValue={previewAwards[entry.teamId] ?? null}
                 prizes={eventData?.prizes || []}
-                teamAwards={teamAwards}
               />
             ))}
           </div>
@@ -949,14 +951,20 @@ export default function RankingsPage() {
               <p className="text-sm text-muted-foreground mb-6">
                 {round?.isFinalRound ? (
                   <>
-                    You have assigned awards to <strong>{awardedCount} team(s)</strong>.<br/><br/>
-                    This action will finalize the official competition results. Are you sure you want to proceed?
+                    Auto-assign <strong>{prizeSlotCount}</strong> prize slot(s)
+                    {isTrackSpecific ? " per track" : " for this round"} to top-ranked teams
+                    ({previewAwardCount} team(s) previewed).
+                    <br /><br />
+                    This finalizes official results and notifies participants.
                   </>
                 ) : (
                   <>
-                    You have selected <strong>{selectedTeamIds.size} team(s)</strong> to advance to the next round.
-                    Remaining teams will be marked as <strong>Eliminated</strong>.<br/><br/>
-                    This action cannot be undone and will send notification emails to all participants. Are you sure you want to proceed?
+                    Advance top <strong>{advanceCount}</strong>{" "}
+                    {isTrackSpecific ? "per track" : "this round"} (
+                    <strong>{advancingTeamIds.size}</strong> team(s)). Others become{" "}
+                    <strong>Eliminated</strong>.
+                    <br /><br />
+                    This cannot be undone and will email participants.
                   </>
                 )}
               </p>
