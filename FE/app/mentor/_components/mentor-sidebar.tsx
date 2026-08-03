@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { enqueueSnackbar } from "notistack";
 import {
-  Bell,
   ChartNoAxesCombined,
   ChevronLeft,
   ClipboardCheck,
@@ -74,7 +73,6 @@ const getNavItems = (eventId: string): NavItem[] => {
     { label: "Team Submissions", href: `${base}/submissions`, icon: FileCheck2, id: "submissions" },
     { label: "Feedback Given", href: `${base}/feedback`, icon: ClipboardCheck, id: "feedback" },
     { label: "Team Progress", href: `${base}/progress`, icon: ChartNoAxesCombined, id: "progress" },
-    { label: "Advisory Sessions", href: `${base}/sessions`, icon: Bell, id: "sessions" },
     { label: "Messages", href: `${base}/messages`, icon: MessageSquareText, id: "messages" },
   ];
 };
