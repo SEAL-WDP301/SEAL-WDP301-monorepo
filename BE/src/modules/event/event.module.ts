@@ -11,6 +11,8 @@ import { PrismaModule } from "../../database/prisma/prisma.module";
 import { MailModule } from "../../core/mail/mail.module";
 import { TeamModule } from "../team/team.module";
 import { AdminRealtimeGateway } from "./gateways/admin-realtime.gateway";
+import { AdminRealtimeSseController } from "./controllers/admin-realtime-sse.controller";
+import { AdminRealtimeSseService } from "./services/admin-realtime-sse.service";
 import { NotificationModule } from "../notification/notification.module";
 
 import { RoundModule } from "../round/round.module";
@@ -21,6 +23,7 @@ import { RoundModule } from "../round/round.module";
     EventOrganizerController,
     EventPublicController,
     EventJudgeController,
+    AdminRealtimeSseController,
   ],
   providers: [
     EventOrganizerService,
@@ -29,6 +32,7 @@ import { RoundModule } from "../round/round.module";
     TrackAssignmentService,
     EventJudgeService,
     AdminRealtimeGateway,
+    AdminRealtimeSseService,
   ],
   exports: [
     EventOrganizerService,
@@ -36,6 +40,7 @@ import { RoundModule } from "../round/round.module";
     RoundRankingService,
     TrackAssignmentService,
     AdminRealtimeGateway,
+    AdminRealtimeSseService,
   ],
 })
 export class EventModule {}

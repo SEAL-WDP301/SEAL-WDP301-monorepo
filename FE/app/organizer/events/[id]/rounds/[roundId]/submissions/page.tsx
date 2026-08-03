@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Download, Loader2, ExternalLink, Send, BellRing, ChevronLeft, ChevronRight, CheckCircle2, Clock, Users, Pencil, Check, X } from "lucide-react";
 import Link from "next/link";
 import { useAdminSocket } from "@/hooks/use-admin-socket";
+import { useAdminRealtimeSse } from "@/lib/hooks/useAdminRealtimeSse";
 // removed duplicate React imports
 import { enqueueSnackbar } from "notistack";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -43,6 +44,19 @@ export default function EventSubmissionsPage() {
   const pathname = usePathname();
   const eventId = params.id as string;
   const roundId = params.roundId as string;
+
+  // Real-time SSE stream subscription for project submissions & round status (100% SSE / Redis PubSub)
+  useAdminRealtimeSse({
+    eventId: Number(eventId),
+    roundId: Number(roundId),
+    onRoundUpdate: (payload) => {
+      if (payload.type === "submission.created") {
+        const teamName = payload.data?.teamName || "A team";
+        enqueueSnackbar(`📁 New submission from team: ${teamName}`, { variant: "info" });
+        queryClient.invalidateQueries({ queryKey: ["organizerSubmissions", eventId] });
+      }
+    },
+  });
   
   const defaultTab = searchParams.get("tab") === "activitylog" ? "activity" : "submissions";
   const [selectedTrackId, setSelectedTrackId] = useState<number | "">("");
@@ -186,13 +200,6 @@ export default function EventSubmissionsPage() {
   useEffect(() => {
     if (!socket) return;
 
-    const handleSubmissionCreated = (data: any) => {
-      enqueueSnackbar(`📁 New submission from team: ${data.teamName}`, { variant: "info" });
-      queryClient.invalidateQueries({ queryKey: ["organizerSubmissions", eventId] });
-    };
-
-    socket.on("submission.created", handleSubmissionCreated);
-
     const handleNewCommit = (data: any) => {
       enqueueSnackbar(
         `🚀 [${data.teamName}] ${data.pusher} vừa commit: "${data.message}"`, 
@@ -238,7 +245,6 @@ export default function EventSubmissionsPage() {
     socket.on('github.commit.new', handleNewCommit);
 
     return () => {
-      socket.off("submission.created", handleSubmissionCreated);
       socket.off('github.commit.new', handleNewCommit);
     };
   }, [socket, queryClient, eventId]);
