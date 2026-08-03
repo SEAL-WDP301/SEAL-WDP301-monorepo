@@ -15,4 +15,5 @@ resources:
   - frontend/deployment.yaml
   - frontend/service.yaml
   - ingress/cluster-issuer.yaml
+  - ingress/rate-limit.yaml
   - ingress/ingress.yaml
