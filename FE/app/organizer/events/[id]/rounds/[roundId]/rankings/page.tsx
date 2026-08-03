@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { enqueueSnackbar } from "notistack";
@@ -549,8 +549,9 @@ export default function RankingsPage() {
 
   const [selectedTrackIdx, setSelectedTrackIdx] = useState(0);
   const [sortMode, setSortMode] = useState<"score" | "votes">("score");
-  const [autoSelectTopN, setAutoSelectTopN] = useState(3);
-  const [selectedTeamIds, setSelectedTeamIds] = useState<Set<number>>(new Set());
+  const [selectionOverride, setSelectionOverride] = useState<Set<number> | null>(
+    null,
+  );
   const [teamAwards, setTeamAwards] = useState<Record<number, OrganizerPrize | null>>({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const awardedTeamEntries = useMemo(
@@ -564,6 +565,13 @@ export default function RankingsPage() {
     queryFn: () => getDetailedRoundRankings(eventId, roundId),
     refetchOnWindowFocus: false,
   });
+
+  const selectedTeamIds = useMemo(
+    () =>
+      selectionOverride ??
+      new Set(data?.advancementProposal?.recommendedTeamIds ?? []),
+    [data?.advancementProposal?.recommendedTeamIds, selectionOverride],
+  );
 
   const { mutate: publish, isPending: isPublishing } = useMutation({
     mutationFn: async () => {
@@ -601,6 +609,50 @@ export default function RankingsPage() {
     refetchOnWindowFocus: false,
   });
   const isResultsPublished = round?.status === "results_published";
+  const cutoffTies = data?.advancementProposal?.cutoffTies ?? [];
+  const requiredSelectionCount = useMemo(() => {
+    if (!data || data.round.isFinalRound) return 0;
+    const limit = data.round.advanceTeamLimit;
+    if (!data.round.isTrackSpecific) {
+      const eligibleCount = data.tracks.reduce(
+        (count, group) =>
+          count +
+          group.entries.filter((entry) => entry.finalScore !== null).length,
+        0,
+      );
+      return Math.min(limit, eligibleCount);
+    }
+
+    return data.tracks.reduce(
+      (count, group) =>
+        count +
+        Math.min(
+          limit,
+          group.entries.filter((entry) => entry.finalScore !== null).length,
+        ),
+      0,
+    );
+  }, [data]);
+  const isAdvancementSelectionValid = useMemo(() => {
+    if (!data || data.round.isFinalRound) return true;
+    const limit = data.round.advanceTeamLimit;
+    if (!data.round.isTrackSpecific) {
+      return selectedTeamIds.size === requiredSelectionCount;
+    }
+
+    return data.tracks.every((group) => {
+      const eligibleEntries = group.entries.filter(
+        (entry) => entry.finalScore !== null,
+      );
+      const eligibleIds = new Set(
+        eligibleEntries.map((entry) => entry.teamId),
+      );
+      const selectedCount = Array.from(selectedTeamIds).filter((teamId) =>
+        eligibleIds.has(teamId),
+      ).length;
+      return selectedCount === Math.min(limit, eligibleEntries.length);
+    });
+  }, [data, requiredSelectionCount, selectedTeamIds]);
   
   const tracks = useMemo<RankingTrackGroup[]>(() => {
     if (!data?.tracks) return [];
@@ -678,19 +730,7 @@ export default function RankingsPage() {
     } else {
       next.add(teamId);
     }
-    setSelectedTeamIds(next);
-  };
-
-  const handleAutoSelect = () => {
-    const next = new Set<number>();
-    data?.tracks?.forEach((trackGroup) => {
-      const topEntries = trackGroup.entries
-        .filter((entry) => entry.finalScore !== null)
-        .slice(0, autoSelectTopN);
-      topEntries.forEach((entry) => next.add(entry.teamId));
-    });
-    setSelectedTeamIds(next);
-    enqueueSnackbar(`Auto-selected top ${autoSelectTopN} teams for all tracks.`, { variant: "info" });
+    setSelectionOverride(next);
   };
 
   const handleAwardChange = (teamId: number, award: OrganizerPrize | null) => {
@@ -752,7 +792,11 @@ export default function RankingsPage() {
             <Button
               onClick={() => setShowConfirmModal(true)}
               className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-              disabled={round?.isFinalRound ? awardedCount === 0 : selectedTeamIds.size === 0}
+              disabled={
+                round?.isFinalRound
+                  ? awardedCount === 0
+                  : !isAdvancementSelectionValid
+              }
             >
               <Send className="w-4 h-4" />
               Publish Results ({round?.isFinalRound ? awardedCount : selectedTeamIds.size} teams)
@@ -812,21 +856,42 @@ export default function RankingsPage() {
         </div>
       )}
 
-      {/* Top-N Highlight Control */}
+      {/* Automatic Top-N Selection */}
       {round?.status === "closed" && !round?.isFinalRound && (
-        <div className="flex items-center justify-between bg-muted/30 p-3 rounded-xl border border-border">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Auto-select Top</span>
-            <div className="flex items-center gap-1">
-              <button onClick={() => setAutoSelectTopN(Math.max(1, autoSelectTopN - 1))} className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted font-bold bg-background">−</button>
-              <span className="font-bold text-foreground w-5 text-center">{autoSelectTopN}</span>
-              <button onClick={() => setAutoSelectTopN(autoSelectTopN + 1)} className="w-6 h-6 rounded border border-border flex items-center justify-center hover:bg-muted font-bold bg-background">+</button>
+        <div
+          className={`rounded-xl border p-4 ${
+            cutoffTies.length > 0
+              ? "border-amber-500/30 bg-amber-500/10"
+              : "border-emerald-500/30 bg-emerald-500/10"
+          }`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              {cutoffTies.length > 0 ? (
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              )}
+              Top {round.advanceTeamLimit}{" "}
+              {round.isTrackSpecific ? "teams per track" : "teams overall"}
             </div>
-            <span>teams per track</span>
+            <Badge variant="outline" className="tabular-nums">
+              Selected {selectedTeamIds.size} / {requiredSelectionCount}
+            </Badge>
           </div>
-          <Button variant="outline" onClick={handleAutoSelect} className="h-8 text-xs">
-            Apply Auto-Select
-          </Button>
+          {cutoffTies.length > 0 ? (
+            <div className="mt-3 space-y-1 text-sm text-amber-700 dark:text-amber-300">
+              {cutoffTies.map((tie) => (
+                <p key={`${tie.trackId ?? "global"}-${tie.score}`}>
+                  {tie.trackName}: {tie.teamIds.length} teams are tied at {tie.score.toFixed(2)} for {tie.slots} remaining slot(s). Select the advancing team manually.
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-muted-foreground">
+              The highest-scoring teams were selected automatically. Review score anomalies before publishing.
+            </p>
+          )}
         </div>
       )}
 

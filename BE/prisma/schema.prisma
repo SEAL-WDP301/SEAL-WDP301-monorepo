@@ -312,6 +312,7 @@ model Round {
   submissionDeadline DateTime?      @map("submission_deadline")
   maxFileSizeMb      Int            @default(20) @map("max_file_size_mb")
   isTrackSpecific    Boolean        @default(true) @map("is_track_specific")
+  advanceTeamLimit   Int            @default(3) @map("advance_team_limit")
   problemFileUrl     String?        @map("problem_file_url")
   isReminderSent     Boolean        @default(false) @map("is_reminder_sent")
   isRepoFrozen       Boolean        @default(false) @map("is_repo_frozen")

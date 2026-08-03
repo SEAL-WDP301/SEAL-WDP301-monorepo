@@ -295,6 +295,7 @@ export class EventOrganizerService {
               submissionDeadline: r.submissionDeadline,
               maxFileSizeMb: r.maxFileSizeMb,
               isTrackSpecific: r.isTrackSpecific,
+              advanceTeamLimit: r.advanceTeamLimit,
             })),
           update: rounds
             .filter((r) => r.id)
@@ -307,6 +308,7 @@ export class EventOrganizerService {
                 submissionDeadline: r.submissionDeadline,
                 maxFileSizeMb: r.maxFileSizeMb,
                 isTrackSpecific: r.isTrackSpecific,
+                advanceTeamLimit: r.advanceTeamLimit,
               },
             })),
         }

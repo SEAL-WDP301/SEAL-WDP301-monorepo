@@ -18,6 +18,7 @@ export interface OrganizerRoundInput {
   submissionDeadline?: string;
   maxFileSizeMb?: number;
   isTrackSpecific: boolean;
+  advanceTeamLimit?: number;
   trackId?: number | null;
 }
 
@@ -412,11 +413,22 @@ export interface DetailedRankingsResponse {
     status: string;
     isFinalRound: boolean;
     isTrackSpecific?: boolean;
+    advanceTeamLimit: number;
   };
   tracks: {
     track: { id: number; name: string };
     entries: DetailedRankedTeamEntry[];
   }[];
+  advancementProposal: {
+    recommendedTeamIds: number[];
+    cutoffTies: {
+      trackId: number | null;
+      trackName: string;
+      score: number;
+      teamIds: number[];
+      slots: number;
+    }[];
+  } | null;
 }
 
 export async function getDetailedRoundRankings(

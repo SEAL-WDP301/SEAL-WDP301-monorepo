@@ -356,6 +356,12 @@ const createEventSchema = (isEdit: boolean) =>
               .max(500, "Max 500MB")
               .default(20),
             isTrackSpecific: z.boolean().default(true),
+            advanceTeamLimit: z.coerce
+              .number()
+              .int("Advance limit must be an integer")
+              .min(1, "At least one team must advance")
+              .max(1000, "Advance limit cannot exceed 1000")
+              .default(3),
           }),
         )
         .min(1, "At least one round is required")
@@ -367,6 +373,7 @@ const createEventSchema = (isEdit: boolean) =>
             submissionDeadline: "",
             maxFileSizeMb: 20,
             isTrackSpecific: true,
+            advanceTeamLimit: 3,
           },
         ]),
       location: z
@@ -982,6 +989,7 @@ export default function EventForm({ initialData }: EventFormProps) {
       maxFileSizeMb: r.maxFileSizeMb || 20,
       isTrackSpecific:
         r.isTrackSpecific !== undefined ? r.isTrackSpecific : true,
+      advanceTeamLimit: r.advanceTeamLimit ?? 3,
     })) || [
       {
         roundNumber: 1,
@@ -990,6 +998,7 @@ export default function EventForm({ initialData }: EventFormProps) {
         submissionDeadline: "",
         maxFileSizeMb: 20,
         isTrackSpecific: true,
+        advanceTeamLimit: 3,
       },
     ],
     location: {
@@ -1378,6 +1387,7 @@ export default function EventForm({ initialData }: EventFormProps) {
             : undefined,
           maxFileSizeMb: r.maxFileSizeMb,
           isTrackSpecific: r.isTrackSpecific,
+          advanceTeamLimit: r.advanceTeamLimit,
         })),
         location: JSON.stringify({
           venueName: location.venueName || undefined,
@@ -2471,6 +2481,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                           submissionDeadline: "",
                           maxFileSizeMb: 20,
                           isTrackSpecific: true,
+                          advanceTeamLimit: 3,
                         })
                       }
                     >
@@ -2556,7 +2567,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                             )}
                           />
                         </div>
-                        <div className="md:col-span-4">
+                        <div className="md:col-span-3">
                           <FormField
                             control={control}
                             name={`rounds.${index}.submissionType`}
@@ -2594,7 +2605,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                             )}
                           />
                         </div>
-                        <div className="md:col-span-4">
+                        <div className="md:col-span-3">
                           <FormField
                             control={control}
                             name={`rounds.${index}.maxFileSizeMb`}
@@ -2616,7 +2627,32 @@ export default function EventForm({ initialData }: EventFormProps) {
                             )}
                           />
                         </div>
-                        <div className="md:col-span-4 flex items-center justify-end mt-6">
+                        <div className="md:col-span-3">
+                          <FormField
+                            control={control}
+                            name={`rounds.${index}.advanceTeamLimit`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                                  Teams advancing
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    inputMode="numeric"
+                                    className="bg-card/50 rounded-lg tabular-nums"
+                                    {...field}
+                                    value={field.value ?? 3}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="md:col-span-3 flex items-center justify-end mt-6">
                           {roundFields.length > 1 && canModifyStructure && (
                             <Button
                               type="button"
@@ -2647,8 +2683,9 @@ export default function EventForm({ initialData }: EventFormProps) {
                                     Separate submissions by Track
                                   </FormLabel>
                                   <p className="text-xs text-muted-foreground">
-                                    If checked, files will be saved in
-                                    track-specific folders.
+                                    If checked, the advance limit applies to
+                                    each track. Otherwise it applies across the
+                                    event.
                                   </p>
                                 </div>
                               </FormItem>

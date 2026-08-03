@@ -46,6 +46,16 @@ export class CreateRoundDto {
   @IsOptional()
   isTrackSpecific?: boolean;
 
+  @ApiPropertyOptional({
+    description: "Maximum teams advancing per track or across the event",
+    minimum: 1,
+    default: 3,
+  })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  advanceTeamLimit?: number;
+
   @ApiPropertyOptional()
   @IsInt()
   @IsOptional()

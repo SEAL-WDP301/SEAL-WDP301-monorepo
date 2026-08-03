@@ -20,6 +20,10 @@ import {
 import { PublishRoundResultsDto } from "../dto/publish-round-results.dto";
 import { TeamGithubService } from "../../team/services/team-github.service";
 import { MailService } from "../../../core/mail/mail.service";
+import {
+  buildAdvancementProposal,
+  getAdvancementSelectionError,
+} from "../utils/ranking-selection.util";
 
 export interface RankedTeamEntry {
   rank: number;
@@ -78,6 +82,8 @@ export class RoundRankingService {
         roundNumber: round.roundNumber,
         status: round.status,
         isFinalRound,
+        isTrackSpecific: round.isTrackSpecific,
+        advanceTeamLimit: round.advanceTeamLimit,
       },
       tracks: rankingsByTrack,
     };
@@ -108,6 +114,7 @@ export class RoundRankingService {
         entries: await this.buildDetailedTrackRanking(roundId, track.id),
       })),
     );
+    const isFinalRound = !nextRound;
 
     return {
       round: {
@@ -115,10 +122,18 @@ export class RoundRankingService {
         name: round.name,
         roundNumber: round.roundNumber,
         status: round.status,
-        isFinalRound: !nextRound,
+        isFinalRound,
         isTrackSpecific: round.isTrackSpecific,
+        advanceTeamLimit: round.advanceTeamLimit,
       },
       tracks: rankingsByTrack,
+      advancementProposal: isFinalRound
+        ? null
+        : buildAdvancementProposal(
+            rankingsByTrack,
+            round.advanceTeamLimit,
+            round.isTrackSpecific,
+          ),
     };
   }
 
@@ -135,8 +150,6 @@ export class RoundRankingService {
       );
     }
 
-    const advancingSet = new Set(dto.advancingTeamIds);
-
     const tracks = await this.prisma.track.findMany({
       where: { eventId },
       orderBy: { id: "asc" },
@@ -146,6 +159,25 @@ export class RoundRankingService {
       where: { eventId, roundNumber: round.roundNumber + 1 },
     });
     const isFinalRound = !nextRound;
+    const rankingsByTrack = await Promise.all(
+      tracks.map(async (track) => ({
+        track: { id: track.id, name: track.name },
+        entries: await this.buildTrackRanking(roundId, track.id),
+      })),
+    );
+    const advancingTeamIds = dto.advancingTeamIds ?? [];
+
+    if (!isFinalRound) {
+      const selectionError = getAdvancementSelectionError(
+        rankingsByTrack,
+        round.advanceTeamLimit,
+        round.isTrackSpecific,
+        advancingTeamIds,
+      );
+      if (selectionError) throw new BadRequestException(selectionError);
+    }
+
+    const advancingSet = new Set(advancingTeamIds);
 
     const summary: Array<{
       trackId: number;
@@ -153,10 +185,13 @@ export class RoundRankingService {
       advancedTeamIds: number[];
       eliminatedTeamIds: number[];
     }> = [];
+    const rankingByTrackId = new Map(
+      rankingsByTrack.map((group) => [group.track.id, group.entries]),
+    );
 
     await this.prisma.$transaction(async (tx) => {
       for (const track of tracks) {
-        const entries = await this.buildTrackRanking(roundId, track.id);
+        const entries = rankingByTrackId.get(track.id) ?? [];
         const advancedIds = isFinalRound
           ? []
           : entries
@@ -283,7 +318,7 @@ export class RoundRankingService {
     return {
       roundId,
       status: RoundStatus.results_published,
-      advancingTeamIds: dto.advancingTeamIds,
+      advancingTeamIds,
       nextRoundId: nextRound?.id ?? null,
       repoSyncStarted,
       summary,
@@ -345,11 +380,12 @@ export class RoundRankingService {
         finalScore,
         judgesScored,
         totalVotes: submission.judgeVotes?.length ?? 0,
-        votedBy: submission.judgeVotes?.map(v => ({
-          id: v.judge.id,
-          name: v.judge.name,
-          avatarUrl: v.judge.avatarUrl
-        })) ?? [],
+        votedBy:
+          submission.judgeVotes?.map((v) => ({
+            id: v.judge.id,
+            name: v.judge.name,
+            avatarUrl: v.judge.avatarUrl,
+          })) ?? [],
         status:
           submission.team.teamRounds?.[0]?.status ??
           RoundResultStatus.competing,
@@ -508,11 +544,12 @@ export class RoundRankingService {
         submissionId: submission.id,
         finalScore,
         totalVotes: submission.judgeVotes?.length ?? 0,
-        votedBy: submission.judgeVotes?.map(v => ({
-          id: v.judge.id,
-          name: v.judge.name,
-          avatarUrl: v.judge.avatarUrl
-        })) ?? [],
+        votedBy:
+          submission.judgeVotes?.map((v) => ({
+            id: v.judge.id,
+            name: v.judge.name,
+            avatarUrl: v.judge.avatarUrl,
+          })) ?? [],
         criteriaAverages,
         judges: validJudges,
         status:
@@ -599,7 +636,7 @@ export class RoundRankingService {
             `🏆 Award Announcement: ${roundName}`,
             `🎉 Congratulations! Team "${team.name}" has won the ${team.award.name} in ${roundName}!`,
             roundName,
-            trackName
+            trackName,
           );
         } else {
           await this.notifyTeam(
@@ -609,7 +646,7 @@ export class RoundRankingService {
             `✨ ${roundName} Results Published`,
             `Team "${team.name}" has completed ${roundName}. Thank you for your participation! You can review your final scores and feedback in your workspace.`,
             roundName,
-            trackName
+            trackName,
           );
         }
       }
@@ -641,7 +678,7 @@ export class RoundRankingService {
           `Advanced from ${roundName}`,
           `Congratulations! Team "${team.name}" advanced from ${roundName} in ${trackSummary.trackName}.`,
           roundName,
-          trackSummary.trackName
+          trackSummary.trackName,
         );
       }
 
@@ -653,7 +690,7 @@ export class RoundRankingService {
           `Round result: ${roundName}`,
           `Team "${team.name}" did not advance from ${roundName} in ${trackSummary.trackName}.`,
           roundName,
-          trackSummary.trackName
+          trackSummary.trackName,
         );
       }
     }
@@ -700,8 +737,13 @@ export class RoundRankingService {
     }
 
     const contentLower = content.toLowerCase();
-    const isAdvanced = contentLower.includes('advanced') && !contentLower.includes('did not advance');
-    const isAwarded = /(winner|first prize|second prize|third prize|champion|finalist)/i.test(contentLower);
+    const isAdvanced =
+      contentLower.includes("advanced") &&
+      !contentLower.includes("did not advance");
+    const isAwarded =
+      /(winner|first prize|second prize|third prize|champion|finalist)/i.test(
+        contentLower,
+      );
 
     const emailsToNotify = new Set([
       team.leader.email,
@@ -710,17 +752,19 @@ export class RoundRankingService {
 
     for (const email of emailsToNotify) {
       if (email) {
-        this.mailService.sendRoundResultEmail(
-          email,
-          team.name,
-          roundName,
-          trackName,
-          isAdvanced,
-          isAwarded,
-          content
-        ).catch((err) => {
-          this.logger.error(`Failed to send email to ${email}`, err);
-        });
+        this.mailService
+          .sendRoundResultEmail(
+            email,
+            team.name,
+            roundName,
+            trackName,
+            isAdvanced,
+            isAwarded,
+            content,
+          )
+          .catch((err) => {
+            this.logger.error(`Failed to send email to ${email}`, err);
+          });
       }
     }
   }

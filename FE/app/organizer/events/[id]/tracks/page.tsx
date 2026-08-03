@@ -51,6 +51,7 @@ type RoundDraft = {
   submissionDeadline: string;
   maxFileSizeMb: number | string;
   isTrackSpecific: boolean;
+  advanceTeamLimit: number | string;
 };
 
 type TrackDraft = {
@@ -67,6 +68,7 @@ const emptyRound = (roundNumber: number): RoundDraft => ({
   submissionDeadline: "",
   maxFileSizeMb: 20,
   isTrackSpecific: true,
+  advanceTeamLimit: 3,
 });
 
 const emptyTrack = (): TrackDraft => ({
@@ -98,6 +100,7 @@ function mapRound(round: OrganizerRound): OrganizerRoundInput {
     submissionDeadline: round.submissionDeadline || undefined,
     maxFileSizeMb: round.maxFileSizeMb,
     isTrackSpecific: round.isTrackSpecific,
+    advanceTeamLimit: round.advanceTeamLimit,
     trackId: round.trackId ?? null,
   };
 }
@@ -319,6 +322,7 @@ export default function EventRoundsPage() {
       submissionDeadline: toDateTimeInput(round.submissionDeadline),
       maxFileSizeMb: round.maxFileSizeMb ?? 20,
       isTrackSpecific: round.isTrackSpecific,
+      advanceTeamLimit: round.advanceTeamLimit ?? 3,
     });
     setIsRoundDialogOpen(true);
   };
@@ -328,6 +332,7 @@ export default function EventRoundsPage() {
 
     const roundNumber = Number(roundDraft.roundNumber);
     const maxFileSizeMb = Number(roundDraft.maxFileSizeMb);
+    const advanceTeamLimit = Number(roundDraft.advanceTeamLimit);
     const normalizedName = roundDraft.name.trim();
 
     if (!normalizedName) {
@@ -342,6 +347,12 @@ export default function EventRoundsPage() {
     }
     if (!Number.isFinite(maxFileSizeMb) || maxFileSizeMb < 1) {
       enqueueSnackbar("Max file size must be at least 1 MB.", {
+        variant: "warning",
+      });
+      return;
+    }
+    if (!Number.isInteger(advanceTeamLimit) || advanceTeamLimit < 1) {
+      enqueueSnackbar("Teams advancing must be a positive integer.", {
         variant: "warning",
       });
       return;
@@ -371,6 +382,7 @@ export default function EventRoundsPage() {
         : undefined,
       maxFileSizeMb,
       isTrackSpecific: roundDraft.isTrackSpecific,
+      advanceTeamLimit,
     };
 
     const nextRounds = roundDraft.id
@@ -615,11 +627,16 @@ export default function EventRoundsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-4">
-                        {round.isTrackSpecific ? (
-                          <Badge variant="default">Track-specific</Badge>
-                        ) : (
-                          <Badge variant="outline">All tracks combined</Badge>
-                        )}
+                        <div className="space-y-1.5">
+                          {round.isTrackSpecific ? (
+                            <Badge variant="default">Track-specific</Badge>
+                          ) : (
+                            <Badge variant="outline">All tracks combined</Badge>
+                          )}
+                          <div className="text-xs text-muted-foreground">
+                            Top {round.advanceTeamLimit ?? 3} advance
+                          </div>
+                        </div>
                       </td>
                       <td className="px-5 py-4 text-xs">
                         {round.submissionDeadline
@@ -1063,6 +1080,21 @@ function RoundDialog({
                 setDraft((current) => ({
                   ...current,
                   maxFileSizeMb: event.target.value,
+                }))
+              }
+            />
+          </Field>
+
+          <Field label="Teams advancing *">
+            <Input
+              type="number"
+              min={1}
+              max={1000}
+              value={draft.advanceTeamLimit}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  advanceTeamLimit: event.target.value,
                 }))
               }
             />

@@ -1,0 +1,2 @@
+ALTER TABLE "rounds"
+ADD COLUMN "advance_team_limit" INTEGER NOT NULL DEFAULT 3;

@@ -15,7 +15,10 @@ export class RedisIoAdapter extends IoAdapter {
   private adapterConstructor: ReturnType<typeof createAdapter>;
   private readonly logger = new Logger(RedisIoAdapter.name);
 
-  constructor(app: any, private readonly configService: ConfigService) {
+  constructor(
+    app: any,
+    private readonly configService: ConfigService,
+  ) {
     super(app);
   }
 
@@ -29,16 +32,21 @@ export class RedisIoAdapter extends IoAdapter {
       host,
       port,
       password,
+      lazyConnect: true,
       retryStrategy: (times) => Math.min(times * 100, 3000),
     });
     const subClient = pubClient.duplicate();
 
-    await Promise.all([pubClient.connect(), subClient.connect()]).catch((err) => {
-      this.logger.error(`Failed to connect RedisIoAdapter: ${err.message}`);
-    });
+    await Promise.all([pubClient.connect(), subClient.connect()]).catch(
+      (err) => {
+        this.logger.error(`Failed to connect RedisIoAdapter: ${err.message}`);
+      },
+    );
 
     this.adapterConstructor = createAdapter(pubClient, subClient);
-    this.logger.log(`🚀 Socket.IO Redis Pub/Sub Adapter initialized (${host}:${port})`);
+    this.logger.log(
+      `🚀 Socket.IO Redis Pub/Sub Adapter initialized (${host}:${port})`,
+    );
   }
 
   createIOServer(port: number, options?: ServerOptions): any {
