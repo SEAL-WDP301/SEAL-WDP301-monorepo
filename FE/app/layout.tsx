@@ -5,7 +5,6 @@ import "./globals.css";
 import { SnackbarProvider } from "../components/providers/snackbar-provider";
 import { QueryProvider } from "../components/providers/query-provider";
 import { ThemeProvider } from "../components/providers/theme-provider";
-import { ScrollFloatProvider } from "../components/ScrollFloat";
 import { SplashCursorGate } from "../components/SplashCursorGate";
 
 const inter = Inter({
@@ -45,10 +44,8 @@ export default function RootLayout({
             <SnackbarProvider>
               <AuthProvider>
                 <SseProvider>
-                  <ScrollFloatProvider>
-                    {children}
-                    <SealAssistant />
-                  </ScrollFloatProvider>
+                  {children}
+                  <SealAssistant />
                 </SseProvider>
               </AuthProvider>
             </SnackbarProvider>

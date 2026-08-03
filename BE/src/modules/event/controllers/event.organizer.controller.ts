@@ -10,13 +10,17 @@ import {
   Query,
   ParseIntPipe,
   UseGuards,
+  Sse,
+  MessageEvent,
 } from "@nestjs/common";
-import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { Observable } from "rxjs";
 import { RolesGuard } from "../../../common/guards/roles.guard";
 import { Roles } from "../../../common/decorators/roles.decorator";
 import { Role } from "../../../common/enums/role.enum";
 import { EventOrganizerService } from "../services/event.organizer.service";
 import { RoundRankingService } from "../services/round-ranking.service";
+import { AdminRealtimeSseService } from "../services/admin-realtime-sse.service";
 import { CurrentUser } from "../../../common/decorators/current-user.decorator";
 import { CreateEventDto } from "../dto/create-event.dto";
 import { UpdateEventDto } from "../dto/update-event.dto";
@@ -35,7 +39,34 @@ export class EventOrganizerController {
   constructor(
     private readonly eventOrganizerService: EventOrganizerService,
     private readonly roundRankingService: RoundRankingService,
+    private readonly adminRealtimeSseService: AdminRealtimeSseService,
   ) {}
+
+  @Sse(":eventId/stream")
+  @ApiOperation({
+    summary: "Stream real-time event updates (team registrations) for Organizer/Admin via SSE",
+  })
+  @ApiResponse({ status: 200, description: "Event SSE stream established" })
+  streamEventUpdates(
+    @Param("eventId", ParseIntPipe) eventId: number,
+  ): Observable<MessageEvent> {
+    return this.adminRealtimeSseService.streamEventUpdates(
+      eventId,
+    ) as Observable<MessageEvent>;
+  }
+
+  @Sse("rounds/:roundId/stream")
+  @ApiOperation({
+    summary: "Stream real-time round updates (submissions) for Organizer/Admin via SSE",
+  })
+  @ApiResponse({ status: 200, description: "Round SSE stream established" })
+  streamRoundUpdates(
+    @Param("roundId", ParseIntPipe) roundId: number,
+  ): Observable<MessageEvent> {
+    return this.adminRealtimeSseService.streamRoundUpdates(
+      roundId,
+    ) as Observable<MessageEvent>;
+  }
 
   @Post()
   @ApiOperation({ summary: "Create a new event" })

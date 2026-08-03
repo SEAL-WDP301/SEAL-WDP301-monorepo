@@ -346,3 +346,18 @@
     /* Chrome, Safari */
   }
 }
+
+/* =========================
+   NOTISTACK POINTER-EVENTS ISOLATION
+   Prevents invisible container overlays from blocking top header buttons
+========================== */
+.SnackbarContainer-root,
+#notistack-snackbar-container {
+  pointer-events: none !important;
+  z-index: 99999 !important;
+  top: 84px !important;
+}
+
+.SnackbarContainer-root > * {
+  pointer-events: auto !important;
+}

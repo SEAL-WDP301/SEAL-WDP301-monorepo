@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { TeamDetailsDialog } from "./team-details-dialog";
 import { RegistrationDeadlineBanner } from "./registration-deadline-banner";
-import { useAdminSocket } from "@/hooks/use-admin-socket";
+import { useAdminRealtimeSse } from "@/lib/hooks/useAdminRealtimeSse";
 import { useEffect } from "react";
 import { useParams } from "next/navigation";
 
@@ -37,6 +37,12 @@ export default function TeamsTab({ event }: { event: any }) {
   const queryClient = useQueryClient();
   const params = useParams();
   const roundId = params?.roundId as string | undefined;
+
+  // Real-time SSE stream subscription for team registrations
+  useAdminRealtimeSse({
+    eventId: Number(event?.id),
+    roundId: roundId ? Number(roundId) : undefined,
+  });
 
   const [selectedTrackId, setSelectedTrackId] = useState<number | "all">("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
@@ -124,38 +130,6 @@ export default function TeamsTab({ event }: { event: any }) {
     ? currentRound.status === "results_published" ||
       currentRound.status === "closed"
     : false;
-
-  const { socket, isConnected } = useAdminSocket({
-    eventId: event.id,
-    roundId,
-  });
-
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleTeamRegistered = (data: any) => {
-      // Only alert if we are in the general teams tab or round 1 teams tab
-      // The user wanted this for round 1
-      const isRound1 =
-        event.rounds?.find((r: any) => r.id === Number(roundId))
-          ?.roundNumber === 1;
-      if (!roundId || isRound1) {
-        enqueueSnackbar(
-          `🎉 New team registered: ${data.teamName} (${data.trackName})`,
-          { variant: "info" },
-        );
-        queryClient.invalidateQueries({
-          queryKey: ["organizerTeams", event.id],
-        });
-      }
-    };
-
-    socket.on("team.registered", handleTeamRegistered);
-
-    return () => {
-      socket.off("team.registered", handleTeamRegistered);
-    };
-  }, [socket, event, roundId, queryClient]);
 
   // Update Team Status Mutation
   const updateStatusMutation = useMutation({
@@ -344,12 +318,10 @@ export default function TeamsTab({ event }: { event: any }) {
             <h3 className="text-lg font-semibold text-foreground">
               Team Management
             </h3>
-            {isConnected && (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-wider border border-green-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                Live
-              </span>
-            )}
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-wider border border-green-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+              LIVE
+            </span>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
             Review and approve teams registered for the tracks.
