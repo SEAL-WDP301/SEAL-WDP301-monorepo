@@ -4,7 +4,7 @@ metadata:
   name: traefik-metrics-monitor
   namespace: monitoring
   labels:
-    release: prometheus-stack
+    release: prometheus
 spec:
   jobLabel: traefik
   selector:
