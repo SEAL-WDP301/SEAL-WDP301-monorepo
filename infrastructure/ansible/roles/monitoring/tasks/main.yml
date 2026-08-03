@@ -19,3 +19,9 @@
       -f https://raw.githubusercontent.com/SEAL-WDP301/SEAL-WDP301-monorepo/production/k8s/monitoring/values-prometheus.yaml
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Apply Traefik ServiceMonitor for Prometheus
+  shell: |
+    kubectl apply -f https://raw.githubusercontent.com/SEAL-WDP301/SEAL-WDP301-monorepo/production/k8s/monitoring/traefik-service-monitor.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
