@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosClient } from "@/lib/axios";
 import { enqueueSnackbar } from "notistack";
+import { z } from "zod";
 import {
   Mail,
   Search,
@@ -35,6 +36,7 @@ import {
 import { MemberListItem } from "./components/member-list-item";
 import { PendingInvitesTable } from "./components/pending-invites-table";
 import { useWorkspaceAccess } from "../workspace-access";
+import { useAuthStore } from "@/lib/stores/auth.store";
 
 export default function TeamMembersPage() {
   const router = useRouter();
@@ -42,6 +44,7 @@ export default function TeamMembersPage() {
   const eventId = params.id as string;
   const queryClient = useQueryClient();
   const { isReadOnly } = useWorkspaceAccess();
+  const currentUserEmail = useAuthStore((state) => state.user?.email);
 
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -140,21 +143,43 @@ export default function TeamMembersPage() {
       });
       return;
     }
-    if (!inviteEmail.trim()) {
-      enqueueSnackbar("Please enter an email address", { variant: "warning" });
+
+    const parseResult = z.string().email("Please enter a valid email address").safeParse(inviteEmail.trim());
+    if (!parseResult.success) {
+      enqueueSnackbar(parseResult.error.issues[0]?.message || "Please enter a valid email address", {
+        variant: "warning",
+      });
+      return;
+    }
+
+    const normalizedEmail = inviteEmail.trim().toLowerCase();
+
+    // Check if inviting self
+    if (currentUserEmail?.toLowerCase() === normalizedEmail) {
+      enqueueSnackbar("You cannot invite your own email address.", { variant: "warning" });
       return;
     }
 
     // Get current emails
     const currentEmails = activeMembers
       .filter((m: any) => m.role === "member")
-      .map((m: any) => m.user.email);
+      .map((m: any) => m.user?.email?.toLowerCase());
+
+    if (currentEmails.includes(normalizedEmail)) {
+      enqueueSnackbar("This student is already a member of your team.", { variant: "warning" });
+      return;
+    }
 
     const pendingEmails = pendingInvitations.map(
-      (invitation: any) => invitation.email,
+      (invitation: any) => invitation.email?.toLowerCase(),
     );
 
-    const newEmails = [...currentEmails, ...pendingEmails, inviteEmail.trim()];
+    if (pendingEmails.includes(normalizedEmail)) {
+      enqueueSnackbar("An invitation has already been sent to this email.", { variant: "warning" });
+      return;
+    }
+
+    const newEmails = [...currentEmails, ...pendingEmails, normalizedEmail];
 
     updateTeamMutation.mutate({
       trackId: team.trackId,
@@ -176,6 +201,28 @@ export default function TeamMembersPage() {
 
   const minMembers = event?.minMembersPerTeam ?? 1;
   const maxMembers = event?.maxMembersPerTeam ?? 4;
+  const totalOccupied = activeMembers.length + pendingInvitations.length;
+  const isTeamFull = totalOccupied >= maxMembers;
+  const isRegistrationClosed = registrationDeadline && registrationDeadline < new Date();
+
+  const getInviteDisabledReason = () => {
+    if (!isLeader) {
+      return "Only the team leader can invite new members.";
+    }
+    if (isReadOnly || event?.status !== "active") {
+      return "This event is no longer active (Workspace is view-only).";
+    }
+    if (isRegistrationClosed) {
+      return "Registration deadline has passed. Team roster is locked.";
+    }
+    if (isTeamFull) {
+      return `Team is full (${totalOccupied}/${maxMembers} members reached).`;
+    }
+    return "";
+  };
+
+  const inviteDisabledReason = getInviteDisabledReason();
+  const canInvite = !inviteDisabledReason;
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 animate-in fade-in duration-500">
@@ -247,32 +294,31 @@ export default function TeamMembersPage() {
               {activeMembers.length} / {maxMembers} Members · Min {minMembers}
             </Badge>
             {isLeader ? (
-              <Dialog
-                open={isInviteDialogOpen}
-                onOpenChange={(open) =>
-                  isEventActive && setIsInviteDialogOpen(open)
-                }
+              <span
+                title={inviteDisabledReason || "Invite a new member to join your team"}
+                className={!canInvite ? "inline-block cursor-not-allowed" : "inline-block"}
               >
-                <DialogTrigger
-                  render={
-                    <Button
-                      variant="orange"
-                      className="rounded-xl px-5 shadow-[0_0_15px_rgba(243,112,33,0.3)]"
-                      disabled={!isEventActive}
-                      title={
-                        !isEventActive
-                          ? "Team roster is locked after the event starts."
-                          : "Invite a new member"
-                      }
-                    />
+                <Dialog
+                  open={isInviteDialogOpen}
+                  onOpenChange={(open) =>
+                    canInvite && setIsInviteDialogOpen(open)
                   }
                 >
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Invite Member
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md rounded-2xl border-border bg-background/95 backdrop-blur-xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                  <DialogTrigger
+                    render={
+                      <Button
+                        variant="orange"
+                        className="rounded-xl px-5 shadow-[0_0_15px_rgba(243,112,33,0.3)] disabled:pointer-events-none"
+                        disabled={!canInvite}
+                      />
+                    }
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite Member
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md rounded-2xl border-border bg-background/95 backdrop-blur-xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-bold flex items-center gap-2">
                       <UserPlus className="h-5 w-5 text-orange-500" />
                       Invite to {team.name}
                     </DialogTitle>
@@ -314,6 +360,7 @@ export default function TeamMembersPage() {
                   </div>
                 </DialogContent>
               </Dialog>
+            </span>
             ) : null}
           </div>
         </div>

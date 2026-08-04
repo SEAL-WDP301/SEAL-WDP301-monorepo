@@ -94,7 +94,7 @@ export interface OrganizerEventPayload {
   startDate?: string;
   endDate?: string;
   githubOrgUrl?: string;
-  tracks: OrganizerTrackInput[];
+  tracks?: OrganizerTrackInput[];
   rounds: OrganizerRoundInput[];
   prizes?: OrganizerPrizeInput[];
   location?: string;
@@ -324,6 +324,41 @@ export async function createOrganizerRubric(
   return unwrapData<OrganizerRubric>(res);
 }
 
+export interface SuggestedRubricCriterion {
+  name: string;
+  description: string;
+  weight: number;
+  whyChosen: string;
+}
+
+export interface SuggestRubricsResult {
+  basedOn: {
+    eventName: string;
+    roundName: string;
+    tracks: Array<{ name: string; description: string | null }>;
+    problemStatements: Array<{
+      label: string;
+      trackName: string | null;
+      source: "shared" | "track";
+    }>;
+    existingCriteria: string[];
+  };
+  overallRationale: string;
+  criteria: SuggestedRubricCriterion[];
+}
+
+export async function suggestOrganizerRubrics(
+  eventId: string | number,
+  roundId: number,
+) {
+  const res = await axiosClient.post(
+    `/organizer/events/${eventId}/rubrics/suggest`,
+    { roundId },
+    { timeout: 90_000 },
+  );
+  return unwrapData<SuggestRubricsResult>(res);
+}
+
 export async function bulkCreateOrganizerRubrics(
   eventId: string | number,
   payload: { rubrics: OrganizerRubricPayload[] },
@@ -452,6 +487,8 @@ export async function getRoundRankings(
 }
 
 export interface PublishResultsPayload {
+  /** Non-final: top N to advance (per track if track-specific, else whole round). */
+  advanceCount?: number;
   advancingTeamIds?: number[];
   awards?: { teamId: number; awardId: number | null }[];
 }
@@ -477,6 +514,19 @@ export async function updateRoundProblemFile(
   const res = await axiosClient.patch(
     `/organizer/events/${eventId}/rounds/${roundId}/problem-file`,
     { problemFileUrl, ...(trackId != null ? { trackId } : {}) },
+  );
+  return unwrapData<unknown>(res);
+}
+
+/** Unscope a track from a round (delete the RoundTrackProblem row). Does NOT
+ * delete the track itself — it stays in the event catalog / other rounds. */
+export async function removeTrackFromRound(
+  eventId: string | number,
+  roundId: string | number,
+  trackId: number,
+) {
+  const res = await axiosClient.delete(
+    `/organizer/events/${eventId}/rounds/${roundId}/tracks/${trackId}`,
   );
   return unwrapData<unknown>(res);
 }

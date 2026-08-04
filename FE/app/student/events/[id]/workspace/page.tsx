@@ -33,7 +33,9 @@ import { getPublicEvent } from "@/lib/api/public-events.api";
 import { OnlineMeetingCard } from "@/components/events/online-meeting-card";
 import { useEffect, useMemo, useState } from "react";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
+import { TrackPendingBanner } from "@/components/student/track-pending-banner";
 import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
+import { getVisibleStudentTrackName } from "@/lib/events/student-track-visibility";
 
 interface WorkspaceRound {
   id: number;
@@ -41,6 +43,8 @@ interface WorkspaceRound {
   roundNumber: number;
   status: string;
   submissionDeadline?: string | null;
+  trackPending?: boolean;
+  problemFileUrl?: string | null;
 }
 
 interface WorkspaceRoundSubmission {
@@ -186,6 +190,12 @@ export default function WorkspaceOverviewPage() {
     : null;
   const displayRound = selectedRoundEntry?.round ?? currentActiveRound;
   const canSubmitSelected = selectedRoundEntry?.canSubmit ?? false;
+  const eventMeta = workspaceData?.team?.event ?? publicEvent;
+  const visibleTrackName = getVisibleStudentTrackName({
+    trackName: workspaceData?.team?.track?.name,
+    trackPending: displayRound?.trackPending,
+    teamTrackId: workspaceData?.team?.trackId,
+  });
 
   if (isLoading) {
     return (
@@ -241,7 +251,7 @@ export default function WorkspaceOverviewPage() {
             Workspace Overview
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Track your progress, deadlines, and team performance all in one place.
+            Follow your progress, deadlines, and team performance all in one place.
           </p>
         </div>
       </header>
@@ -450,9 +460,7 @@ export default function WorkspaceOverviewPage() {
       </section>
 
       {displayRound?.trackPending && (
-        <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
-          Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
-        </GlassCard>
+        <TrackPendingBanner event={eventMeta} />
       )}
 
       {displayRound?.problemFileUrl && (
@@ -460,7 +468,7 @@ export default function WorkspaceOverviewPage() {
           fileUrl={displayRound.problemFileUrl}
           title={`${displayRound.name} — Problem Statement`}
           roundName={displayRound.name}
-          trackName={workspaceData?.team?.track?.name}
+          trackName={visibleTrackName}
         />
       )}
 

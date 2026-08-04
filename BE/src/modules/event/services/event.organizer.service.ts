@@ -132,6 +132,7 @@ export class EventOrganizerService {
     this.validatePrizeStructure(prizes);
     const { faq, ...restEventData } = eventData;
 
+    const deferred = Boolean(dto.deferredTrackAssignment);
     const data: Prisma.EventCreateInput = {
       ...restEventData,
       ...(faq !== undefined && {
@@ -140,11 +141,19 @@ export class EventOrganizerService {
       createdBy: {
         connect: { id: userId },
       },
-      tracks: {
-        create: tracks,
-      },
+      ...(tracks?.length
+        ? {
+            tracks: {
+              create: tracks,
+            },
+          }
+        : {}),
       rounds: {
-        create: rounds,
+        create: rounds.map((r) => ({
+          ...r,
+          // Flow B: per-track đề required → store rounds as track-specific.
+          isTrackSpecific: deferred ? true : r.isTrackSpecific,
+        })),
       },
       prizes: prizes
         ? {
@@ -243,9 +252,18 @@ export class EventOrganizerService {
   async updateEvent(id: number, dto: UpdateEventDto) {
     const event = await this.getEventById(id); // Check existence
 
-    if (event.status !== EventStatus.draft) {
+    if (event.status === EventStatus.closed) {
+      throw new BadRequestException("Closed events cannot be edited.");
+    }
+
+    // Allow track/round setup while every round is still not_started
+    // (Flow B adds tracks after publish; recovery if auto-open failed).
+    const hasStartedRound = (event.rounds || []).some(
+      (r) => r.status !== RoundStatus.not_started,
+    );
+    if (hasStartedRound) {
       throw new BadRequestException(
-        "Only draft events can be edited. Please change the status to draft first.",
+        "Cannot edit event structure after a round has started.",
       );
     }
 
@@ -281,6 +299,9 @@ export class EventOrganizerService {
         }
       : undefined;
 
+    // Flow B (deferred): every track needs its own đề → force track-specific rounds.
+    const deferred =
+      dto.deferredTrackAssignment ?? event.deferredTrackAssignment;
     const roundsUpdate = rounds
       ? {
           deleteMany: {
@@ -294,7 +315,7 @@ export class EventOrganizerService {
               submissionType: r.submissionType,
               submissionDeadline: r.submissionDeadline,
               maxFileSizeMb: r.maxFileSizeMb,
-              isTrackSpecific: r.isTrackSpecific,
+              isTrackSpecific: deferred ? true : r.isTrackSpecific,
             })),
           update: rounds
             .filter((r) => r.id)
@@ -306,7 +327,7 @@ export class EventOrganizerService {
                 submissionType: r.submissionType,
                 submissionDeadline: r.submissionDeadline,
                 maxFileSizeMb: r.maxFileSizeMb,
-                isTrackSpecific: r.isTrackSpecific,
+                isTrackSpecific: deferred ? true : r.isTrackSpecific,
               },
             })),
         }
@@ -362,6 +383,18 @@ export class EventOrganizerService {
         prizes: true,
       },
     });
+
+    // Shared rounds must not keep leftover per-track đề rows.
+    if (!deferred && rounds?.length) {
+      const sharedRoundIds = rounds
+        .filter((r) => r.id && !r.isTrackSpecific)
+        .map((r) => r.id!);
+      if (sharedRoundIds.length) {
+        await this.prisma.roundTrackProblem.deleteMany({
+          where: { roundId: { in: sharedRoundIds } },
+        });
+      }
+    }
 
     // Auto-assign teams to Round 1 if it exists
     const round1 = updatedEvent.rounds.find((r) => r.roundNumber === 1);
@@ -459,22 +492,25 @@ export class EventOrganizerService {
         );
       }
 
-      await this.assertRoundProblemsReady(eventId, targetRound);
+      await this.assertRoundProblemsReady(
+        eventId,
+        targetRound,
+        event.deferredTrackAssignment,
+      );
     }
-
-    const updatedRound = await this.prisma.round.update({
-      where: { id: roundId },
-      data: { status },
-    });
 
     let trackAssignment: Awaited<
       ReturnType<TrackAssignmentService["assignDeferredTracks"]>
     > | null = null;
 
+    // Flow B: assign tracks BEFORE flipping to open so a failed assign never
+    // leaves the round open with trackId:null (students stuck unable to submit).
     if (status === RoundStatus.open && event.deferredTrackAssignment) {
       try {
         trackAssignment =
-          await this.trackAssignmentService.assignDeferredTracks(eventId);
+          await this.trackAssignmentService.assignDeferredTracks(eventId, {
+            roundId: targetRound.id,
+          });
         this.logger.log(
           `Deferred track reveal for event ${eventId}: assigned ${trackAssignment.assignedCount} team(s)`,
         );
@@ -486,6 +522,11 @@ export class EventOrganizerService {
         throw err;
       }
     }
+
+    const updatedRound = await this.prisma.round.update({
+      where: { id: roundId },
+      data: { status },
+    });
 
     if (
       status === RoundStatus.open &&
@@ -502,7 +543,12 @@ export class EventOrganizerService {
     return { ...updatedRound, trackAssignment };
   }
 
-  /** Block opening a round until topic file(s) are uploaded. */
+  /**
+   * Block opening a round until tracks + problem file(s) are ready.
+   * - Always require at least one track.
+   * - Deferred assignment (flow B) or track-specific rounds: every track needs a problem file.
+   * - Shared classic rounds: one shared round problem file is enough.
+   */
   private async assertRoundProblemsReady(
     eventId: number,
     round: {
@@ -511,24 +557,34 @@ export class EventOrganizerService {
       isTrackSpecific: boolean;
       problemFileUrl: string | null;
     },
+    deferredTrackAssignment: boolean,
   ) {
-    if (!round.isTrackSpecific) {
+    const requirePerTrackProblems =
+      deferredTrackAssignment || round.isTrackSpecific;
+
+    if (!requirePerTrackProblems) {
       if (!round.problemFileUrl?.trim()) {
         throw new BadRequestException(
-          `Cannot open "${round.name}" — upload the round topic/problem file first.`,
+          `Cannot open "${round.name}" — upload the round problem file first.`,
         );
       }
       return;
     }
 
-    const tracks = await this.prisma.track.findMany({
-      where: { eventId },
-      select: { id: true, name: true },
-      orderBy: { id: "asc" },
-    });
+    // Track-specific rounds (Flow A & B): only tracks explicitly scoped into
+    // THIS round via RoundTrackProblem — adding to catalog or another round
+    // does not auto-sync here.
+    const tracks = (
+      await this.prisma.roundTrackProblem.findMany({
+        where: { roundId: round.id },
+        select: { track: { select: { id: true, name: true } } },
+        orderBy: { trackId: "asc" },
+      })
+    ).map((p) => p.track);
+
     if (!tracks.length) {
       throw new BadRequestException(
-        `Cannot open "${round.name}" — create at least one track and upload its problem file.`,
+        `Cannot open "${round.name}" — add at least one track to this round first.`,
       );
     }
 
@@ -542,11 +598,41 @@ export class EventOrganizerService {
     const missing = tracks.filter((t) => !byTrack.get(t.id));
     if (missing.length) {
       throw new BadRequestException(
-        `Cannot open "${round.name}" — missing problem file for track(s): ${missing
+        `Cannot open "${round.name}" — each track needs a problem file before opening. Missing: ${missing
           .map((t) => t.name)
-          .join(", ")}. Upload one đề per track first.`,
+          .join(", ")}.`,
       );
     }
+  }
+
+  /** Unscope a track from a round (delete its RoundTrackProblem row). Does
+   * NOT delete the Track itself — the track stays in the event catalog and
+   * in any other round it's scoped to. */
+  async removeTrackFromRound(eventId: number, roundId: number, trackId: number) {
+    const round = await this.prisma.round.findFirst({
+      where: { id: roundId, eventId },
+    });
+    if (!round) {
+      throw new NotFoundException("Round not found in this event");
+    }
+    if (round.status !== RoundStatus.not_started) {
+      throw new BadRequestException(
+        "Tracks can only be added to or removed from a round while it is Not Started.",
+      );
+    }
+
+    const existing = await this.prisma.roundTrackProblem.findUnique({
+      where: { roundId_trackId: { roundId, trackId } },
+    });
+    if (!existing) {
+      throw new NotFoundException("This track is not part of this round");
+    }
+
+    await this.prisma.roundTrackProblem.delete({
+      where: { roundId_trackId: { roundId, trackId } },
+    });
+
+    return { success: true };
   }
 
   async updateRoundDeadline(
@@ -617,9 +703,13 @@ export class EventOrganizerService {
       );
     }
 
-    // Per-track đề when round is track-specific and trackId provided
+    // Per-track đề when trackId provided (track-specific rounds or deferred flow B)
     if (trackId != null) {
-      if (!round.isTrackSpecific) {
+      const event = await this.prisma.event.findUnique({
+        where: { id: eventId },
+        select: { deferredTrackAssignment: true },
+      });
+      if (!round.isTrackSpecific && !event?.deferredTrackAssignment) {
         throw new BadRequestException(
           "This round is not track-specific; upload a single round problem file instead.",
         );
@@ -643,6 +733,11 @@ export class EventOrganizerService {
           problemFileUrl: problemFileUrl || null,
         },
       });
+    }
+
+    // Shared upload: clear leftover per-track files so they cannot override the shared đề.
+    if (!round.isTrackSpecific) {
+      await this.prisma.roundTrackProblem.deleteMany({ where: { roundId } });
     }
 
     return this.prisma.round.update({

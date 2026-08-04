@@ -30,6 +30,8 @@ interface ParsedRow {
   "Max Score*"?: number | string;
   Weight?: number | string;
   "Weight*"?: number | string;
+  "Weight %"?: number | string;
+  "Weight %*"?: number | string;
   __rowNum__: number;
 }
 
@@ -49,33 +51,21 @@ export function BulkImportRubricsModal({
   const [validCount, setValidCount] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
-  const isTrackSpecific = round.isTrackSpecific;
-  const tracks = event.tracks || [];
-
   const handleDownloadTemplate = () => {
     const wb = XLSX.utils.book_new();
     
-    // Instructions sheet
     const wsInstructions = XLSX.utils.aoa_to_sheet([
       ["RUBRIC IMPORT INSTRUCTIONS"],
       ["--------------------------"],
-      ["1. DO NOT change the column headers in the 'Template' sheet."],
-      ["2. * indicates a REQUIRED field."],
-      ["3. 'Share' (or Weight) is parts of 10 and must be a positive number."],
-      ["4. All shares for the same round/track must total exactly 10."],
-      ["5. Judges always rate each criterion 0–10; contribution = (score/10)*share."],
-      ["6. 'Rubric Name' must be unique within the same Round (and Track)."],
-      isTrackSpecific ? ["7. 'Track' must exactly match one of the tracks listed below."] : [""],
-      [""],
-      ["Available Tracks:"],
-      ...tracks.map(t => [`- ${t.name}`])
+      ["1. Do not change column headers in the Template sheet."],
+      ["2. * = required."],
+      ["3. Weight % — positive, decimals OK; round total must be 100%."],
+      ["4. Rubric Name must be unique within this round."],
+      ["5. Judges rate each criterion 0–10."],
     ]);
     XLSX.utils.book_append_sheet(wb, wsInstructions, "Instructions");
 
-    // Template sheet
-    const headers = isTrackSpecific
-      ? ["Track*", "Rubric Name*", "Description", "Share*"]
-      : ["Rubric Name*", "Description", "Share*"];
+    const headers = ["Rubric Name*", "Description", "Weight %*"];
 
     const wsTemplate = XLSX.utils.aoa_to_sheet([headers]);
     
@@ -84,7 +74,6 @@ export function BulkImportRubricsModal({
     
     XLSX.utils.book_append_sheet(wb, wsTemplate, "Template");
 
-    // File name
     const cleanEventName = event.name.replace(/[^a-zA-Z0-9]/g, "_");
     const cleanRoundName = round.name.replace(/[^a-zA-Z0-9]/g, "_");
     XLSX.writeFile(wb, `${cleanEventName}_${cleanRoundName}_Rubrics_Template.xlsx`);
@@ -164,13 +153,14 @@ export function BulkImportRubricsModal({
       const name = row["Rubric Name*"]?.trim() || row["Rubric Name"]?.trim();
       const desc = row["Description"]?.trim();
       const rawWeight =
-        row["Share*"] ??
-        row["Share"] ??
+        row["Weight %*"] ??
+        row["Weight %"] ??
         row["Weight*"] ??
-        row["Weight"];
-      const trackName = row["Track*"]?.trim() || row["Track"]?.trim();
+        row["Weight"] ??
+        row["Share*"] ??
+        row["Share"];
 
-      if (!name && !rawWeight && !trackName) {
+      if (!name && !rawWeight) {
         // Skip completely empty rows
         return;
       }
@@ -181,39 +171,28 @@ export function BulkImportRubricsModal({
       }
 
       const weight = Number(rawWeight);
-      if (isNaN(weight) || weight <= 0) {
+      if (isNaN(weight) || weight <= 0 || weight > 100) {
         newErrors.push({
           row: rowNum,
-          message: "Share/Weight must be a positive number (parts of 10).",
+          message: "Weight % must be a positive number up to 100 (decimals OK).",
         });
         return;
       }
 
-      let trackId: number | null = null;
-      if (isTrackSpecific) {
-        if (!trackName) {
-          newErrors.push({ row: rowNum, message: "Track is required for this round." });
-          return;
-        }
-        const matchedTrack = tracks.find(t => t.name.toLowerCase() === trackName.toLowerCase());
-        if (!matchedTrack) {
-          newErrors.push({ row: rowNum, message: `Track '${trackName}' not found in this event.` });
-          return;
-        }
-        trackId = matchedTrack.id;
-      }
-
-      // Check collision with existing
-      const collisionExists = existingRubrics.some(r => 
-        r.name.toLowerCase() === name.toLowerCase() && r.trackId === trackId
+      const collisionExists = existingRubrics.some(
+        (r) =>
+          r.name.toLowerCase() === name.toLowerCase() &&
+          r.roundId === round.id,
       );
       if (collisionExists) {
-        newErrors.push({ row: rowNum, message: `Rubric '${name}' already exists in this ${isTrackSpecific ? "track" : "round"}.` });
+        newErrors.push({
+          row: rowNum,
+          message: `Rubric '${name}' already exists in this round.`,
+        });
         return;
       }
 
-      // Check collision within file
-      const fileKey = `${name.toLowerCase()}_${trackId}`;
+      const fileKey = name.toLowerCase();
       if (usedNames.has(fileKey)) {
         newErrors.push({ row: rowNum, message: `Duplicate Rubric '${name}' inside the uploaded file.` });
         return;
@@ -226,9 +205,26 @@ export function BulkImportRubricsModal({
         maxScore: 10,
         weight,
         roundId: round.id,
-        trackId,
+        trackId: null,
       });
     });
+
+    const existingWeight = existingRubrics
+      .filter((r) => r.roundId === round.id)
+      .reduce((sum, r) => sum + Number(r.weight || 0), 0);
+    const importWeight = validRows.reduce(
+      (sum, r) => sum + Number(r.weight || 0),
+      0,
+    );
+    const projected = existingWeight + importWeight;
+    if (validRows.length > 0 && projected > 100.01) {
+      const msg = `Weights exceed 100%: existing ${existingWeight.toFixed(2)}% + import ${importWeight.toFixed(2)}% = ${projected.toFixed(2)}%. Reduce weights in the file or remove existing criteria first.`;
+      newErrors.push({
+        row: 0,
+        message: msg,
+      });
+      enqueueSnackbar(msg, { variant: "warning" });
+    }
 
     setParsedData(validRows);
     setErrors(newErrors);
@@ -278,7 +274,7 @@ export function BulkImportRubricsModal({
               <div className="bg-muted/30 p-4 rounded-xl border border-border text-sm min-w-0">
                 <p className="font-semibold text-foreground mb-2">Step 1: Download Template</p>
                 <p className="text-muted-foreground mb-4">
-                  Download the Excel template pre-configured for this round. Read the instructions in the first sheet carefully before filling out the data.
+                  Excel template for this round&apos;s rubrics.
                 </p>
                 <Button onClick={handleDownloadTemplate} variant="outline" className="w-full">
                   <Download className="mr-2 h-4 w-4" /> Download Template

@@ -34,7 +34,7 @@ describe("TeamStudentService event capacity", () => {
   };
   const prisma = {
     event: { findUnique: jest.fn() },
-    track: { findUnique: jest.fn() },
+    track: { findUnique: jest.fn(), count: jest.fn() },
     user: { findMany: jest.fn(), findUnique: jest.fn() },
     teamMember: { findMany: jest.fn(), findFirst: jest.fn() },
     teamInvitation: { findUnique: jest.fn(), findMany: jest.fn() },
@@ -63,7 +63,9 @@ describe("TeamStudentService event capacity", () => {
       registrationDeadline: null,
       minMembersPerTeam: 1,
       maxMembersPerTeam: 5,
+      deferredTrackAssignment: false,
     });
+    prisma.track.count.mockResolvedValue(1);
     prisma.track.findUnique.mockResolvedValue({
       id: 7,
       eventId: 3,
@@ -88,6 +90,7 @@ describe("TeamStudentService event capacity", () => {
       registrationDeadline: null,
       minMembersPerTeam: 2,
       maxMembersPerTeam: 3,
+      deferredTrackAssignment: false,
     });
 
     await expect(
@@ -289,6 +292,7 @@ describe("TeamStudentService event capacity", () => {
       registrationDeadline: null,
       minMembersPerTeam: 2,
       maxMembersPerTeam: 5,
+      deferredTrackAssignment: false,
     });
     prisma.user.findUnique.mockResolvedValue({
       id: 11,

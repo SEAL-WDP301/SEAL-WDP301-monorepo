@@ -11,9 +11,10 @@ type FieldProps = ComponentProps<"input"> & {
   icon?: ReactNode;
   rightIcon?: ReactNode;
   hideToggle?: boolean;
+  error?: string;
 };
 
-export function AuthField({ label, icon, rightIcon, hideToggle, className, type, ...props }: FieldProps) {
+export function AuthField({ label, icon, rightIcon, hideToggle, error, className, type, ...props }: FieldProps) {
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === "password" && !hideToggle;
   const inputType = isPassword ? (showPassword ? "text" : "password") : type;
@@ -35,6 +36,7 @@ export function AuthField({ label, icon, rightIcon, hideToggle, className, type,
             "h-11 w-full rounded-[2rem] border border-input bg-background px-4 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/70 focus:ring-4 focus:ring-primary/20",
             icon && "pl-12",
             (isPassword || rightIcon) && "pr-12",
+            error && "border-red-500/80 focus:border-red-500 focus:ring-red-500/20",
             className
           )}
           {...props}
@@ -56,15 +58,21 @@ export function AuthField({ label, icon, rightIcon, hideToggle, className, type,
           </span>
         )}
       </span>
+      {error && (
+        <p className="mt-1.5 text-xs text-red-500 font-medium animate-in fade-in duration-200">
+          {error}
+        </p>
+      )}
     </label>
   );
 }
 
 type TextAreaProps = ComponentProps<"textarea"> & {
   label: string;
+  error?: string;
 };
 
-export function AuthTextarea({ label, className, ...props }: TextAreaProps) {
+export function AuthTextarea({ label, error, className, ...props }: TextAreaProps) {
   return (
     <label className="block">
       <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground sm:text-sm">
@@ -73,10 +81,16 @@ export function AuthTextarea({ label, className, ...props }: TextAreaProps) {
       <textarea
         className={cn(
           "min-h-24 w-full resize-none rounded-[1.75rem] border border-input bg-background px-4 py-3 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/70 focus:ring-4 focus:ring-primary/20",
+          error && "border-red-500/80 focus:border-red-500 focus:ring-red-500/20",
           className
         )}
         {...props}
       />
+      {error && (
+        <p className="mt-1.5 text-xs text-red-500 font-medium animate-in fade-in duration-200">
+          {error}
+        </p>
+      )}
     </label>
   );
 }

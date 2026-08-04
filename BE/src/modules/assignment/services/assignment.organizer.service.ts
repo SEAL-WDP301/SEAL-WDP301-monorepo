@@ -42,19 +42,32 @@ export class AssignmentOrganizerService {
   ) {
     const round = await this.prisma.round.findUnique({
       where: { id: roundId },
+      include: {
+        event: { select: { deferredTrackAssignment: true } },
+      },
     });
     if (!round || round.eventId !== eventId)
       throw new BadRequestException("Round does not belong to this event");
+
+    // Track-specific / deferred events must scope judges to tracks — never fall
+    // through to trackId:null (that would let a judge score every track).
+    const requireTrackScope =
+      round.isTrackSpecific || Boolean(round.event?.deferredTrackAssignment);
+
+    if (requireTrackScope && (!trackIds || trackIds.length === 0)) {
+      throw new BadRequestException(
+        "Select at least one track when assigning judges to a track-scoped round.",
+      );
+    }
 
     // First, delete existing assignments for these judges in this round
     await this.prisma.judgeAssignment.deleteMany({
       where: { judgeId: { in: stakeholderIds }, roundId },
     });
 
-    if (round.isTrackSpecific && trackIds && trackIds.length > 0) {
-      // Validate tracks
+    if (requireTrackScope) {
       const tracks = await this.prisma.track.findMany({
-        where: { id: { in: trackIds } },
+        where: { id: { in: trackIds! } },
       });
       if (tracks.some((t) => t.eventId !== eventId)) {
         throw new BadRequestException(
@@ -64,7 +77,7 @@ export class AssignmentOrganizerService {
 
       const data = [];
       for (const stakeholderId of stakeholderIds) {
-        for (const trackId of trackIds) {
+        for (const trackId of trackIds!) {
           data.push({
             judgeId: stakeholderId,
             roundId,
@@ -75,7 +88,6 @@ export class AssignmentOrganizerService {
       }
       await this.prisma.judgeAssignment.createMany({ data });
 
-      // Notify stakeholders
       const notifications = stakeholderIds.map((id) => ({
         userId: id,
         eventId,
@@ -90,32 +102,31 @@ export class AssignmentOrganizerService {
       });
 
       return { message: "Judges assigned to multiple tracks." };
-    } else {
-      // Create single assignment without track
-      const data = stakeholderIds.map((stakeholderId) => ({
-        judgeId: stakeholderId,
-        roundId,
-        trackId: null,
-        assignedById: adminId,
-      }));
-      await this.prisma.judgeAssignment.createMany({ data });
-
-      // Notify stakeholders
-      const notifications = stakeholderIds.map((id) => ({
-        userId: id,
-        eventId,
-        type: NotificationType.judge_assigned,
-        title: "Assigned as Judge",
-        content: `You have been assigned as a judge for round "${round.name}".`,
-        isEmailSent: false,
-      }));
-      await this.prisma.notification.createMany({ data: notifications });
-      notifications.forEach((notif) => {
-        this.eventEmitter.emit(`notification.user.${notif.userId}`, notif);
-      });
-
-      return { message: "Judges assigned successfully." };
     }
+
+    // Shared round: one global assignment (all tracks).
+    const data = stakeholderIds.map((stakeholderId) => ({
+      judgeId: stakeholderId,
+      roundId,
+      trackId: null,
+      assignedById: adminId,
+    }));
+    await this.prisma.judgeAssignment.createMany({ data });
+
+    const notifications = stakeholderIds.map((id) => ({
+      userId: id,
+      eventId,
+      type: NotificationType.judge_assigned,
+      title: "Assigned as Judge",
+      content: `You have been assigned as a judge for round "${round.name}".`,
+      isEmailSent: false,
+    }));
+    await this.prisma.notification.createMany({ data: notifications });
+    notifications.forEach((notif) => {
+      this.eventEmitter.emit(`notification.user.${notif.userId}`, notif);
+    });
+
+    return { message: "Judges assigned successfully." };
   }
 
   async unassignJudge(assignmentId: number) {

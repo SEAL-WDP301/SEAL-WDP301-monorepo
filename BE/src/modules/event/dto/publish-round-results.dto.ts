@@ -3,14 +3,13 @@ import {
   IsArray,
   ValidateNested,
   IsOptional,
-  IsEnum,
+  Min,
 } from "class-validator";
 import { Type } from "class-transformer";
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-
+import { ApiPropertyOptional } from "@nestjs/swagger";
 
 export class TeamAwardDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsInt()
   teamId: number;
 
@@ -22,9 +21,20 @@ export class TeamAwardDto {
 
 export class PublishRoundResultsDto {
   @ApiPropertyOptional({
+    example: 3,
+    description:
+      "Non-final only. Number of top teams to advance (per track if track-specific, else whole round).",
+  })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  advanceCount?: number;
+
+  @ApiPropertyOptional({
     type: [Number],
     example: [1, 2, 5],
-    description: "Array of team IDs that should advance to the next round",
+    description: "Deprecated — ignored. Server auto-selects by advanceCount.",
   })
   @IsArray()
   @IsInt({ each: true })
@@ -33,7 +43,7 @@ export class PublishRoundResultsDto {
 
   @ApiPropertyOptional({
     type: [TeamAwardDto],
-    description: "Awards for final round",
+    description: "Deprecated — ignored. Server auto-assigns EventPrize by rank.",
   })
   @IsArray()
   @ValidateNested({ each: true })

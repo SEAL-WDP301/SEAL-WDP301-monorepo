@@ -22,6 +22,7 @@ export function TeamDetailsDialog({ isOpen, onClose, team, eventId, showRejected
   const queryClient = useQueryClient();
   const [isAssignMentorOpen, setIsAssignMentorOpen] = useState(false);
   const [selectedMentorUser, setSelectedMentorUser] = useState<number | "">("");
+  const [confirmDualRole, setConfirmDualRole] = useState(false);
 
   // Fetch stakeholders for assigning mentors
   const { data: stakeholders, isLoading: isLoadingUsers } = useQuery({
@@ -251,7 +252,11 @@ export function TeamDetailsDialog({ isOpen, onClose, team, eventId, showRejected
                   {isLoadingUsers ? (
                     <option disabled>Loading...</option>
                   ) : stakeholders?.filter((u: any) => u.role === 'stakeholder').map((u: any) => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.email})
+                      {u.judgeAssignments?.length > 0 ? " — Judge" : ""}
+                      {u.mentorAssignments?.length > 0 ? " — Mentor" : ""}
+                    </option>
                   ))}
                  </select>
                  <div className="flex justify-end gap-2 mt-1">
@@ -259,7 +264,19 @@ export function TeamDetailsDialog({ isOpen, onClose, team, eventId, showRejected
                    <Button 
                     size="sm" 
                     disabled={!selectedMentorUser || assignMentorMutation.isPending}
-                    onClick={() => assignMentorMutation.mutate({ teamId: team.id, stakeholderId: Number(selectedMentorUser) })}
+                    onClick={() => {
+                      const user = stakeholders?.find(
+                        (u: any) => u.id === Number(selectedMentorUser),
+                      );
+                      if (user?.judgeAssignments?.length > 0) {
+                        setConfirmDualRole(true);
+                        return;
+                      }
+                      assignMentorMutation.mutate({
+                        teamId: team.id,
+                        stakeholderId: Number(selectedMentorUser),
+                      });
+                    }}
                    >
                     {assignMentorMutation.isPending ? "Assigning..." : "Assign"}
                    </Button>
@@ -302,6 +319,36 @@ export function TeamDetailsDialog({ isOpen, onClose, team, eventId, showRejected
 
         </div>
       </DialogContent>
+
+      <Dialog open={confirmDualRole} onOpenChange={setConfirmDualRole}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Confirm dual role</DialogTitle>
+            <DialogDescription>
+              This stakeholder is already a judge. Assign them as mentor for this
+              team too? They will not be able to score this team.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setConfirmDualRole(false)}>
+              No
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700"
+              disabled={!selectedMentorUser || assignMentorMutation.isPending}
+              onClick={() => {
+                setConfirmDualRole(false);
+                assignMentorMutation.mutate({
+                  teamId: team.id,
+                  stakeholderId: Number(selectedMentorUser),
+                });
+              }}
+            >
+              Yes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

@@ -26,7 +26,7 @@ export class SeedService {
         },
       });
       console.log(
-        `[User] Default admin user created: ${adminEmail} (password: Admin@123)`,
+        `[User] Default admin user created: ${adminEmail} (password set from config)`,
       );
     } else {
       console.log(`[User] Default admin user already exists: ${adminEmail}`);

@@ -136,31 +136,51 @@ export function PendingInvitesTable({ invites, isCurrentUserLeader, team, isEven
                                     {isCurrentUserLeader && (
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex items-center justify-end gap-1">
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="sm" 
-                                                    className="h-8 px-2.5 text-xs font-semibold text-blue-400 hover:text-blue-500 hover:bg-blue-400/10 gap-1 rounded-lg" 
-                                                    title={cooldown > 0 ? `Wait ${cooldown}s before resending` : "Resend invitation email"}
-                                                    onClick={() => resendMutation.mutate(invite.id)}
-                                                    disabled={resendMutation.isPending || !isEventActive || cooldown > 0}
-                                                >
-                                                    {resendMutation.isPending ? (
-                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                    ) : (
-                                                        <Send className="h-3.5 w-3.5" />
-                                                    )}
-                                                    {cooldown > 0 ? `${cooldown}s` : "Resend"}
-                                                </Button>
-                                                <Button 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="rounded-lg h-8 w-8 text-red-400 hover:text-red-500 hover:bg-red-400/10 disabled:opacity-50" 
-                                                    title={!isEventActive ? "Team roster is locked after the event starts." : "Cancel Invitation"}
-                                                    onClick={() => handleCancelInvite(invite.id)}
-                                                    disabled={cancelMutation.isPending || !isEventActive}
-                                                >
-                                                    {cancelMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-                                                </Button>
+                                                {(() => {
+                                                    const isResendDisabled = resendMutation.isPending || !isEventActive || cooldown > 0;
+                                                    const resendTitle = !isEventActive
+                                                        ? "Event is no longer active (Team roster is locked)."
+                                                        : cooldown > 0
+                                                        ? `Please wait ${cooldown}s before resending another email invitation.`
+                                                        : "Resend invitation email";
+
+                                                    const isCancelDisabled = cancelMutation.isPending || !isEventActive;
+                                                    const cancelTitle = !isEventActive
+                                                        ? "Event is no longer active (Invitations cannot be canceled)."
+                                                        : "Cancel invitation";
+
+                                                    return (
+                                                        <>
+                                                            <span title={resendTitle} className={isResendDisabled ? "inline-block cursor-not-allowed" : "inline-block"}>
+                                                                <Button 
+                                                                    variant="ghost" 
+                                                                    size="sm" 
+                                                                    className="h-8 px-2.5 text-xs font-semibold text-blue-400 hover:text-blue-500 hover:bg-blue-400/10 gap-1 rounded-lg disabled:pointer-events-none" 
+                                                                    onClick={() => resendMutation.mutate(invite.id)}
+                                                                    disabled={isResendDisabled}
+                                                                >
+                                                                    {resendMutation.isPending ? (
+                                                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                                    ) : (
+                                                                        <Send className="h-3.5 w-3.5" />
+                                                                    )}
+                                                                    {cooldown > 0 ? `${cooldown}s` : "Resend"}
+                                                                </Button>
+                                                            </span>
+                                                            <span title={cancelTitle} className={isCancelDisabled ? "inline-block cursor-not-allowed" : "inline-block"}>
+                                                                <Button 
+                                                                    variant="ghost" 
+                                                                    size="icon" 
+                                                                    className="rounded-lg h-8 w-8 text-red-400 hover:text-red-500 hover:bg-red-400/10 disabled:pointer-events-none" 
+                                                                    onClick={() => handleCancelInvite(invite.id)}
+                                                                    disabled={isCancelDisabled}
+                                                                >
+                                                                    {cancelMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                                                                </Button>
+                                                            </span>
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
                                         </td>
                                     )}

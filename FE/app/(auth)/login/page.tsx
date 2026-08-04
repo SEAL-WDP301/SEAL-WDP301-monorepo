@@ -23,30 +23,43 @@ import { Button } from "@/components/ui/button";
 import { AuthField } from "../_components/auth-controls";
 import { getOAuthUrl } from "@/lib/auth-oauth";
 
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address (e.g. name@fpt.edu.vn)"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
+
 export default function LoginPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-
+  const onSubmit = async (values: LoginFormValues) => {
     try {
-      const res = await axiosClient.post("/auth/signin", formData);
+      const res = await axiosClient.post("/auth/signin", values);
 
       // Save token & user profile
       if (res.data?.data?.accessToken) {
-        console.log("[DEV] Logged in successfully. Access Token:", res.data.data.accessToken);
         setAccessToken(res.data.data.accessToken);
         if (res.data.data.refreshToken) {
           useAuthStore.getState().setRefreshToken(res.data.data.refreshToken);
@@ -56,7 +69,7 @@ export default function LoginPage() {
         }
       }
 
-      enqueueSnackbar("Đăng nhập thành công!", { variant: "success" });
+      enqueueSnackbar("Login successful!", { variant: "success" });
 
       // Update global user state cache
       queryClient.invalidateQueries({ queryKey: queryKeys.user });
@@ -75,12 +88,10 @@ export default function LoginPage() {
     } catch (error: unknown) {
       enqueueSnackbar(
         isAxiosError<{ message?: string }>(error)
-          ? error.response?.data?.message || "Đăng nhập thất bại. Vui lòng thử lại."
-          : "Đăng nhập thất bại. Vui lòng thử lại.",
+          ? error.response?.data?.message || "Login failed. Please try again."
+          : "Login failed. Please try again.",
         { variant: "error" }
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -92,28 +103,24 @@ export default function LoginPage() {
           subtitle="Sign in to continue to the SEAL command center."
         />
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <AuthField
             label="Email"
-            name="email"
             type="email"
             placeholder="you@fpt.edu.vn"
             autoComplete="email"
             icon={<Mail className="size-4" />}
-            value={formData.email}
-            onChange={handleChange}
-            required
+            error={errors.email?.message}
+            {...register("email")}
           />
           <AuthField
             label="Password"
-            name="password"
             type="password"
             placeholder="••••••••"
             autoComplete="current-password"
             icon={<Shield className="size-4" />}
-            value={formData.password}
-            onChange={handleChange}
-            required
+            error={errors.password?.message}
+            {...register("password")}
           />
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground sm:text-sm">
@@ -128,8 +135,8 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <Button variant="authPrimary" size="auth" className="w-full font-bold" type="submit" disabled={loading}>
-            {loading ? (
+          <Button variant="authPrimary" size="auth" className="w-full font-bold" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
               <Loader2 className="size-4 animate-spin mx-auto" />
             ) : (
               <>Login <ArrowRight className="size-4" /></>

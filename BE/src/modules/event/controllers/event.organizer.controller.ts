@@ -200,6 +200,24 @@ export class EventOrganizerController {
     return { message: "Round problem file updated successfully", data: round };
   }
 
+  @Delete(":id/rounds/:roundId/tracks/:trackId")
+  @ApiOperation({
+    summary:
+      "Remove a track from a round's scope (unscope). Does not delete the track itself.",
+  })
+  async removeTrackFromRound(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Param("roundId", ParseIntPipe) roundId: number,
+    @Param("trackId", ParseIntPipe) trackId: number,
+  ) {
+    const data = await this.eventOrganizerService.removeTrackFromRound(
+      eventId,
+      roundId,
+      trackId,
+    );
+    return { message: "Track removed from round successfully", data };
+  }
+
   @Post(":id/tracks/reveal")
   @ApiOperation({
     summary:

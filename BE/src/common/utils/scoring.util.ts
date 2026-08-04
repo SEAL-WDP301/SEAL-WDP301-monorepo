@@ -1,7 +1,7 @@
 export interface ScoringRubric {
   id: number;
-  /** Kept for DB compat; scoring always uses JUDGE_SCORE_SCALE. */
   maxScore?: number;
+  /** Weight % of final /10; criteria in a round total 100. */
   weight: number | { toString(): string };
 }
 
@@ -14,11 +14,9 @@ export interface JudgeScoreEntry extends ScoringEntry {
   judgeId: number;
 }
 
-/** Each criterion weight ("phần") must sum to this for a round/track. */
-export const RUBRIC_WEIGHT_TOTAL = 10;
-/** Judges always rate every criterion on this 0–10 scale. */
+export const RUBRIC_WEIGHT_TOTAL = 100;
 export const JUDGE_SCORE_SCALE = 10;
-const WEIGHT_EPSILON = 0.001;
+const WEIGHT_EPSILON = 0.01;
 
 function toNumber(value: number | { toString(): string }): number {
   return typeof value === "number" ? value : Number(value);
@@ -44,11 +42,14 @@ export function isJudgeScoringComplete(
   return rubrics.every((rubric) => scoredIds.has(rubric.id));
 }
 
-/**
- * Example: weights 2+3+2+3 = 10. Judge gives criterion-1 score 8/10
- * → contribution = (8/10)*2 = 1.6
- * Judge total = Σ (score/10)*weight  (scale /10)
- */
+/** score × weight% / 100 on the /10 scale. */
+export function criterionContribution(
+  scoreValue: number,
+  weightPercent: number,
+): number {
+  return (scoreValue / JUDGE_SCORE_SCALE) * (weightPercent / 100) * JUDGE_SCORE_SCALE;
+}
+
 export function computeJudgeWeightedScore(
   rubrics: ScoringRubric[],
   scores: ScoringEntry[],
@@ -67,7 +68,7 @@ export function computeJudgeWeightedScore(
     if (value === undefined) continue;
 
     scoredAny = true;
-    total += (value / JUDGE_SCORE_SCALE) * toNumber(rubric.weight);
+    total += criterionContribution(value, toNumber(rubric.weight));
   }
 
   if (!scoredAny) return null;
@@ -75,7 +76,6 @@ export function computeJudgeWeightedScore(
   return Math.round(total * 100) / 100;
 }
 
-/** Submission final = average of judges who finished all criteria. */
 export function computeSubmissionFinalScore(
   rubrics: ScoringRubric[],
   scores: JudgeScoreEntry[],

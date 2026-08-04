@@ -5,7 +5,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import {
   computeLocalWeightedScore,
-  JUDGE_SCORE_SCALE,
+  criterionContribution,
   type JudgeRubric,
   type JudgeScoringStatus,
 } from "@/lib/api/judge.api";
@@ -73,14 +73,14 @@ export function ScoreSummary({
         {rubrics.map((item) => {
           const score = scores[item.id] ?? 0;
           const weight = Number(item.weight);
-          const contribution = (score / JUDGE_SCORE_SCALE) * weight;
+          const contribution = criterionContribution(score, weight);
 
           return (
             <div key={item.id}>
               <div className="mb-1 flex justify-between text-sm">
                 <span>
                   {item.name}{" "}
-                  <span className="text-muted-foreground">({weight})</span>
+                  <span className="text-muted-foreground">({weight}%)</span>
                 </span>
                 <span>{contribution.toFixed(2)}</span>
               </div>
@@ -89,7 +89,7 @@ export function ScoreSummary({
                 <div
                   className="h-full bg-orange-500"
                   style={{
-                    width: `${Math.min(100, (score / JUDGE_SCORE_SCALE) * 100)}%`,
+                    width: `${Math.min(100, (score / 10) * 100)}%`,
                   }}
                 />
               </div>

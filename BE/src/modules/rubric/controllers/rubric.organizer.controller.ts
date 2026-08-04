@@ -17,7 +17,9 @@ import { Role } from "../../../common/enums/role.enum";
 import { RolesGuard } from "../../../common/guards/roles.guard";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { CreateRubricDto } from "../dto/create-rubric.dto";
+import { SuggestRubricsDto } from "../dto/suggest-rubrics.dto";
 import { RubricOrganizerService } from "../services/rubric.organizer.service";
+import { RubricAiService } from "../services/rubric-ai.service";
 
 @ApiTags("Organizer/Rubrics")
 @ApiBearerAuth()
@@ -27,6 +29,7 @@ import { RubricOrganizerService } from "../services/rubric.organizer.service";
 export class RubricOrganizerController {
   constructor(
     private readonly rubricOrganizerService: RubricOrganizerService,
+    private readonly rubricAiService: RubricAiService,
   ) {}
 
   @Get()
@@ -57,6 +60,22 @@ export class RubricOrganizerController {
       dto,
     );
     return { message: "Rubric created successfully", data: rubric };
+  }
+
+  @Post("suggest")
+  @ApiOperation({
+    summary:
+      "AI-suggest round rubrics from event/tracks/problem statement titles",
+  })
+  async suggestRubrics(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Body() dto: SuggestRubricsDto,
+  ) {
+    const data = await this.rubricAiService.suggestRubrics(
+      eventId,
+      dto.roundId,
+    );
+    return { message: "Rubric suggestions ready", data };
   }
 
   @Post("bulk")

@@ -36,6 +36,8 @@ import { useWorkspaceAccess } from "../workspace-access";
 import { useAdminSocket } from "@/hooks/use-admin-socket";
 import { axiosClient } from "@/lib/axios";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
+import { TrackPendingBanner } from "@/components/student/track-pending-banner";
+import { SubmissionLockBanner } from "@/components/student/submission-lock-banner";
 import {
   GithubCommitCard,
   GithubSummaryBar,
@@ -45,6 +47,8 @@ import {
 } from "@/components/github/github-activity-stats";
 import { TeamGithubAnalyticsDialog } from "@/components/github/team-github-analytics-dialog";
 import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
+import { getPublicEvent } from "@/lib/api/public-events.api";
+import { getVisibleStudentTrackName } from "@/lib/events/student-track-visibility";
 
 interface SubmissionHistoryEntry {
   action: string;
@@ -103,6 +107,12 @@ export default function SubmissionsPage() {
     queryFn: () => workspaceApi.getWorkspaceOverview(eventId),
   });
 
+  const { data: publicEvent } = useQuery({
+    queryKey: ["publicEvent", eventId],
+    queryFn: () => getPublicEvent(String(eventId)),
+    retry: false,
+  });
+
   const workspaceData = data?.data;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roundSubmissions: any[] = workspaceData?.roundSubmissions || [];
@@ -121,7 +131,14 @@ export default function SubmissionsPage() {
   const activeSubmission = isPastRound ? pastSubmission : (selectedRoundEntry?.submission ?? latestSubmission);
   const isLeader = workspaceData?.role === "leader";
   const teamStatus = workspaceData?.team?.status as string | undefined;
-  const canSubmit = !isReadOnly && workspaceData?.canSubmit !== false && teamStatus === "approved";
+  const roundCanSubmit = Boolean(selectedRoundEntry?.canSubmit);
+  const canSubmit = !isReadOnly && roundCanSubmit && teamStatus === "approved";
+  const eventMeta = workspaceData?.team?.event ?? publicEvent;
+  const visibleTrackName = getVisibleStudentTrackName({
+    trackName: workspaceData?.team?.track?.name,
+    trackPending: displayRound?.trackPending,
+    teamTrackId: workspaceData?.team?.trackId,
+  });
   const assignedRepoUrl = workspaceData?.team?.githubRepoUrl as string | undefined;
   const submissionType = currentActiveRound?.submissionType as "file" | "github_link" | undefined;
   const isGithubRound = submissionType === "github_link";
@@ -443,9 +460,7 @@ export default function SubmissionsPage() {
         )}
 
         {displayRound?.trackPending && (
-          <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
-            Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
-          </GlassCard>
+          <TrackPendingBanner event={eventMeta} />
         )}
 
         {displayRound?.problemFileUrl && (
@@ -453,7 +468,7 @@ export default function SubmissionsPage() {
             fileUrl={displayRound.problemFileUrl}
             title={`${displayRound.name} — Problem Statement`}
             roundName={displayRound.name}
-            trackName={workspaceData?.team?.track?.name}
+            trackName={visibleTrackName}
           />
         )}
 
@@ -529,8 +544,11 @@ export default function SubmissionsPage() {
                 <h3 className="font-semibold text-lg mb-4 border-b border-border pb-4">Detailed Scores from Judges</h3>
                 <div className="space-y-4">
                   {judgeList.map((j: any) => {
-                    const totalJudgeScore = j.scores.reduce((sum: number, s: any) => sum + Number(s.scoreValue), 0);
-                    const totalMaxScore = j.scores.reduce((sum: number, s: any) => sum + Number(s.criterion.maxScore), 0);
+                    const judgeWeightedScore = j.scores.reduce((sum: number, s: any) => {
+                      const score = Number(s.scoreValue) || 0; // 0..10
+                      const weight = Number(s.criterion?.weight) || 0; // weight e.g. 2.5
+                      return sum + (score / 10) * weight;
+                    }, 0);
                     
                     return (
                       <details key={j.judge.id} className="group rounded-2xl border border-border bg-muted/20 overflow-hidden open:bg-muted/40 transition-colors">
@@ -545,7 +563,7 @@ export default function SubmissionsPage() {
                             )}
                             <div>
                               <p className="font-bold text-foreground">{j.judge.name}</p>
-                              <p className="text-sm font-semibold text-orange-500">Score: {totalJudgeScore} <span className="text-muted-foreground font-normal">/ {totalMaxScore}</span></p>
+                              <p className="text-sm font-semibold text-orange-500">Score: {judgeWeightedScore.toFixed(2)} <span className="text-muted-foreground font-normal">/ 10</span></p>
                             </div>
                           </div>
                           <div className="p-2 rounded-full bg-background/50 group-open:rotate-180 transition-transform">
@@ -557,12 +575,17 @@ export default function SubmissionsPage() {
                           <div className="grid gap-3 mt-2">
                             {j.scores.map((s: any) => (
                               <div key={s.id} className="bg-background/80 p-4 rounded-xl border border-border/50 shadow-sm">
-                                <div className="flex justify-between items-start mb-2">
+                                <div className="flex justify-between items-start gap-4 mb-2">
                                   <div>
                                     <p className="font-bold text-sm text-foreground">{s.criterion.name}</p>
+                                    {s.criterion?.weight !== undefined && (
+                                      <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                                        Weight: <span className="font-semibold text-foreground">{Number(s.criterion.weight)} / 10</span>
+                                      </p>
+                                    )}
                                   </div>
                                   <div className="bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap">
-                                    {Number(s.scoreValue)} / {Number(s.criterion.maxScore)}
+                                    {Number(s.scoreValue)} / 10
                                   </div>
                                 </div>
                                 {s.comment && (
@@ -624,9 +647,7 @@ export default function SubmissionsPage() {
       </header>
 
       {displayRound?.trackPending && (
-        <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
-          Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
-        </GlassCard>
+        <TrackPendingBanner event={eventMeta} />
       )}
 
       {displayRound?.problemFileUrl && (
@@ -634,7 +655,7 @@ export default function SubmissionsPage() {
           fileUrl={displayRound.problemFileUrl}
           title={`${displayRound.name} — Problem Statement`}
           roundName={displayRound.name}
-          trackName={workspaceData?.team?.track?.name}
+          trackName={visibleTrackName}
         />
       )}
 
@@ -665,15 +686,10 @@ export default function SubmissionsPage() {
       )}
 
       {!canSubmit && (
-        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 p-4 rounded-2xl flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="font-semibold text-sm">Team not approved</h4>
-            <p className="text-sm mt-1 opacity-90">
-              Organizer must approve your team before you can submit or get the GitHub repo link.
-            </p>
-          </div>
-        </div>
+        <SubmissionLockBanner
+          lockReason={selectedRoundEntry?.lockReason}
+          teamStatus={teamStatus}
+        />
       )}
 
       {isGithubRound && canSubmit && !assignedRepoUrl && (
@@ -1036,31 +1052,40 @@ export default function SubmissionsPage() {
           </GlassCard>
         )}
 
-        {!isGithubRound && isLeader && (
-        <Button 
-          type="submit" 
-          variant="orange" 
-          className="w-full h-14 text-lg rounded-xl shadow-[0_0_20px_rgba(243,112,33,0.3)]"
-          disabled={
-            isReadOnly ||
-            isDeadlinePassed ||
-            submitMutation.isPending ||
-            !canSubmit ||
-            !canSubmitPayload
-          }
-        >
-          {submitMutation.isPending ? (
-            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          ) : (
-            <CheckCircle2 className="h-5 w-5 mr-2" />
-          )}
-          {isReadOnly
-            ? "View Only"
-            : latestSubmission
-              ? "Resubmit Project"
-              : "Submit Project"}
-        </Button>
-        )}
+        {!isGithubRound && isLeader && (() => {
+            const isSubmitDisabled = isReadOnly || isDeadlinePassed || submitMutation.isPending || !canSubmit || !canSubmitPayload;
+            const submitReason = isReadOnly
+              ? "This event has ended. Workspace is in view-only mode."
+              : isDeadlinePassed
+              ? "Submission deadline has passed for this round."
+              : teamStatus !== "approved"
+              ? "Team is not approved by organizers yet (Current status: " + (teamStatus || "pending") + ")."
+              : !canSubmitPayload
+              ? (isFileRound && !file && !latestSubmission ? "Please select a project file (PDF/ZIP) to upload." : "Please complete all submission requirements.")
+              : "Submit project for current round";
+
+            return (
+              <span title={submitReason} className={isSubmitDisabled ? "inline-block w-full cursor-not-allowed" : "inline-block w-full"}>
+                <Button 
+                  type="submit" 
+                  variant="orange" 
+                  className="w-full h-14 text-lg rounded-xl shadow-[0_0_20px_rgba(243,112,33,0.3)] disabled:pointer-events-none"
+                  disabled={isSubmitDisabled}
+                >
+                  {submitMutation.isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  ) : (
+                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                  )}
+                  {isReadOnly
+                    ? "View Only"
+                    : latestSubmission
+                      ? "Resubmit Project"
+                      : "Submit Project"}
+                </Button>
+              </span>
+            );
+          })()}
       </form>
   </div>
   );

@@ -112,7 +112,7 @@ export class AuthService {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    this.logger.log(`[DEV] MOCK OTP for ${user.email}: ${otp}`, "AuthService");
+    this.logger.log(`OTP generated and sent to ${user.email}`, "AuthService");
 
     // Store in Redis with 5 minutes expiration (300 seconds)
     await this.redisService.set(`auth:otp:${user.email}`, otp, 300);
@@ -189,7 +189,7 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user);
     this.logger.log(
-      `Access token for ${user.email}: ${tokens.accessToken}`,
+      `User ${user.email} signed in successfully (UserId: ${user.id})`,
       "AuthService",
     );
     await this.userService.updateRefreshToken(user.id, tokens.refreshToken);
@@ -361,8 +361,6 @@ export class AuthService {
     }
 
     const tokens = await this.generateTokens(user);
-    // log access token
-    this.logger.log(`Access token: ${tokens.accessToken}`, "AuthService");
     await this.userService.updateRefreshToken(user.id, tokens.refreshToken);
 
     // Redirect to frontend with both tokens in query param

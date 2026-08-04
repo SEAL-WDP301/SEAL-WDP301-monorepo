@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Info, Plus, Trash2, X } from "lucide-react";
 import { enqueueSnackbar } from "notistack";
+import { z } from "zod";
 import { axiosClient } from "@/lib/axios";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import {
@@ -89,6 +90,13 @@ function getRegistrationBlockReason(
     return `This event has reached its team capacity (${event.registeredTeams ?? event.maxTeams}/${event.maxTeams} teams).`;
   }
 
+  // Flow A: must pick a track — block if catalog is empty (do not pretend deferred).
+  const deferred = Boolean(event.deferredTrackAssignment);
+  const hasTracks = (event.tracks?.length ?? 0) > 0;
+  if (!deferred && !hasTracks) {
+    return "This event has no tracks configured yet. Registration opens after the organizer adds tracks.";
+  }
+
   return null;
 }
 
@@ -158,6 +166,7 @@ export function EventRegisterDialog({
 
   const registrationBlockReason = getRegistrationBlockReason(event, isEditing);
   const isRegistrationBlocked = Boolean(registrationBlockReason);
+  // Only Flow B (flag). Do not treat "0 visible tracks" as deferred.
   const deferred = Boolean(event?.deferredTrackAssignment);
   const minMembersPerTeam = event?.minMembersPerTeam ?? 1;
   const maxMembersPerTeam = event?.maxMembersPerTeam ?? 4;

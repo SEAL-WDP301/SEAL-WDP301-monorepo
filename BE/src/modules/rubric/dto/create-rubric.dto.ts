@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsInt,
   Min,
+  Max,
   IsNumber,
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
@@ -34,13 +35,14 @@ export class CreateRubricDto {
   maxScore?: number;
 
   @ApiProperty({
-    example: 2,
+    example: 20,
     description:
-      "Share of the /10 final score (phần). All criteria weights for a round/track must total 10.",
+      "Weight percent of the final /10 score. Criteria for a round must total 100. Decimals allowed.",
   })
   @Type(() => Number)
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
+  @Max(100)
   weight: number;
 
   @ApiProperty({ example: 1 })
@@ -49,9 +51,9 @@ export class CreateRubricDto {
   roundId: number;
 
   @ApiPropertyOptional({
-    example: 1,
+    example: null,
     description:
-      "Omit or null for global rubrics that apply to all tracks in the round",
+      "Deprecated — ignored. Rubrics are shared by all tracks in the round (trackId null).",
   })
   @Type(() => Number)
   @IsInt()
