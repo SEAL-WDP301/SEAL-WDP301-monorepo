@@ -105,7 +105,7 @@ export function useJudgeWorkspace(eventId?: string | number) {
         ? (
             scored.reduce((sum, item) => sum + (item.weightedScore ?? 0), 0) /
             scored.length
-          ).toFixed(1)
+          ).toFixed(2)
         : null;
 
     const openRoundCount =

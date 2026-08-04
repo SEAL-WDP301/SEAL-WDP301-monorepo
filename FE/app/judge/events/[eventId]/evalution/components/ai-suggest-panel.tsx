@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Sparkles, Check, X, Info } from "lucide-react";
+import { Loader2, Sparkles, Info } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import type {
@@ -12,22 +12,16 @@ interface Props {
   rubrics: JudgeRubric[];
   suggestion: AiSuggestScoresResult | null;
   isSuggesting?: boolean;
-  isApplying?: boolean;
   disabled?: boolean;
   onSuggest?: () => void;
-  onApply?: () => void;
-  onDismiss?: () => void;
 }
 
 export function AiSuggestPanel({
   rubrics,
   suggestion,
   isSuggesting,
-  isApplying,
   disabled,
   onSuggest,
-  onApply,
-  onDismiss,
 }: Props) {
   const rubricById = new Map(rubrics.map((r) => [r.id, r]));
   const sourceLabel =
@@ -36,7 +30,6 @@ export function AiSuggestPanel({
       : suggestion?.source === "file"
         ? "File"
         : null;
-  const busy = Boolean(isSuggesting || isApplying);
 
   return (
     <GlassCard className="p-6 space-y-5">
@@ -47,16 +40,16 @@ export function AiSuggestPanel({
             <h3 className="text-xl font-semibold">AI Scoring Assist</h3>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Generate suggested scores and reasons from the submission using this
-            round&apos;s official rubrics. Review first — nothing is applied
-            until you click Apply.
+            Generate suggested scores and comments from the submission using this
+            round&apos;s rubrics. Suggestions are applied to the score form
+            immediately — review and save when ready.
           </p>
         </div>
         <Button
           type="button"
           variant="outline"
           className="shrink-0"
-          disabled={disabled || busy || !onSuggest}
+          disabled={disabled || isSuggesting || !onSuggest}
           onClick={onSuggest}
         >
           {isSuggesting ? (
@@ -75,22 +68,21 @@ export function AiSuggestPanel({
             AI assist only — judge is final
           </p>
           <p className="text-xs leading-relaxed text-orange-100/80">
-            Suggestions follow the event rubric. AI does
-            not replace human judging, does not auto-save scores, and may miss
-            evidence when a repo/file cannot be fully read. Always review before
-            Apply and Save.
+            Suggestions follow the event rubric. AI does not replace human
+            judging, does not auto-save scores, and may miss evidence when a
+            repo or file cannot be fully read. Always review before Save.
           </p>
         </div>
       </div>
 
-      {isSuggesting && !suggestion && (
+      {isSuggesting && (
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-background/40 p-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
-          Reading submission and drafting suggestions against the round rubrics…
+          Reading submission and applying suggested scores…
         </div>
       )}
 
-      {suggestion && (
+      {suggestion && !isSuggesting && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             {sourceLabel && (
@@ -104,9 +96,9 @@ export function AiSuggestPanel({
 
           <div className="overflow-hidden rounded-2xl border border-white/10">
             <div className="grid grid-cols-[1.4fr_0.7fr_2fr] gap-3 border-b border-white/10 bg-background/50 px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <span>Tiêu chí (rubric)</span>
-              <span>Điểm suggest</span>
-              <span>Lý do</span>
+              <span>Criterion</span>
+              <span>Suggested score</span>
+              <span>Rationale</span>
             </div>
             <div className="divide-y divide-white/10">
               {suggestion.suggestions.map((item) => {
@@ -143,30 +135,6 @@ export function AiSuggestPanel({
                 );
               })}
             </div>
-          </div>
-
-          <div className="flex flex-wrap justify-end gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={disabled || busy}
-              onClick={onDismiss}
-            >
-              <X size={16} />
-              Discard
-            </Button>
-            <Button
-              type="button"
-              disabled={disabled || busy || !onApply}
-              onClick={onApply}
-            >
-              {isApplying ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Check size={16} />
-              )}
-              Apply to scores
-            </Button>
           </div>
         </div>
       )}

@@ -214,6 +214,12 @@ export function computeLocalWeightedScore(
   return Math.round(total * 100) / 100;
 }
 
+/** Display weighted scores with full precision (no rounding to 1 decimal). */
+export function formatJudgeScore(score: number | null | undefined): string {
+  if (score == null || !Number.isFinite(Number(score))) return "—";
+  return Number(score).toFixed(2);
+}
+
 export function mapScoringStatusLabel(status: JudgeScoringStatus) {
   switch (status) {
     case "completed":
