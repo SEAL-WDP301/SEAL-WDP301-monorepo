@@ -103,7 +103,7 @@ The infrastructure is deployed on a multi-node **Kubernetes (K3s)** cluster mana
 | **Kubernetes Engine** | **K3s on Self-Hosted DigitalOcean VM** | Managed AWS EKS / GCP GKE | **Cost vs. Management Overhead**: K3s reduces cluster footprint to ~512MB RAM and total cost to ~$20/mo (vs. $100+/mo for EKS Control Plane), accepting the responsibility of managing control-plane backups via Ansible. |
 | **Secret Management** | **Bitnami SealedSecrets** | HashiCorp Vault | **Simplicity vs. Dynamic Leasing**: SealedSecrets allows encrypted secrets (`app-sealed-secret.yaml`) to be safely committed directly into Git for GitOps native sync without running a complex Vault cluster instance. |
 | **WebSocket Pub/Sub** | **Redis Pub/Sub Adapter** | Apache Kafka / RabbitMQ | **Latency & Footprint vs. Message Persistence**: Redis Pub/Sub provides sub-millisecond in-memory message broadcasting across backend pods with zero storage overhead, ideal for ephemeral WebSocket state. |
-| **Backend Architecture**| **Modular Monolith** | Microservices Architecture | **Domain Encapsulation vs. Network Overhead**: Modular Monolith avoids distributed transaction complexity and inter-service network latency while keeping clear domain module boundaries (`auth`, `event`, `team`, `submission`). |
+| **Backend Architecture**| **Modular Monolith** | Monolithic Spaghetti Code | **Domain Encapsulation & High Efficiency**: Modular Monolith partitions business domains into standalone NestJS modules (`auth`, `event`, `team`, `submission`, `round`, `rubric`, `github`, `notification`) with clean layering while running in a single unified Node.js process with zero inter-service network overhead. |
 
 ---
 

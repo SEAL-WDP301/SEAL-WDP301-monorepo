@@ -11,10 +11,32 @@ import { Button } from "@/components/ui/button";
 import { AuthCard, AuthFooterLink, AuthHeader } from "../_components/auth-card";
 import { AuthField } from "../_components/auth-controls";
 
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const forgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address (e.g. name@fpt.edu.vn)"),
+});
+
+type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
+
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<ForgotPasswordFormValues>({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: "",
+    },
+  });
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -24,28 +46,24 @@ export default function ForgotPasswordPage() {
     return () => clearInterval(timer);
   }, [cooldown]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const onSubmit = async (values: ForgotPasswordFormValues) => {
     if (cooldown > 0) return;
-    setLoading(true);
 
     try {
-      const res = await axiosClient.post("/auth/forgot-password", { email });
-      enqueueSnackbar(res.data?.message || "Đã gửi yêu cầu khôi phục!", { variant: "success" });
+      const res = await axiosClient.post("/auth/forgot-password", values);
+      enqueueSnackbar(res.data?.message || "Password reset instructions sent!", { variant: "success" });
       setCooldown(60);
     } catch (error: any) {
       const errMessage = error.response?.data?.message;
       const displayMessage = Array.isArray(errMessage) ? errMessage[0] : errMessage;
 
       enqueueSnackbar(
-        displayMessage || "Đã có lỗi xảy ra. Vui lòng thử lại.",
+        displayMessage || "An error occurred. Please try again.",
         { variant: "error" }
       );
       if (error.response?.status === 429) {
         setCooldown(60);
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -53,20 +71,19 @@ export default function ForgotPasswordPage() {
     <AuthCard>
       <div className="space-y-5">
         <AuthHeader
-          title="Quên mật khẩu"
-          subtitle="Nhập email của bạn và chúng tôi sẽ gửi hướng dẫn khôi phục."
+          title="Forgot Password"
+          subtitle="Enter your registered email and we will send you password reset instructions."
         />
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <AuthField
             label="Email"
             type="email"
             placeholder="you@fpt.edu.vn"
             autoComplete="email"
             icon={<Mail className="size-4" />}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            error={errors.email?.message}
+            {...register("email")}
           />
 
           <Button 
@@ -74,14 +91,14 @@ export default function ForgotPasswordPage() {
             size="auth" 
             className="w-full font-bold" 
             type="submit" 
-            disabled={loading || cooldown > 0}
+            disabled={isSubmitting || cooldown > 0}
           >
-            {loading ? (
+            {isSubmitting ? (
               <Loader2 className="size-4 animate-spin mx-auto" />
             ) : cooldown > 0 ? (
-              `Gửi lại sau (${cooldown}s)`
+              `Resend in (${cooldown}s)`
             ) : (
-              <>Gửi link khôi phục <ArrowRight className="size-4" /></>
+              <>Send Instructions <ArrowRight className="size-4" /></>
             )}
           </Button>
         </form>
@@ -89,14 +106,14 @@ export default function ForgotPasswordPage() {
         <Link href="/login" className="block">
           <Button variant="authSecondary" size="auth" type="button" className="mx-auto w-full font-medium sm:w-auto">
             <ArrowLeft className="size-4" />
-            Quay lại trang Đăng nhập
+            Back to Login
           </Button>
         </Link>
 
         <AuthFooterLink
-          label="Chưa có tài khoản?"
+          label="Don't have an account?"
           href="/register"
-          action="Đăng ký ngay"
+          action="Register now"
         />
       </div>
     </AuthCard>

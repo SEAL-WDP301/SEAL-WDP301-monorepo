@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { axiosClient } from "@/lib/axios";
 import { enqueueSnackbar } from "notistack";
+import { z } from "zod";
 import {
   Mail,
   Search,
@@ -35,6 +36,7 @@ import {
 import { MemberListItem } from "./components/member-list-item";
 import { PendingInvitesTable } from "./components/pending-invites-table";
 import { useWorkspaceAccess } from "../workspace-access";
+import { useAuthStore } from "@/lib/stores/auth.store";
 
 export default function TeamMembersPage() {
   const router = useRouter();
@@ -42,6 +44,7 @@ export default function TeamMembersPage() {
   const eventId = params.id as string;
   const queryClient = useQueryClient();
   const { isReadOnly } = useWorkspaceAccess();
+  const currentUserEmail = useAuthStore((state) => state.user?.email);
 
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -140,21 +143,43 @@ export default function TeamMembersPage() {
       });
       return;
     }
-    if (!inviteEmail.trim()) {
-      enqueueSnackbar("Please enter an email address", { variant: "warning" });
+
+    const parseResult = z.string().email("Please enter a valid email address").safeParse(inviteEmail.trim());
+    if (!parseResult.success) {
+      enqueueSnackbar(parseResult.error.issues[0]?.message || "Please enter a valid email address", {
+        variant: "warning",
+      });
+      return;
+    }
+
+    const normalizedEmail = inviteEmail.trim().toLowerCase();
+
+    // Check if inviting self
+    if (currentUserEmail?.toLowerCase() === normalizedEmail) {
+      enqueueSnackbar("You cannot invite your own email address.", { variant: "warning" });
       return;
     }
 
     // Get current emails
     const currentEmails = activeMembers
       .filter((m: any) => m.role === "member")
-      .map((m: any) => m.user.email);
+      .map((m: any) => m.user?.email?.toLowerCase());
+
+    if (currentEmails.includes(normalizedEmail)) {
+      enqueueSnackbar("This student is already a member of your team.", { variant: "warning" });
+      return;
+    }
 
     const pendingEmails = pendingInvitations.map(
-      (invitation: any) => invitation.email,
+      (invitation: any) => invitation.email?.toLowerCase(),
     );
 
-    const newEmails = [...currentEmails, ...pendingEmails, inviteEmail.trim()];
+    if (pendingEmails.includes(normalizedEmail)) {
+      enqueueSnackbar("An invitation has already been sent to this email.", { variant: "warning" });
+      return;
+    }
+
+    const newEmails = [...currentEmails, ...pendingEmails, normalizedEmail];
 
     updateTeamMutation.mutate({
       trackId: team.trackId,

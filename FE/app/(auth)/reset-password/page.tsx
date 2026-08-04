@@ -12,53 +12,69 @@ import { Button } from "@/components/ui/button";
 import { AuthCard, AuthHeader } from "../_components/auth-card";
 import { AuthField } from "../_components/auth-controls";
 
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const resetPasswordSchema = z
+  .object({
+    newPassword: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least 1 lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least 1 number"),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
+
 function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    newPassword: "",
-    confirmPassword: "",
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<ResetPasswordFormValues>({
+    resolver: zodResolver(resetPasswordSchema),
+    defaultValues: {
+      newPassword: "",
+      confirmPassword: "",
+    },
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const watchNewPassword = watch("newPassword");
+  const watchConfirmPassword = watch("confirmPassword");
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
+  const onSubmit = async (values: ResetPasswordFormValues) => {
     if (!token) {
-      enqueueSnackbar("Không tìm thấy mã xác thực. Vui lòng yêu cầu lại link khôi phục.", { variant: "error" });
+      enqueueSnackbar("Reset token not found. Please request a new link.", { variant: "error" });
       return;
     }
-
-    if (formData.newPassword !== formData.confirmPassword) {
-      enqueueSnackbar("Mật khẩu xác nhận không khớp!", { variant: "warning" });
-      return;
-    }
-
-    setLoading(true);
 
     try {
       const res = await axiosClient.post("/auth/reset-password", {
         token,
-        newPassword: formData.newPassword
+        newPassword: values.newPassword,
       });
-      enqueueSnackbar(res.data?.message || "Đổi mật khẩu thành công!", { variant: "success" });
+      enqueueSnackbar(res.data?.message || "Password changed successfully!", { variant: "success" });
       router.push("/login");
     } catch (error: any) {
       const errMessage = error.response?.data?.message;
       const displayMessage = Array.isArray(errMessage) ? errMessage[0] : errMessage;
 
       enqueueSnackbar(
-        displayMessage || "Mã xác thực đã hết hạn hoặc không hợp lệ.",
+        displayMessage || "Token has expired or is invalid.",
         { variant: "error" }
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -67,13 +83,13 @@ function ResetPasswordForm() {
       <AuthCard>
         <div className="space-y-5">
           <AuthHeader
-            title="Liên kết không hợp lệ"
-            subtitle="Không tìm thấy mã khôi phục mật khẩu. Vui lòng quay lại trang Quên mật khẩu để yêu cầu lại."
+            title="Invalid Reset Link"
+            subtitle="No password reset token was found. Please return to the Forgot Password page to request a new link."
           />
           <Link href="/forgot-password" className="block">
             <Button variant="authSecondary" size="auth" type="button" className="mx-auto w-full font-medium sm:w-auto">
               <ArrowLeft className="size-4" />
-              Yêu cầu link mới
+              Request New Link
             </Button>
           </Link>
         </div>
@@ -85,43 +101,37 @@ function ResetPasswordForm() {
     <AuthCard>
       <div className="space-y-5">
         <AuthHeader
-          title="Tạo mật khẩu mới"
-          subtitle="Vui lòng nhập mật khẩu mới của bạn bên dưới."
+          title="Reset Password"
+          subtitle="Please enter your new password below."
         />
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <AuthField
-            label="Mật khẩu mới"
-            name="newPassword"
+            label="New Password"
             type="password"
             placeholder="••••••••"
             autoComplete="new-password"
-            value={formData.newPassword}
-            onChange={handleChange}
-            required
-            minLength={8}
+            error={errors.newPassword?.message}
+            {...register("newPassword")}
           />
 
           <AuthField
-            label="Xác nhận mật khẩu"
-            name="confirmPassword"
+            label="Confirm Password"
             type="password"
             placeholder="••••••••"
             autoComplete="new-password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            required
-            minLength={8}
+            error={errors.confirmPassword?.message}
             hideToggle
             rightIcon={
-              formData.confirmPassword.length > 0 ? (
-                formData.newPassword === formData.confirmPassword ? (
+              watchConfirmPassword && watchConfirmPassword.length > 0 ? (
+                watchNewPassword === watchConfirmPassword ? (
                   <CheckCircle2 className="size-5 text-green-500" />
                 ) : (
                   <XCircle className="size-5 text-red-500" />
                 )
               ) : null
             }
+            {...register("confirmPassword")}
           />
 
           <Button
@@ -129,12 +139,12 @@ function ResetPasswordForm() {
             size="auth"
             className="w-full font-bold"
             type="submit"
-            disabled={loading || !formData.newPassword || formData.newPassword !== formData.confirmPassword}
+            disabled={isSubmitting}
           >
-            {loading ? (
+            {isSubmitting ? (
               <Loader2 className="size-4 animate-spin mx-auto" />
             ) : (
-              <>Đổi mật khẩu <ArrowRight className="size-4" /></>
+              <>Reset Password <ArrowRight className="size-4" /></>
             )}
           </Button>
         </form>
@@ -142,7 +152,7 @@ function ResetPasswordForm() {
         <Link href="/login" className="block">
           <Button variant="authSecondary" size="auth" type="button" className="mx-auto w-full font-medium sm:w-auto">
             <ArrowLeft className="size-4" />
-            Quay lại trang Đăng nhập
+            Back to Login
           </Button>
         </Link>
       </div>

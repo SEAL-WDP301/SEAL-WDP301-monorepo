@@ -13,6 +13,35 @@ import { axiosClient } from "@/lib/axios";
 import { enqueueSnackbar } from "notistack";
 import { getOAuthUrl } from "@/lib/auth-oauth";
 
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+const registerSchema = z
+  .object({
+    fullName: z
+      .string()
+      .min(2, "Full name must be at least 2 characters")
+      .max(100, "Full name is too long"),
+    email: z
+      .string()
+      .min(1, "Email is required")
+      .email("Please enter a valid email address"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least 1 uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least 1 lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least 1 number"),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+type RegisterFormValues = z.infer<typeof registerSchema>;
+
 export function RegisterForm({
   initialEmail = "",
   redirectPath = "",
@@ -21,37 +50,35 @@ export function RegisterForm({
   redirectPath?: string;
 }) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
 
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: initialEmail,
-    password: "",
-    confirmPassword: "",
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      fullName: "",
+      email: initialEmail,
+      password: "",
+      confirmPassword: "",
+    },
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const watchPassword = watch("password");
+  const watchConfirmPassword = watch("confirmPassword");
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (formData.password !== formData.confirmPassword) {
-      enqueueSnackbar("Mật khẩu xác nhận không khớp!", { variant: "error" });
-      return;
-    }
-
-    setLoading(true);
+  async function onSubmit(values: RegisterFormValues) {
     try {
       const res = await axiosClient.post("/auth/signup", {
-        fullName: formData.fullName,
-        email: formData.email,
-        password: formData.password,
+        fullName: values.fullName,
+        email: values.email,
+        password: values.password,
       });
 
-      enqueueSnackbar(res.data?.message || "Đăng ký thành công!", { variant: "success" });
-      const params = new URLSearchParams({ email: formData.email });
+      enqueueSnackbar(res.data?.message || "Registration successful!", { variant: "success" });
+      const params = new URLSearchParams({ email: values.email });
       if (redirectPath.startsWith("/") && !redirectPath.startsWith("//")) {
         params.set("redirect", redirectPath);
       }
@@ -63,11 +90,9 @@ export function RegisterForm({
       const displayMessage = Array.isArray(errMessage) ? errMessage[0] : errMessage;
       
       enqueueSnackbar(
-        displayMessage || "Lỗi đăng ký. Vui lòng thử lại.",
+        displayMessage || "Registration failed. Please try again.",
         { variant: "error" }
       );
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -75,63 +100,53 @@ export function RegisterForm({
     <AuthCard>
       <div className="space-y-5">
         <AuthHeader
-          title="Tạo tài khoản mới"
-          subtitle="Bước đầu tiên để tham gia giải đấu."
+          title="Create New Account"
+          subtitle="The first step to join the competition."
         />
 
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <AuthField 
-              label="Họ và tên" 
-              name="fullName"
-              placeholder="Nguyễn Văn A" 
+              label="Full Name" 
+              placeholder="Nguyen Van A" 
               autoComplete="name" 
-              value={formData.fullName}
-              onChange={handleChange}
-              required
+              error={errors.fullName?.message}
+              {...register("fullName")}
             />
             <AuthField
               label="Email"
-              name="email"
               type="email"
               placeholder="you@email.com"
               autoComplete="email"
-              value={formData.email}
-              onChange={handleChange}
               readOnly={Boolean(initialEmail)}
-              required
+              error={errors.email?.message}
+              {...register("email")}
             />
             <AuthField
-              label="Mật khẩu"
-              name="password"
+              label="Password"
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              minLength={8}
+              error={errors.password?.message}
+              {...register("password")}
             />
             <AuthField
-              label="Xác nhận mật khẩu"
-              name="confirmPassword"
+              label="Confirm Password"
               type="password"
               placeholder="••••••••"
               autoComplete="new-password"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              minLength={8}
+              error={errors.confirmPassword?.message}
               hideToggle
               rightIcon={
-                formData.confirmPassword.length > 0 ? (
-                  formData.password === formData.confirmPassword ? (
+                watchConfirmPassword && watchConfirmPassword.length > 0 ? (
+                  watchPassword === watchConfirmPassword ? (
                     <CheckCircle2 className="size-5 text-green-500" />
                   ) : (
                     <XCircle className="size-5 text-red-500" />
                   )
                 ) : null
               }
+              {...register("confirmPassword")}
             />
           </div>
 
@@ -141,12 +156,12 @@ export function RegisterForm({
               size="auth"
               className="w-full min-w-[200px] font-bold sm:w-auto"
               type="submit"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? (
+              {isSubmitting ? (
                 <Loader2 className="size-4 animate-spin mx-auto" />
               ) : (
-                <>Đăng ký <ArrowRight className="size-4" /></>
+                <>Register <ArrowRight className="size-4" /></>
               )}
             </Button>
           </div>

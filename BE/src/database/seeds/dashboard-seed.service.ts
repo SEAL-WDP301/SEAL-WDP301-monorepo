@@ -79,7 +79,6 @@ export class DashboardSeedService {
     await this.seedReminderNotifications(events[0].id, students.slice(0, 8));
 
     console.log(`Dashboard organizer: ${organizer.email}`);
-    console.log("Dashboard password: 12345678");
     console.log(`Created ${events.length} dashboard events.`);
     console.log("--- Organizer Dashboard Seeding Completed ---");
   }

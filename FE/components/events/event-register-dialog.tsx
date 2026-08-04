@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Plus, Trash2, X } from "lucide-react";
 import { enqueueSnackbar } from "notistack";
+import { z } from "zod";
 import { axiosClient } from "@/lib/axios";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import {
@@ -235,6 +236,13 @@ export function EventRegisterDialog({
       enqueueSnackbar(blockReason, { variant: "warning" });
       return;
     }
+
+    const teamNameResult = z.string().min(2, "Team name must be at least 2 characters").max(50, "Team name is too long").safeParse(teamName.trim());
+    if (!teamNameResult.success) {
+      enqueueSnackbar(teamNameResult.error.issues[0]?.message || "Invalid team name", { variant: "warning" });
+      return;
+    }
+
     if (!deferred && !selectedTrack) {
       enqueueSnackbar("Please select a track", { variant: "warning" });
       return;
