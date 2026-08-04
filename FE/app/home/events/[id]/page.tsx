@@ -1615,15 +1615,14 @@ export default function EventDetailPage() {
           </div>
         )}
 
-        {/* Tracks Section — hidden until reveal when deferred assignment is on */}
+        {/* Tracks — catalog hidden for deferred (Flow B); teams see assignment in workspace only */}
         {(() => {
-          const tracksRevealed =
-            !event.deferredTrackAssignment ||
-            Boolean(
-              event.rounds?.some(
-                (round) => round.status && round.status !== "not_started",
-              ),
-            );
+          const isDeferred = Boolean(event.deferredTrackAssignment);
+          const visibleTracks = isDeferred ? [] : (event.tracks ?? []);
+
+          if (!isDeferred && visibleTracks.length === 0) {
+            return null;
+          }
 
           return (
             <div className="mb-12">
@@ -1631,20 +1630,19 @@ export default function EventDetailPage() {
                 <Users className="h-6 w-6 text-orange-500" />
                 Competition Tracks
               </h2>
-              {!tracksRevealed ? (
+              {isDeferred ? (
                 <div className="rounded-2xl border border-border bg-card p-6">
                   <p className="font-semibold text-foreground">
-                    Tracks will be revealed later
+                    Tracks will be revealed when the round opens
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    This event keeps tracks hidden during registration. Teams
-                    are assigned evenly when the organizer opens the first
-                    round.
+                    This event assigns teams to tracks when the organizer opens a
+                    round. Track names are not listed publicly beforehand.
                   </p>
                 </div>
               ) : (
                 <div className="grid md:grid-cols-2 gap-6">
-                  {event.tracks?.map((track) => (
+                  {visibleTracks.map((track) => (
                     <div
                       key={track.id}
                       className="flex h-full flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-orange-500/30"

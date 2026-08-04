@@ -169,15 +169,12 @@ export class EventPublicService {
       problemFileUrl: null,
     }));
 
-    const tracksRevealed =
-      !event.deferredTrackAssignment ||
-      event.rounds.some((round) => round.status !== "not_started");
-
     return this.withTeamCapacity(
       {
         ...event,
-        // Keep track names hidden until the first round leaves "not_started".
-        tracks: tracksRevealed ? event.tracks : [],
+        // Deferred events never expose the track catalog on the public page —
+        // teams discover their assignment only in the workspace after reveal.
+        tracks: event.deferredTrackAssignment ? [] : event.tracks,
         rounds: sanitizedRounds,
         eventAchievements,
         _count: {

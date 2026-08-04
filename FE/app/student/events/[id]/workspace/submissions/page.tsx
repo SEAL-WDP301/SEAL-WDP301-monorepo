@@ -36,6 +36,8 @@ import { useWorkspaceAccess } from "../workspace-access";
 import { useAdminSocket } from "@/hooks/use-admin-socket";
 import { axiosClient } from "@/lib/axios";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
+import { TrackPendingBanner } from "@/components/student/track-pending-banner";
+import { SubmissionLockBanner } from "@/components/student/submission-lock-banner";
 import {
   GithubCommitCard,
   GithubSummaryBar,
@@ -45,6 +47,8 @@ import {
 } from "@/components/github/github-activity-stats";
 import { TeamGithubAnalyticsDialog } from "@/components/github/team-github-analytics-dialog";
 import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
+import { getPublicEvent } from "@/lib/api/public-events.api";
+import { getVisibleStudentTrackName } from "@/lib/events/student-track-visibility";
 
 interface SubmissionHistoryEntry {
   action: string;
@@ -103,6 +107,12 @@ export default function SubmissionsPage() {
     queryFn: () => workspaceApi.getWorkspaceOverview(eventId),
   });
 
+  const { data: publicEvent } = useQuery({
+    queryKey: ["publicEvent", eventId],
+    queryFn: () => getPublicEvent(String(eventId)),
+    retry: false,
+  });
+
   const workspaceData = data?.data;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const roundSubmissions: any[] = workspaceData?.roundSubmissions || [];
@@ -121,7 +131,14 @@ export default function SubmissionsPage() {
   const activeSubmission = isPastRound ? pastSubmission : (selectedRoundEntry?.submission ?? latestSubmission);
   const isLeader = workspaceData?.role === "leader";
   const teamStatus = workspaceData?.team?.status as string | undefined;
-  const canSubmit = !isReadOnly && workspaceData?.canSubmit !== false && teamStatus === "approved";
+  const roundCanSubmit = Boolean(selectedRoundEntry?.canSubmit);
+  const canSubmit = !isReadOnly && roundCanSubmit && teamStatus === "approved";
+  const eventMeta = workspaceData?.team?.event ?? publicEvent;
+  const visibleTrackName = getVisibleStudentTrackName({
+    trackName: workspaceData?.team?.track?.name,
+    trackPending: displayRound?.trackPending,
+    teamTrackId: workspaceData?.team?.trackId,
+  });
   const assignedRepoUrl = workspaceData?.team?.githubRepoUrl as string | undefined;
   const submissionType = currentActiveRound?.submissionType as "file" | "github_link" | undefined;
   const isGithubRound = submissionType === "github_link";
@@ -443,9 +460,7 @@ export default function SubmissionsPage() {
         )}
 
         {displayRound?.trackPending && (
-          <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
-            Track / Problem Statement has not been published yet. Please wait for organizers to open the round.
-          </GlassCard>
+          <TrackPendingBanner event={eventMeta} />
         )}
 
         {displayRound?.problemFileUrl && (
@@ -453,7 +468,7 @@ export default function SubmissionsPage() {
             fileUrl={displayRound.problemFileUrl}
             title={`${displayRound.name} — Problem Statement`}
             roundName={displayRound.name}
-            trackName={workspaceData?.team?.track?.name}
+            trackName={visibleTrackName}
           />
         )}
 
@@ -632,9 +647,7 @@ export default function SubmissionsPage() {
       </header>
 
       {displayRound?.trackPending && (
-        <GlassCard className="p-5 rounded-[24px] border-amber-500/30 bg-amber-500/5 text-sm text-muted-foreground">
-          Track / đề chưa công bố. Chờ admin mở vòng thi để nhận track và làm bài.
-        </GlassCard>
+        <TrackPendingBanner event={eventMeta} />
       )}
 
       {displayRound?.problemFileUrl && (
@@ -642,7 +655,7 @@ export default function SubmissionsPage() {
           fileUrl={displayRound.problemFileUrl}
           title={`${displayRound.name} — Problem Statement`}
           roundName={displayRound.name}
-          trackName={workspaceData?.team?.track?.name}
+          trackName={visibleTrackName}
         />
       )}
 
@@ -673,15 +686,10 @@ export default function SubmissionsPage() {
       )}
 
       {!canSubmit && (
-        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 p-4 rounded-2xl flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="font-semibold text-sm">Team not approved</h4>
-            <p className="text-sm mt-1 opacity-90">
-              Organizer must approve your team before you can submit or get the GitHub repo link.
-            </p>
-          </div>
-        </div>
+        <SubmissionLockBanner
+          lockReason={selectedRoundEntry?.lockReason}
+          teamStatus={teamStatus}
+        />
       )}
 
       {isGithubRound && canSubmit && !assignedRepoUrl && (
