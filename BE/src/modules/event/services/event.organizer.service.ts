@@ -510,6 +510,7 @@ export class EventOrganizerService {
         trackAssignment =
           await this.trackAssignmentService.assignDeferredTracks(eventId, {
             roundId: targetRound.id,
+            reassignForRoundOpen: true,
           });
         this.logger.log(
           `Deferred track reveal for event ${eventId}: assigned ${trackAssignment.assignedCount} team(s)`,
@@ -603,6 +604,110 @@ export class EventOrganizerService {
           .join(", ")}.`,
       );
     }
+  }
+
+  /**
+   * Create a track scoped to a single round only. Independent of other rounds'
+   * status — only this round must still be not_started.
+   */
+  async createRoundTrack(
+    eventId: number,
+    roundId: number,
+    dto: { name: string; description?: string },
+  ) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) throw new NotFoundException("Event not found");
+    if (event.status === EventStatus.closed) {
+      throw new BadRequestException("Closed events cannot be edited.");
+    }
+
+    const round = await this.prisma.round.findFirst({
+      where: { id: roundId, eventId },
+    });
+    if (!round) {
+      throw new NotFoundException("Round not found in this event");
+    }
+    if (round.status !== RoundStatus.not_started) {
+      throw new BadRequestException(
+        "Tracks can only be added to this round while it is Not Started.",
+      );
+    }
+
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException("Track name is required.");
+    }
+
+    const duplicate = await this.prisma.track.findFirst({
+      where: { eventId, name: { equals: name, mode: "insensitive" } },
+    });
+    if (duplicate) {
+      throw new BadRequestException(
+        `A track named "${name}" already exists for this event.`,
+      );
+    }
+
+    const track = await this.prisma.track.create({
+      data: {
+        eventId,
+        name,
+        description: dto.description?.trim() || null,
+      },
+    });
+
+    await this.prisma.roundTrackProblem.create({
+      data: {
+        roundId,
+        trackId: track.id,
+        problemFileUrl: null,
+      },
+    });
+
+    return track;
+  }
+
+  /** Update track name/description without touching round structure. */
+  async updateTrackMetadata(
+    eventId: number,
+    trackId: number,
+    dto: { name: string; description?: string },
+  ) {
+    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) throw new NotFoundException("Event not found");
+    if (event.status === EventStatus.closed) {
+      throw new BadRequestException("Closed events cannot be edited.");
+    }
+
+    const track = await this.prisma.track.findFirst({
+      where: { id: trackId, eventId },
+    });
+    if (!track) throw new NotFoundException("Track not found for this event");
+
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException("Track name is required.");
+    }
+
+    const duplicate = await this.prisma.track.findFirst({
+      where: {
+        eventId,
+        id: { not: trackId },
+        name: { equals: name, mode: "insensitive" },
+      },
+    });
+    if (duplicate) {
+      throw new BadRequestException(
+        `A track named "${name}" already exists for this event.`,
+      );
+    }
+
+    return this.prisma.track.update({
+      where: { id: trackId },
+      data: {
+        name,
+        description: dto.description?.trim() || null,
+      },
+    });
   }
 
   /** Unscope a track from a round (delete its RoundTrackProblem row). Does

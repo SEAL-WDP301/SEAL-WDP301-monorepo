@@ -5,6 +5,7 @@ describe("TrackAssignmentService even distribution", () => {
     event: { findUnique: jest.fn() },
     round: { count: jest.fn() },
     roundTrackProblem: { findMany: jest.fn() },
+    teamRound: { findMany: jest.fn() },
     team: { findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
     teamMember: { findMany: jest.fn() },
     studentRegistration: { updateMany: jest.fn() },
@@ -24,6 +25,7 @@ describe("TrackAssignmentService even distribution", () => {
     prisma.studentRegistration.updateMany.mockResolvedValue({ count: 0 });
     prisma.teamMember.findMany.mockResolvedValue([]);
     prisma.team.count.mockResolvedValue(0);
+    prisma.teamRound.findMany.mockResolvedValue([]);
   });
 
   it("blocks force-reassign after a round has started", async () => {
@@ -87,7 +89,7 @@ describe("TrackAssignmentService even distribution", () => {
     expect(new Set(result.assignments.map((a) => a.trackId)).size).toBe(5);
   });
 
-  it("no-ops when every team already has a track", async () => {
+  it("no-ops when every team already has a track (manual reveal)", async () => {
     prisma.event.findUnique.mockResolvedValue({
       id: 1,
       deferredTrackAssignment: true,
@@ -99,5 +101,38 @@ describe("TrackAssignmentService even distribution", () => {
     const result = await service.assignDeferredTracks(1);
     expect(result.assignedCount).toBe(0);
     expect(result.skippedAlreadyAssigned).toBe(3);
+  });
+
+  it("reassigns teams already on a track when opening a later round", async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 1,
+      deferredTrackAssignment: true,
+      tracks: [
+        { id: 1, name: "R1-A" },
+        { id: 2, name: "R2-only" },
+      ],
+    });
+    prisma.roundTrackProblem.findMany.mockResolvedValue([
+      { track: { id: 2, name: "R2-only" } },
+    ]);
+    prisma.teamRound.findMany.mockResolvedValue([
+      { teamId: 10 },
+      { teamId: 11 },
+    ]);
+    prisma.team.findMany.mockResolvedValue([
+      { id: 10, name: "Team 10", trackId: 1 },
+      { id: 11, name: "Team 11", trackId: 1 },
+    ]);
+
+    const result = await service.assignDeferredTracks(1, {
+      roundId: 50,
+      reassignForRoundOpen: true,
+    });
+
+    expect(result.assignedCount).toBe(2);
+    expect(result.assignments.every((a) => a.trackId === 2)).toBe(true);
+    expect(prisma.teamRound.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ roundId: 50 }) }),
+    );
   });
 });

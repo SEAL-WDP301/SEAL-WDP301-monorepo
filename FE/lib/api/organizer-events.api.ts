@@ -518,6 +518,30 @@ export async function updateRoundProblemFile(
   return unwrapData<unknown>(res);
 }
 
+export async function createRoundTrack(
+  eventId: string | number,
+  roundId: string | number,
+  body: { name: string; description?: string },
+) {
+  const res = await axiosClient.post(
+    `/organizer/events/${eventId}/rounds/${roundId}/tracks`,
+    body,
+  );
+  return unwrapData<OrganizerTrack>(res);
+}
+
+export async function updateTrackMetadata(
+  eventId: string | number,
+  trackId: number,
+  body: { name: string; description?: string },
+) {
+  const res = await axiosClient.patch(
+    `/organizer/events/${eventId}/tracks/${trackId}`,
+    body,
+  );
+  return unwrapData<OrganizerTrack>(res);
+}
+
 /** Unscope a track from a round (delete the RoundTrackProblem row). Does NOT
  * delete the track itself — it stays in the event catalog / other rounds. */
 export async function removeTrackFromRound(

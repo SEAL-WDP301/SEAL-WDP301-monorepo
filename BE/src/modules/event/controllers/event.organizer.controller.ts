@@ -200,6 +200,39 @@ export class EventOrganizerController {
     return { message: "Round problem file updated successfully", data: round };
   }
 
+  @Post(":id/rounds/:roundId/tracks")
+  @ApiOperation({
+    summary:
+      "Create a track scoped to this round only (works while this round is not_started, regardless of other rounds).",
+  })
+  async createRoundTrack(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Param("roundId", ParseIntPipe) roundId: number,
+    @Body() dto: { name: string; description?: string },
+  ) {
+    const data = await this.eventOrganizerService.createRoundTrack(
+      eventId,
+      roundId,
+      dto,
+    );
+    return { message: "Track created for round", data };
+  }
+
+  @Patch(":id/tracks/:trackId")
+  @ApiOperation({ summary: "Update track name/description" })
+  async updateTrackMetadata(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Param("trackId", ParseIntPipe) trackId: number,
+    @Body() dto: { name: string; description?: string },
+  ) {
+    const data = await this.eventOrganizerService.updateTrackMetadata(
+      eventId,
+      trackId,
+      dto,
+    );
+    return { message: "Track updated", data };
+  }
+
   @Delete(":id/rounds/:roundId/tracks/:trackId")
   @ApiOperation({
     summary:

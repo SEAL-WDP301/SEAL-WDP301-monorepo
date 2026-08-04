@@ -42,6 +42,8 @@ import {
   updateOrganizerEvent,
   updateRoundProblemFile,
   removeTrackFromRound,
+  createRoundTrack,
+  updateTrackMetadata,
   type OrganizerEvent,
   type OrganizerEventPayload,
   type OrganizerRound,
@@ -117,6 +119,10 @@ function mapTrack(track: OrganizerTrack): OrganizerTrackInput {
     name: track.name,
     description: track.description || undefined,
   };
+}
+
+function canModifyRoundTracks(round: OrganizerRound) {
+  return (round.status || "not_started") === "not_started";
 }
 
 /** Client-side guard before opening a round (mirrors BE assertRoundProblemsReady). */
@@ -203,6 +209,10 @@ export default function EventRoundsPage() {
   const [createTrackRoundId, setCreateTrackRoundId] = useState<number | null>(
     null,
   );
+  const [pendingRemove, setPendingRemove] = useState<{
+    round: OrganizerRound;
+    track: OrganizerTrack;
+  } | null>(null);
   const [expandedRoundIds, setExpandedRoundIds] = useState<number[]>([]);
   const [didInitExpanded, setDidInitExpanded] = useState(false);
 
@@ -273,6 +283,38 @@ export default function EventRoundsPage() {
     },
   });
 
+  const roundTrackMutation = useMutation({
+    mutationFn: async (payload: {
+      mode: "create" | "update";
+      roundId?: number;
+      trackId?: number;
+      name: string;
+      description?: string;
+    }) => {
+      const description = payload.description?.trim() || undefined;
+      if (payload.mode === "create") {
+        if (!payload.roundId) throw new Error("Round is required.");
+        return createRoundTrack(eventId, payload.roundId, {
+          name: payload.name,
+          description,
+        });
+      }
+      if (!payload.trackId) throw new Error("Track is required.");
+      return updateTrackMetadata(eventId, payload.trackId, {
+        name: payload.name,
+        description,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
+    },
+    onError: (error) => {
+      enqueueSnackbar(getApiMessage(error, "Failed to save track"), {
+        variant: "error",
+      });
+    },
+  });
+
   const updateRoundStatusMutation = useMutation({
     mutationFn: async ({
       roundId,
@@ -292,8 +334,8 @@ export default function EventRoundsPage() {
       if (assignment && variables.status === "open") {
         enqueueSnackbar(
           assignment.assignedCount > 0
-            ? `Round opened · random assigned ${assignment.assignedCount} team(s) to tracks`
-            : "Round opened · no unassigned teams (tracks already set)",
+            ? `Round opened · assigned ${assignment.assignedCount} team(s) to this round's track(s)`
+            : "Round opened · no eligible teams to assign for this round",
           { variant: "success" },
         );
       } else {
@@ -496,8 +538,8 @@ export default function EventRoundsPage() {
     );
   };
 
-  const openCreateTrack = (roundId?: number) => {
-    setCreateTrackRoundId(roundId ?? null);
+  const openCreateTrack = (roundId: number) => {
+    setCreateTrackRoundId(roundId);
     setTrackDraft(emptyTrack());
     setIsTrackDialogOpen(true);
   };
@@ -521,72 +563,44 @@ export default function EventRoundsPage() {
       enqueueSnackbar("Track name is required.", { variant: "warning" });
       return;
     }
-    if (
-      tracks.some(
-        (track) =>
-          track.id !== trackDraft.id &&
-          track.name.trim().toLowerCase() === normalizedName.toLowerCase(),
-      )
-    ) {
-      enqueueSnackbar("Track name must be unique.", { variant: "warning" });
+
+    if (trackDraft.id) {
+      roundTrackMutation.mutate(
+        {
+          mode: "update",
+          trackId: trackDraft.id,
+          name: normalizedName,
+          description: trackDraft.description.trim(),
+        },
+        {
+          onSuccess: () => {
+            enqueueSnackbar("Track updated", { variant: "success" });
+            setIsTrackDialogOpen(false);
+          },
+        },
+      );
       return;
     }
 
-    const savedTrack: OrganizerTrackInput = {
-      id: trackDraft.id,
-      name: normalizedName,
-      description: trackDraft.description.trim() || undefined,
-    };
+    if (!createTrackRoundId) {
+      enqueueSnackbar("Add tracks from inside each round section.", {
+        variant: "warning",
+      });
+      return;
+    }
 
-    const nextTracks = trackDraft.id
-      ? tracks.map((track) =>
-          track.id === trackDraft.id ? savedTrack : mapTrack(track),
-        )
-      : [...tracks.map(mapTrack), savedTrack];
-
-    const isNewTrack = !trackDraft.id;
-    const roundToScopeInto = createTrackRoundId;
-
-    saveStructureMutation.mutate(
+    roundTrackMutation.mutate(
       {
-        nextTracks,
-        nextRounds: rounds.map(mapRound),
+        mode: "create",
+        roundId: createTrackRoundId,
+        name: normalizedName,
+        description: trackDraft.description.trim(),
       },
       {
-        onSuccess: async (updatedEvent) => {
-          enqueueSnackbar(trackDraft.id ? "Track updated" : "Track created", {
-            variant: "success",
-          });
+        onSuccess: () => {
+          enqueueSnackbar("Track added to round", { variant: "success" });
           setIsTrackDialogOpen(false);
           setCreateTrackRoundId(null);
-
-          // Scope a brand-new track to ONLY the round it was created from —
-          // otherwise it would silently become required in every other
-          // track-specific round too (tracks are an event-wide catalog).
-          if (isNewTrack && roundToScopeInto) {
-            const created = updatedEvent?.tracks?.find(
-              (t) => t.name.trim().toLowerCase() === normalizedName.toLowerCase(),
-            );
-            if (created) {
-              try {
-                await updateRoundProblemFile(
-                  eventId,
-                  roundToScopeInto,
-                  null,
-                  created.id,
-                );
-                eventQuery.refetch();
-              } catch (err: unknown) {
-                enqueueSnackbar(
-                  getApiMessage(
-                    err,
-                    "Track created, but failed to add it to this round.",
-                  ),
-                  { variant: "error" },
-                );
-              }
-            }
-          }
         },
       },
     );
@@ -608,24 +622,16 @@ export default function EventRoundsPage() {
     }
   };
 
-  const removeTrackFromRoundHandler = async (
-    round: OrganizerRound,
-    track: OrganizerTrack,
-  ) => {
-    const hasFile = round.trackProblems?.some(
-      (p) => p.trackId === track.id && !!p.problemFileUrl?.trim(),
-    );
-    const confirmMessage = hasFile
-      ? `Remove "${track.name}" from Round ${round.roundNumber}? This also removes the uploaded problem file for this track in this round (the track itself stays in the event).`
-      : `Remove "${track.name}" from Round ${round.roundNumber}? The track stays in the event catalog and in any other round it's part of.`;
-    if (!window.confirm(confirmMessage)) return;
-
+  const confirmRemoveTrackFromRound = async () => {
+    if (!pendingRemove) return;
+    const { round, track } = pendingRemove;
     const key = `remove-${round.id}-${track.id}`;
     try {
       setUploadingKey(key);
       await removeTrackFromRound(eventId, round.id, track.id);
       enqueueSnackbar("Track removed from round.", { variant: "info" });
       eventQuery.refetch();
+      setPendingRemove(null);
     } catch (err: unknown) {
       enqueueSnackbar(getApiMessage(err, "Failed to remove track from round"), {
         variant: "error",
@@ -633,38 +639,6 @@ export default function EventRoundsPage() {
     } finally {
       setUploadingKey(null);
     }
-  };
-
-  const deleteTrack = (track: OrganizerTrack) => {
-    const teamCount = track._count?.teams ?? 0;
-    const usedByRound = rounds.some((round) =>
-      round.trackProblems?.some((p) => p.trackId === track.id),
-    );
-
-    if (teamCount > 0) {
-      enqueueSnackbar("This track cannot be deleted because it has teams.", {
-        variant: "error",
-      });
-      return;
-    }
-    if (usedByRound) {
-      enqueueSnackbar("Remove this track from its rounds before deleting it.", {
-        variant: "error",
-      });
-      return;
-    }
-    if (!window.confirm(`Delete track "${track.name}"?`)) return;
-
-    saveStructureMutation.mutate(
-      {
-        nextTracks: tracks.filter((item) => item.id !== track.id).map(mapTrack),
-        nextRounds: rounds.map(mapRound),
-      },
-      {
-        onSuccess: () =>
-          enqueueSnackbar("Track deleted", { variant: "success" }),
-      },
-    );
   };
 
   if (eventQuery.isLoading) {
@@ -952,19 +926,17 @@ export default function EventRoundsPage() {
                                 </p>
                                 <p className="text-xs text-muted-foreground">
                                   {requirePerTrackProblems
-                                    ? "Add tracks to this round only, then upload a problem file for each. Event catalog tracks are not auto-synced across rounds."
+                                    ? "Each round has its own tracks and problem files. Round 1 status does not block adding tracks to Round 2."
                                     : "Before opening this round: upload one shared problem file for all teams."}
                                 </p>
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
                                 {isRoundScopedTracks &&
-                                addableTracks.length > 0 ? (
+                                addableTracks.length > 0 &&
+                                canModifyRoundTracks(round) ? (
                                   <select
                                     className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
-                                    disabled={
-                                      !canModifyStructure ||
-                                      saveStructureMutation.isPending
-                                    }
+                                    disabled={saveStructureMutation.isPending}
                                     value=""
                                     onChange={(e) => {
                                       const trackId = Number(e.target.value);
@@ -976,10 +948,10 @@ export default function EventRoundsPage() {
                                       }
                                       e.target.value = "";
                                     }}
-                                    title="Add a track already in the event catalog to this round"
+                                    title="Reuse a track from another round in this event"
                                   >
                                     <option value="" disabled>
-                                      + Add existing track…
+                                      + Reuse track…
                                     </option>
                                     {addableTracks.map((track) => (
                                       <option key={track.id} value={track.id}>
@@ -988,25 +960,26 @@ export default function EventRoundsPage() {
                                     ))}
                                   </select>
                                 ) : null}
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="gap-2 bg-orange-600 hover:bg-orange-700"
-                                  disabled={
-                                    !canModifyStructure ||
-                                    saveStructureMutation.isPending
-                                  }
-                                  onClick={() =>
-                                    openCreateTrack(
-                                      requirePerTrackProblems
-                                        ? round.id
-                                        : undefined,
-                                    )
-                                  }
-                                >
-                                  <Plus className="h-4 w-4" />
-                                  Add Track
-                                </Button>
+                                {requirePerTrackProblems ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="gap-2 bg-orange-600 hover:bg-orange-700"
+                                    disabled={
+                                      !canModifyRoundTracks(round) ||
+                                      roundTrackMutation.isPending
+                                    }
+                                    title={
+                                      !canModifyRoundTracks(round)
+                                        ? "Tracks can only be added while this round is Not Started."
+                                        : undefined
+                                    }
+                                    onClick={() => openCreateTrack(round.id)}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                    Add Track
+                                  </Button>
+                                ) : null}
                               </div>
                             </div>
 
@@ -1025,16 +998,13 @@ export default function EventRoundsPage() {
                                         fileUrl={problem?.problemFileUrl}
                                         canUpload={isRoundNotStarted}
                                         busy={uploadingKey === key}
-                                        canEditTrack={canModifyStructure}
+                                        canEditTrack={canModifyRoundTracks(round)}
                                         onEditTrack={() => openEditTrack(track)}
                                         onRemoveFromRound={
                                           isRoundScopedTracks &&
-                                          canModifyStructure
+                                          canModifyRoundTracks(round)
                                             ? () =>
-                                                removeTrackFromRoundHandler(
-                                                  round,
-                                                  track,
-                                                )
+                                                setPendingRemove({ round, track })
                                             : undefined
                                         }
                                         onUpload={(file) =>
@@ -1089,108 +1059,6 @@ export default function EventRoundsPage() {
         )}
       </GlassCard>
 
-      {/* Event Tracks catalog */}
-      <GlassCard className="rounded-[24px] border-border/50 p-6 shadow-sm">
-        <SectionHeader
-          title="Event Tracks"
-          description={`${tracks.length} track${tracks.length === 1 ? "" : "s"} in catalog — add to each round separately; not auto-synced`}
-          action={
-            <div
-              title={
-                !canModifyStructure
-                  ? "Tracks and rounds are read-only after a round has been opened."
-                  : undefined
-              }
-            >
-              <Button
-                type="button"
-                size="sm"
-                className="gap-2 bg-orange-600 hover:bg-orange-700"
-                disabled={
-                  !canModifyStructure || saveStructureMutation.isPending
-                }
-                onClick={() => openCreateTrack()}
-              >
-                <Plus className="h-4 w-4" />
-                Add Track
-              </Button>
-            </div>
-          }
-        />
-
-        {tracks.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {[...tracks]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((track) => (
-                <div
-                  key={track.id}
-                  className="flex min-h-40 flex-col rounded-2xl border border-border bg-background/60 p-5"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <h3 className="truncate text-lg font-bold">
-                        {track.name}
-                      </h3>
-                      <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
-                        {track.description || "No description provided."}
-                      </p>
-                    </div>
-                    <div
-                      className="flex shrink-0 gap-1"
-                      title={
-                        !canModifyStructure
-                          ? "Tracks and rounds are read-only after a round has been opened."
-                          : undefined
-                      }
-                    >
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        title="Edit track"
-                        disabled={
-                          !canModifyStructure ||
-                          saveStructureMutation.isPending
-                        }
-                        onClick={() => openEditTrack(track)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        title="Delete track"
-                        disabled={
-                          !canModifyStructure ||
-                          saveStructureMutation.isPending
-                        }
-                        onClick={() => deleteTrack(track)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto grid grid-cols-2 gap-3 pt-5 text-center">
-                    <TrackStat
-                      label="Teams"
-                      value={track._count?.teams ?? 0}
-                    />
-                    <TrackStat
-                      label="Team size"
-                      value={`${event.minMembersPerTeam}-${event.maxMembersPerTeam}`}
-                    />
-                  </div>
-                </div>
-              ))}
-          </div>
-        ) : (
-          <EmptyState text="No tracks configured. Add a track before creating track-specific rounds." />
-        )}
-      </GlassCard>
-
       <RoundDialog
         open={isRoundDialogOpen}
         onOpenChange={setIsRoundDialogOpen}
@@ -1206,9 +1074,62 @@ export default function EventRoundsPage() {
         onOpenChange={setIsTrackDialogOpen}
         draft={trackDraft}
         setDraft={setTrackDraft}
-        isSaving={saveStructureMutation.isPending}
+        isSaving={roundTrackMutation.isPending}
         onSave={saveTrack}
       />
+
+      <Dialog
+        open={pendingRemove != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemove(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove track from round?</DialogTitle>
+            <DialogDescription>
+              {pendingRemove ? (
+                <>
+                  Remove <strong>{pendingRemove.track.name}</strong> from Round{" "}
+                  {pendingRemove.round.roundNumber}?
+                  {pendingRemove.round.trackProblems?.some(
+                    (p) =>
+                      p.trackId === pendingRemove.track.id &&
+                      !!p.problemFileUrl?.trim(),
+                  ) ? (
+                    <>
+                      {" "}
+                      The uploaded problem file for this track in this round
+                      will also be removed.
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingRemove(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={uploadingKey != null}
+              onClick={() => void confirmRemoveTrackFromRound()}
+            >
+              {uploadingKey ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Remove"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1509,7 +1430,7 @@ function ProblemTrackRow({
             variant="outline"
             size="sm"
             className="h-9 gap-1.5 border-red-500/40 text-red-500 hover:bg-red-500/10"
-            title="Remove this track from this round only (keeps it in the event catalog)"
+            title="Remove this track from this round"
             onClick={onRemoveFromRound}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -1579,23 +1500,6 @@ function ProblemTrackRow({
             No file (Locked)
           </span>
         )}
-      </div>
-    </div>
-  );
-}
-
-function TrackStat({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
-  return (
-    <div className="rounded-xl bg-muted/40 px-3 py-2">
-      <div className="text-base font-bold">{value}</div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
       </div>
     </div>
   );
