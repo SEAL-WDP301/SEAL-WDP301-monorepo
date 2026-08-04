@@ -27,6 +27,59 @@ type RoundTeam = {
   mentorAssignments?: unknown[];
 };
 
+type RoundConfig = {
+  isTrackSpecific?: boolean;
+  trackProblems?: Array<{ trackId: number }>;
+};
+
+function resolveRoundTracksForAssignment(
+  roundObj: RoundConfig | undefined,
+  event: { tracks?: RoundTrack[]; deferredTrackAssignment?: boolean } | undefined,
+  teams: RoundTeam[],
+): RoundTrack[] {
+  const catalog = event?.tracks ?? [];
+  if (!roundObj) return [];
+
+  if (roundObj.isTrackSpecific) {
+    const scopedIds = new Set(
+      (roundObj.trackProblems ?? []).map((problem) => problem.trackId),
+    );
+    if (scopedIds.size > 0) {
+      return catalog
+        .filter((track) => scopedIds.has(track.id))
+        .sort((first, second) => first.name.localeCompare(second.name));
+    }
+  } else if (event?.deferredTrackAssignment) {
+    return [...catalog].sort((first, second) =>
+      first.name.localeCompare(second.name),
+    );
+  }
+
+  return Array.from(
+    new Map(
+      teams
+        .filter(
+          (team): team is RoundTeam & { trackId: number; track: RoundTrack } =>
+            team.trackId !== null && Boolean(team.track),
+        )
+        .map((team) => [team.trackId, team.track] as const),
+    ).values(),
+  ).sort((first, second) => first.name.localeCompare(second.name));
+}
+
+function roundTracksEmptyMessage(
+  roundObj: RoundConfig | undefined,
+  event: { deferredTrackAssignment?: boolean } | undefined,
+): string {
+  if (roundObj?.isTrackSpecific) {
+    return "No tracks are configured for this round yet. Add tracks on the Tracks page first.";
+  }
+  if (event?.deferredTrackAssignment) {
+    return "No tracks are configured for this event yet.";
+  }
+  return "No teams in this round have been assigned a track yet.";
+}
+
 export default function EventStakeholdersPage() {
   const params = useParams();
   const eventId = params.id as string;
@@ -102,16 +155,7 @@ export default function EventStakeholdersPage() {
   const requireJudgeTracks =
     Boolean(roundObj?.isTrackSpecific) ||
     Boolean(event?.deferredTrackAssignment);
-  const roundTracks = Array.from(
-    new Map<number, RoundTrack>(
-      teams
-        .filter(
-          (team): team is RoundTeam & { trackId: number; track: RoundTrack } =>
-            team.trackId !== null && Boolean(team.track),
-        )
-        .map((team) => [team.trackId, team.track] as const),
-    ).values(),
-  ).sort((first, second) => first.name.localeCompare(second.name));
+  const roundTracks = resolveRoundTracksForAssignment(roundObj, event, teams);
   const availableMentorTeams = teams.filter(
     (team) =>
       team.status === "approved" &&
@@ -661,7 +705,7 @@ export default function EventStakeholdersPage() {
                             );
                           }}
                         />
-                        <span className="text-sm font-semibold">All tracks</span>
+                        <span className="text-sm font-semibold">Select all tracks</span>
                       </label>
                       {roundTracks.map((track) => (
                         <label

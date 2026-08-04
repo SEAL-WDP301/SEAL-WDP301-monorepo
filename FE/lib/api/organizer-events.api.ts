@@ -409,8 +409,9 @@ export interface DetailedCriterionAverage {
 export interface DetailedJudgeScore {
   judgeId: number;
   judgeName: string;
-  totalGivenScore: number;
-  deviationFromAverage: number;
+  status: "completed" | "partial" | "pending";
+  totalGivenScore: number | null;
+  deviationFromAverage: number | null;
   comment?: string;
   criteriaScores: {
     criterionId: number;
@@ -428,6 +429,8 @@ export interface DetailedRankedTeamEntry {
   finalScore: number | null;
   criteriaAverages: DetailedCriterionAverage[];
   judges: DetailedJudgeScore[];
+  judgesAssigned?: number;
+  judgesScored?: number;
   status: string;
   award?: OrganizerPrize | null;
   submittedAt: string;
