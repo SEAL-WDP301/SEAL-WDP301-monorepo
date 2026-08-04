@@ -174,7 +174,7 @@ export function SealAssistant() {
     onError: (error: any) => {
       const msg =
         error?.response?.data?.message ||
-        "Không gửi được câu hỏi. Thử lại sau vài giây.";
+        "Could not send your question. Please try again in a few seconds.";
       setMessages((prev) => [
         ...prev,
         {
@@ -225,7 +225,7 @@ export function SealAssistant() {
                 <p className="font-semibold">SEAL Assistant</p>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Scope theo role · grounded DB · không thao tác hộ nguy hiểm
+                Role-scoped · grounded in your data · no unsafe actions on your behalf
               </p>
             </div>
             <Button
@@ -305,7 +305,7 @@ export function SealAssistant() {
             {mutation.isPending && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
-                Đang kiểm tra dữ liệu theo quyền của bạn…
+                Checking data for your role…
               </div>
             )}
             <div ref={bottomRef} />
@@ -322,7 +322,7 @@ export function SealAssistant() {
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Hỏi theo quyền role của bạn…"
+                placeholder="Ask within your role permissions…"
                 className="h-10 rounded-xl bg-muted"
                 disabled={mutation.isPending}
               />
@@ -351,7 +351,7 @@ export function SealAssistant() {
         onClick={toggleOpen}
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
-        {open ? "Đóng" : "Trợ lý SEAL"}
+        {open ? "Close" : "SEAL Assistant"}
       </Button>
     </div>
   );

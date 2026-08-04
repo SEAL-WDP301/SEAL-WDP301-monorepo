@@ -142,7 +142,8 @@ Rules:
 - Weights are % and MUST sum to 100 (1 decimal max).
 - Avoid duplicating existingCriteria names.
 - Ground criteria in event name, this round, track names, and problem titles; cite them in whyChosen.
-- English only. Keep overallRationale and whyChosen concise (1–2 sentences each).`;
+- English only. Keep overallRationale and whyChosen concise (1–2 sentences each).
+- overallRationale MUST start by naming the event and listing track themes, e.g. "Based on the event \"X\" and track themes (A, B), here are suggested grading criteria:" then briefly explain the rubric design.`;
 
     const user = `Design grading criteria for this hackathon round.
 
@@ -197,7 +198,7 @@ Return JSON now.`;
       typeof (raw as { overallRationale?: unknown })?.overallRationale ===
       "string"
         ? String((raw as { overallRationale: string }).overallRationale).trim()
-        : "Suggested from the event, round, track names, and problem statement titles provided.";
+        : this.buildFallbackRationale(basedOn);
 
     return {
       basedOn,
@@ -257,6 +258,17 @@ Return JSON now.`;
     }
 
     return scaled;
+  }
+
+  private buildFallbackRationale(
+    basedOn: SuggestRubricsResult["basedOn"],
+  ): string {
+    const trackNames = basedOn.tracks.map((t) => t.name).filter(Boolean);
+    const trackPart =
+      trackNames.length > 0
+        ? ` and track themes (${trackNames.join(", ")})`
+        : "";
+    return `Based on the event "${basedOn.eventName}"${trackPart}, here are suggested grading criteria for ${basedOn.roundName}.`;
   }
 
   private labelFromUrl(url: string): string | null {

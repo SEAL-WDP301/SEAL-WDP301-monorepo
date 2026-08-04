@@ -13,6 +13,7 @@ import {
 import { GlassCard } from "@/components/ui/glass-card";
 import {
   type JudgeRoundSubmission,
+  formatJudgeScore,
   mapScoringStatusLabel,
 } from "@/lib/api/judge.api";
 
@@ -101,7 +102,7 @@ export function TeamSelectorBar({
                     {selectedTeam.weightedScore != null && (
                       <>
                         <span className="text-muted-foreground text-xs">·</span>
-                        <span className="font-bold text-green-600 dark:text-green-400 text-sm">{selectedTeam.weightedScore.toFixed(1)} pts</span>
+                        <span className="font-bold text-green-600 dark:text-green-400 text-sm">{formatJudgeScore(selectedTeam.weightedScore)} pts</span>
                       </>
                     )}
                   </div>
@@ -136,7 +137,7 @@ export function TeamSelectorBar({
                       {team.weightedScore != null && (
                         <>
                           <span className="text-muted-foreground text-xs">·</span>
-                          <span className="font-bold text-green-600 dark:text-green-400 text-sm">{team.weightedScore.toFixed(1)} pts</span>
+                          <span className="font-bold text-green-600 dark:text-green-400 text-sm">{formatJudgeScore(team.weightedScore)} pts</span>
                         </>
                       )}
                     </div>

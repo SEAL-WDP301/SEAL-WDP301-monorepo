@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { useJudgeWorkspace } from "@/lib/hooks/use-judge-workspace";
-import { mapScoringStatusLabel } from "@/lib/api/judge.api";
+import { formatJudgeScore, mapScoringStatusLabel } from "@/lib/api/judge.api";
 
 export function TodayEvaluations() {
   const params = useParams();
@@ -100,7 +100,7 @@ export function TodayEvaluations() {
                       variant="outline" 
                       className={`h-5 border-border ml-auto font-mono text-[11px] ${team.weightedScore != null ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-background/40 text-muted-foreground'}`}
                     >
-                      Score: {team.weightedScore != null ? `${Number(team.weightedScore).toFixed(1)}/10` : '_/?'}
+                      Score: {team.weightedScore != null ? `${formatJudgeScore(team.weightedScore)}/10` : '_/?'}
                     </Badge>
                   </div>
 

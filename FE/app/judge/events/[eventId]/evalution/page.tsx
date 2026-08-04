@@ -243,30 +243,13 @@ export default function EvaluationPage() {
       if (!selectedSubmissionId) {
         throw new Error("No submission selected");
       }
-      return judgeApi.suggestScores(selectedSubmissionId);
+      const data = await judgeApi.suggestScores(selectedSubmissionId);
+      await judgeApi.applyAiSuggestion(data.auditId);
+      return data;
     },
     onSuccess: (data) => {
       setAiSuggestion(data);
-      enqueueSnackbar(
-        `AI suggestions ready (${data.source === "github_link" ? "GitHub" : "File"}): ${data.contextSummary}. Review then Apply.`,
-        { variant: "info" },
-      );
-    },
-    onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || "Failed to generate AI suggestions";
-      enqueueSnackbar(message, { variant: "error" });
-    },
-  });
 
-  const applyAiMutation = useMutation({
-    mutationFn: async () => {
-      if (!aiSuggestion) throw new Error("No AI suggestion to apply");
-      await judgeApi.applyAiSuggestion(aiSuggestion.auditId);
-      return aiSuggestion;
-    },
-    onSuccess: (data) => {
       const nextScores: Record<number, number> = { ...scores };
       const nextComments: Record<number, string> = { ...comments };
       for (const item of data.suggestions) {
@@ -288,31 +271,14 @@ export default function EvaluationPage() {
       }
 
       enqueueSnackbar(
-        "AI suggestions applied to the score form. Review before Save.",
+        `AI suggestions applied (${data.source === "github_link" ? "GitHub" : "File"}). Review and save when ready.`,
         { variant: "success" },
       );
     },
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || "Failed to apply AI suggestions";
-      enqueueSnackbar(message, { variant: "error" });
-    },
-  });
-
-  const discardAiMutation = useMutation({
-    mutationFn: async () => {
-      if (!aiSuggestion) return;
-      await judgeApi.discardAiSuggestion(aiSuggestion.auditId);
-    },
-    onSuccess: () => {
-      setAiSuggestion(null);
-      enqueueSnackbar("AI suggestions discarded", { variant: "info" });
-    },
-    onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || "Failed to discard AI suggestions";
+          ?.message || "Failed to generate AI suggestions";
       enqueueSnackbar(message, { variant: "error" });
     },
   });
@@ -481,21 +447,8 @@ export default function EvaluationPage() {
                     rubrics={submissionDetail.rubrics}
                     suggestion={aiSuggestion}
                     isSuggesting={suggestMutation.isPending}
-                    isApplying={applyAiMutation.isPending}
-                    disabled={
-                      scoringLocked ||
-                      saveMutation.isPending ||
-                      discardAiMutation.isPending
-                    }
+                    disabled={scoringLocked || saveMutation.isPending}
                     onSuggest={() => suggestMutation.mutate()}
-                    onApply={() => applyAiMutation.mutate()}
-                    onDismiss={() => {
-                      if (aiSuggestion) {
-                        discardAiMutation.mutate();
-                      } else {
-                        setAiSuggestion(null);
-                      }
-                    }}
                   />
                 )}
 

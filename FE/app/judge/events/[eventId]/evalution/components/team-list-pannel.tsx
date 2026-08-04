@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   type JudgeRoundSubmission,
+  formatJudgeScore,
   mapScoringStatusLabel,
 } from "@/lib/api/judge.api";
 
@@ -169,9 +170,7 @@ export function TeamListPanel({
                         </div>
 
                         <span className="text-lg font-bold text-green-600 dark:text-green-400 shrink-0">
-                          {team.weightedScore != null
-                            ? team.weightedScore.toFixed(1)
-                            : "—"}
+                          {formatJudgeScore(team.weightedScore)}
                         </span>
                       </div>
 
