@@ -16,6 +16,12 @@ export function ensureRequiredEmailSlots(
   return result;
 }
 
+export function getRequiredEmailGuidance(requiredSlots: number) {
+  if (requiredSlots <= 0) return "All member emails are optional.";
+  if (requiredSlots === 1) return "The first member email is required.";
+  return `The first ${requiredSlots} member emails are required.`;
+}
+
 export function validateTeamMemberEmails(
   emails: string[],
   leaderEmail: string,
