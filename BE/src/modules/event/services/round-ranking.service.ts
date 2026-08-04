@@ -16,6 +16,7 @@ import { PrismaService } from "../../../database/prisma/prisma.service";
 import {
   computeSubmissionFinalScore,
   computeJudgeWeightedScore,
+  isJudgeScoringComplete,
 } from "../../../common/utils/scoring.util";
 import { PublishRoundResultsDto } from "../dto/publish-round-results.dto";
 import { TeamGithubService } from "../../team/services/team-github.service";
@@ -499,8 +500,137 @@ export class RoundRankingService {
     }));
   }
 
+  private async getAssignedJudgesForRound(roundId: number, trackId: number) {
+    const assignments = await this.prisma.judgeAssignment.findMany({
+      where: {
+        roundId,
+        OR: [{ trackId: null }, { trackId }],
+      },
+      include: {
+        judge: { select: { id: true, name: true } },
+      },
+      orderBy: [{ judge: { name: "asc" } }],
+    });
+
+    const byJudgeId = new Map<number, { judgeId: number; judgeName: string }>();
+    for (const assignment of assignments) {
+      if (!byJudgeId.has(assignment.judgeId)) {
+        byJudgeId.set(assignment.judgeId, {
+          judgeId: assignment.judgeId,
+          judgeName: assignment.judge.name,
+        });
+      }
+    }
+
+    return Array.from(byJudgeId.values());
+  }
+
+  private buildJudgeScoreRows(
+    rubrics: Awaited<ReturnType<RoundRankingService["getApplicableCriteria"]>>,
+    assignedJudges: Array<{ judgeId: number; judgeName: string }>,
+    judgeScoresMap: Map<
+      number,
+      {
+        judgeId: number;
+        judgeName: string;
+        criteriaScores: Array<{ criterionId: number; scoreValue: unknown }>;
+        comments: string[];
+      }
+    >,
+    finalScore: number | null,
+  ) {
+    type ScoredJudge = {
+      judgeId: number;
+      judgeName: string;
+      criteriaScores: Array<{ criterionId: number; scoreValue: unknown }>;
+      comments: string[];
+    };
+
+    const seenJudgeIds = new Set<number>();
+    const rows: Array<{
+      judgeId: number;
+      judgeName: string;
+      status: "completed" | "partial" | "pending";
+      totalGivenScore: number | null;
+      deviationFromAverage: number | null;
+      comment?: string;
+      criteriaScores: Array<{ criterionId: number; scoreValue: unknown }>;
+    }> = [];
+
+    const pushRow = (
+      judgeId: number,
+      judgeName: string,
+      scored: ScoredJudge | undefined,
+    ) => {
+      if (seenJudgeIds.has(judgeId)) return;
+      seenJudgeIds.add(judgeId);
+
+      if (!scored || scored.criteriaScores.length === 0) {
+        rows.push({
+          judgeId,
+          judgeName,
+          status: "pending",
+          totalGivenScore: null,
+          deviationFromAverage: null,
+          criteriaScores: [],
+        });
+        return;
+      }
+
+      const criteriaScores = scored.criteriaScores;
+      const isComplete = isJudgeScoringComplete(rubrics, criteriaScores);
+      const total = computeJudgeWeightedScore(rubrics, criteriaScores);
+      const comment =
+        scored.comments.length > 0
+          ? scored.comments.join(" | ")
+          : undefined;
+
+      if (isComplete && total !== null) {
+        rows.push({
+          judgeId,
+          judgeName,
+          status: "completed",
+          totalGivenScore: total,
+          deviationFromAverage:
+            finalScore !== null
+              ? Number((total - finalScore).toFixed(2))
+              : null,
+          comment,
+          criteriaScores,
+        });
+        return;
+      }
+
+      rows.push({
+        judgeId,
+        judgeName,
+        status: "partial",
+        totalGivenScore: null,
+        deviationFromAverage: null,
+        comment,
+        criteriaScores,
+      });
+    };
+
+    for (const assigned of assignedJudges) {
+      pushRow(assigned.judgeId, assigned.judgeName, judgeScoresMap.get(assigned.judgeId));
+    }
+
+    for (const scored of judgeScoresMap.values()) {
+      pushRow(scored.judgeId, scored.judgeName, scored);
+    }
+
+    return rows.sort((a, b) => {
+      const statusOrder = { completed: 0, partial: 1, pending: 2 };
+      const byStatus = statusOrder[a.status] - statusOrder[b.status];
+      if (byStatus !== 0) return byStatus;
+      return a.judgeName.localeCompare(b.judgeName);
+    });
+  }
+
   private async buildDetailedTrackRanking(roundId: number, trackId: number) {
     const rubrics = await this.getApplicableCriteria(roundId, trackId);
+    const assignedJudges = await this.getAssignedJudgesForRound(roundId, trackId);
 
     const submissions = await this.prisma.submission.findMany({
       where: {
@@ -539,13 +669,11 @@ export class RoundRankingService {
             judgeId: score.judgeId,
             judgeName: score.judge.name,
             criteriaScores: [],
-            totalGivenScore: 0,
-            deviationFromAverage: 0,
             comments: [],
           });
         }
 
-        const j = judgeScoresMap.get(score.judgeId);
+        const j = judgeScoresMap.get(score.judgeId)!;
         j.criteriaScores.push({
           criterionId: score.criterionId,
           scoreValue: score.scoreValue,
@@ -554,36 +682,6 @@ export class RoundRankingService {
           const text = score.comment.trim();
           if (!j.comments.includes(text)) {
             j.comments.push(text);
-          }
-        }
-      }
-
-      const validJudges = [];
-      const criteriaAveragesMap = new Map<
-        number,
-        { sum: number; count: number }
-      >();
-
-      for (const judgeData of judgeScoresMap.values()) {
-        judgeData.comment =
-          judgeData.comments.length > 0
-            ? judgeData.comments.join(" | ")
-            : undefined;
-        delete judgeData.comments;
-        const jScores = judgeData.criteriaScores;
-        const total = computeJudgeWeightedScore(rubrics, jScores);
-        if (total !== null) {
-          judgeData.totalGivenScore = total;
-          validJudges.push(judgeData);
-
-          for (const s of jScores) {
-            const cv = criteriaAveragesMap.get(s.criterionId) || {
-              sum: 0,
-              count: 0,
-            };
-            cv.sum += Number(s.scoreValue);
-            cv.count += 1;
-            criteriaAveragesMap.set(s.criterionId, cv);
           }
         }
       }
@@ -597,11 +695,31 @@ export class RoundRankingService {
         })),
       );
 
-      if (finalScore !== null) {
-        for (const vj of validJudges) {
-          vj.deviationFromAverage = Number(
-            (vj.totalGivenScore - finalScore).toFixed(2),
-          );
+      const judges = this.buildJudgeScoreRows(
+        rubrics,
+        assignedJudges,
+        judgeScoresMap,
+        finalScore,
+      );
+
+      const criteriaAveragesMap = new Map<
+        number,
+        { sum: number; count: number }
+      >();
+
+      for (const judge of judges) {
+        if (judge.status !== "completed" || judge.totalGivenScore === null) {
+          continue;
+        }
+
+        for (const s of judge.criteriaScores) {
+          const cv = criteriaAveragesMap.get(s.criterionId) || {
+            sum: 0,
+            count: 0,
+          };
+          cv.sum += Number(s.scoreValue);
+          cv.count += 1;
+          criteriaAveragesMap.set(s.criterionId, cv);
         }
       }
 
@@ -631,7 +749,9 @@ export class RoundRankingService {
           avatarUrl: v.judge.avatarUrl
         })) ?? [],
         criteriaAverages,
-        judges: validJudges,
+        judges,
+        judgesAssigned: judges.length,
+        judgesScored: judges.filter((j) => j.status === "completed").length,
         status:
           submission.team.teamRounds?.[0]?.status ??
           RoundResultStatus.competing,

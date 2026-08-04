@@ -17,10 +17,10 @@ import {
   Plus,
   Save,
   Trash2,
-  ExternalLink,
   Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1440,17 +1440,13 @@ function ProblemTrackRow({
 
         {fileUrl ? (
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-              className="h-9 gap-1.5 border-orange-500/40 font-semibold text-orange-400 hover:bg-orange-500/10"
-            >
-              <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4" />
-                View file
-              </a>
-            </Button>
+            <ProblemStatementViewer
+              compact
+              fileUrl={fileUrl}
+              title="Problem Statement"
+              trackName={name === "All tracks (shared)" ? null : name}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-orange-500/40 bg-background px-3 text-sm font-semibold text-orange-500 no-underline hover:bg-orange-500/10 hover:text-orange-600"
+            />
             {canUpload ? (
               <Button
                 type="button"

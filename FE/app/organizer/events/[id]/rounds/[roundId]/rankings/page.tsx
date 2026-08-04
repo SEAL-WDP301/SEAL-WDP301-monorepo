@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Award, Crown, Medal, ChevronDown, ChevronUp, AlertTriangle,
-  CheckCircle2, TrendingUp, TrendingDown, Minus, Star, Heart,
+  CheckCircle2, Minus, Star, Heart,
   BarChart3, Users, Loader2, Gavel, Send, Globe, Trophy,
   Sparkles
 } from "lucide-react";
@@ -32,8 +32,42 @@ import {
   OrganizerPrize
 } from "@/lib/api/organizer-events.api";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import type { DetailedJudgeScore } from "@/lib/api/organizer-events.api";
 
 const ANOMALY_THRESHOLD = 1.5;
+
+function getJudgeCardPresentation(status: DetailedJudgeScore["status"]) {
+  switch (status) {
+    case "completed":
+      return {
+        card: "border-emerald-500/40 bg-gradient-to-br from-emerald-500/20 via-orange-500/12 to-orange-500/5 shadow-lg shadow-emerald-500/15 ring-1 ring-emerald-500/25",
+        name: "text-foreground",
+        score: "text-xl font-black text-emerald-600 dark:text-emerald-400 drop-shadow-sm",
+        chip: "border-emerald-500/35 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-semibold",
+        comment: "text-foreground/75",
+        empty: "",
+      };
+    case "partial":
+      return {
+        card: "border-amber-500/35 bg-gradient-to-br from-amber-500/15 to-amber-500/5 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/15",
+        name: "text-foreground/90",
+        score: "text-base font-bold text-amber-600 dark:text-amber-400",
+        chip: "border-amber-500/30 bg-amber-500/12 text-amber-800 dark:text-amber-200",
+        comment: "text-muted-foreground",
+        empty: "",
+      };
+    default:
+      return {
+        card: "border-dashed border-border/70 bg-muted/25 shadow-none opacity-55 saturate-50",
+        name: "text-muted-foreground",
+        score: "text-sm font-medium text-muted-foreground",
+        chip: "border-border/60 bg-muted/40 text-muted-foreground",
+        comment: "text-muted-foreground/80",
+        empty: "text-muted-foreground/70",
+      };
+  }
+}
 
 function compareRankedEntries(
   a: DetailedRankedTeamEntry,
@@ -266,26 +300,7 @@ function AnomalyIndicator() {
   );
 }
 
-function DeviationBadge({ deviation }: { deviation: number }) {
-  const isAnomaly = Math.abs(deviation) >= ANOMALY_THRESHOLD;
-  const isPositive = deviation > 0;
-  const isZero = Math.abs(deviation) < 0.01;
-
-  if (isZero) return (
-    <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-      <Minus className="w-3 h-3" /> 0.00
-    </span>
-  );
-  return (
-    <span className={`flex items-center gap-1 text-xs font-bold ${isAnomaly ? "text-amber-600 dark:text-amber-300" : isPositive ? "text-emerald-500" : "text-blue-400"}`}>
-      {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-      {isPositive ? "+" : ""}{deviation.toFixed(2)}
-      {isAnomaly && <AlertTriangle className="w-3 h-3 ml-0.5" />}
-    </span>
-  );
-}
-
-function TeamRow({ 
+function TeamRow({
   entry, 
   rank, 
   willAdvance,
@@ -303,7 +318,20 @@ function TeamRow({
   prizes: OrganizerPrize[];
 }) {
   const [expanded, setExpanded] = useState(false);
-  const hasAnomalous = entry.judges.some(j => Math.abs(j.deviationFromAverage) >= ANOMALY_THRESHOLD);
+  const completedJudges = entry.judges.filter((j) => j.status === "completed");
+  const hasAnomalous = completedJudges.some(
+    (j) => j.deviationFromAverage !== null && Math.abs(j.deviationFromAverage) >= ANOMALY_THRESHOLD,
+  );
+  const judgesAssigned = entry.judgesAssigned ?? entry.judges.length;
+  const judgesScored = entry.judgesScored ?? completedJudges.length;
+  const sortedJudges = useMemo(() => {
+    const statusOrder = { completed: 0, partial: 1, pending: 2 };
+    return [...entry.judges].sort((a, b) => {
+      const byStatus = statusOrder[a.status] - statusOrder[b.status];
+      if (byStatus !== 0) return byStatus;
+      return a.judgeName.localeCompare(b.judgeName);
+    });
+  }, [entry.judges]);
   const activeAward = isFinalRound ? ((isPublished ? entry.award : awardValue) ?? null) : null;
   const awardPresentation = getAwardPresentation(activeAward, prizes);
   const rankPresentation = getRankPresentation(rank);
@@ -419,7 +447,9 @@ function TeamRow({
 
         <div className="flex items-center gap-1 text-muted-foreground text-sm shrink-0 ml-2">
           <Gavel className="w-4 h-4" />
-          <span>{entry.judges.length} judge{entry.judges.length !== 1 ? "s" : ""}</span>
+          <span>
+            {judgesScored}/{judgesAssigned} judge{judgesAssigned !== 1 ? "s" : ""}
+          </span>
         </div>
 
         <div className="text-muted-foreground ml-1" onClick={() => setExpanded(!expanded)} style={{cursor: "pointer"}}>
@@ -469,36 +499,76 @@ function TeamRow({
               {/* Judge Matrix */}
               <div>
                 <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Users className="w-4 h-4" /> Judge Scores & Deviation
+                  <Users className="w-4 h-4" /> Judge Scores
                 </h4>
-                {entry.judges.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic">No completed scores yet.</p>
+                {sortedJudges.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">No judges assigned to this track.</p>
                 ) : (
                   <div className="space-y-3">
-                    {entry.judges.map(j => {
-                      const isAnomaly = Math.abs(j.deviationFromAverage) >= ANOMALY_THRESHOLD;
+                    {sortedJudges.map(j => {
+                      const presentation = getJudgeCardPresentation(j.status);
+                      const statusLabel =
+                        j.status === "completed"
+                          ? "Completed"
+                          : j.status === "partial"
+                            ? "In progress"
+                            : "Not scored";
+                      const statusClass =
+                        j.status === "completed"
+                          ? "bg-emerald-500/25 text-emerald-800 dark:text-emerald-100 border border-emerald-500/30"
+                          : j.status === "partial"
+                            ? "bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/25"
+                            : "bg-muted/60 text-muted-foreground border border-border/60";
+
                       return (
-                        <div key={j.judgeId} className={`rounded-lg p-3 border ${isAnomaly ? "border-amber-400/40 bg-amber-50/60 dark:bg-amber-400/10" : "border-border bg-muted/20"}`}>
+                        <div
+                          key={j.judgeId}
+                          className={cn(
+                            "rounded-xl p-4 border transition-all duration-200",
+                            presentation.card,
+                          )}
+                        >
                           <div className="flex items-center justify-between gap-2 mb-2">
-                            <span className="text-sm font-semibold truncate max-w-[150px]">{j.judgeName}</span>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <span className="text-sm font-bold tabular-nums">{j.totalGivenScore.toFixed(2)}</span>
-                              <DeviationBadge deviation={j.deviationFromAverage} />
+                            <div className="min-w-0 flex items-center gap-2">
+                              <span className={cn("text-sm truncate max-w-[150px]", presentation.name)}>
+                                {j.judgeName}
+                              </span>
+                              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", statusClass)}>
+                                {statusLabel}
+                              </span>
                             </div>
+                            <span className={cn("tabular-nums shrink-0", presentation.score)}>
+                              {j.totalGivenScore !== null ? j.totalGivenScore.toFixed(2) : "—"}
+                            </span>
                           </div>
                           {j.comment && (
-                            <p className="text-[11px] text-muted-foreground italic border-t border-border/50 pt-2 mt-1 line-clamp-2">
+                            <p className={cn("text-[11px] italic border-t border-border/40 pt-2 mt-1 line-clamp-3", presentation.comment)}>
                               &ldquo;{j.comment}&rdquo;
                             </p>
                           )}
-                          {/* Per-criteria breakdown */}
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {j.criteriaScores.map(cs => (
-                              <span key={cs.criterionId} className="text-[10px] bg-background border border-border rounded px-1.5 py-0.5 tabular-nums">
-                                C{cs.criterionId}: {Number(cs.scoreValue).toFixed(1)}
-                              </span>
-                            ))}
-                          </div>
+                          {j.status === "pending" ? (
+                            <p className={cn("text-[11px] mt-2", presentation.empty)}>
+                              No scores submitted yet.
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {j.criteriaScores.length > 0 ? (
+                                j.criteriaScores.map(cs => (
+                                  <span
+                                    key={cs.criterionId}
+                                    className={cn(
+                                      "text-[10px] border rounded-md px-2 py-0.5 tabular-nums shadow-sm",
+                                      presentation.chip,
+                                    )}
+                                  >
+                                    C{cs.criterionId}: {Number(cs.scoreValue).toFixed(1)}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground">—</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -913,10 +983,8 @@ export default function RankingsPage() {
               )}
               <span className="flex items-center gap-1">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-300" />
-                Score variance (deviation ≥ {ANOMALY_THRESHOLD})
+                Score variance detected
               </span>
-              <span className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-emerald-500" /> Above average</span>
-              <span className="flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5 text-blue-400" /> Below average</span>
             </div>
 
             {entries.map((entry, idx) => (
