@@ -27,7 +27,7 @@ type Invitation = {
     id: number;
     name: string;
     event: { id: number; name: string };
-    track: { id: number; name: string };
+    track: { id: number; name: string } | null;
     leader: { name: string };
   };
 };
@@ -140,10 +140,17 @@ export default function TeamInvitationPage() {
             <CalendarDays className="size-4 text-orange-500" />
             {invitation.team.event.name}
           </p>
-          <p className="flex items-center gap-2">
-            <Users className="size-4 text-orange-500" />
-            Track: {invitation.team.track.name}
-          </p>
+          {invitation.team.track?.name ? (
+            <p className="flex items-center gap-2">
+              <Users className="size-4 text-orange-500" />
+              Track: {invitation.team.track.name}
+            </p>
+          ) : (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Users className="size-4 text-orange-500" />
+              Track sẽ được gán khi BTC mở vòng thi
+            </p>
+          )}
         </div>
 
         {invitation.status !== "pending" ? (

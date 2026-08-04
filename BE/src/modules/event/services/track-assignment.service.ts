@@ -23,7 +23,7 @@ export class TrackAssignmentService {
    */
   async assignDeferredTracks(
     eventId: number,
-    options?: { forceReassign?: boolean },
+    options?: { forceReassign?: boolean; roundId?: number },
   ): Promise<TrackAssignmentResult> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -34,6 +34,16 @@ export class TrackAssignmentService {
       },
     });
     if (!event) throw new NotFoundException("Event not found");
+
+    const assignmentTracks = options?.roundId
+      ? (
+          await this.prisma.roundTrackProblem.findMany({
+            where: { roundId: options.roundId },
+            select: { track: { select: { id: true, name: true } } },
+            orderBy: { trackId: "asc" },
+          })
+        ).map((p) => p.track)
+      : event.tracks;
 
     if (options?.forceReassign) {
       const startedRounds = await this.prisma.round.count({
@@ -49,8 +59,7 @@ export class TrackAssignmentService {
       }
     }
 
-    if (!event.tracks.length) {
-      // Event may be created without tracks; organizer adds them later.
+    if (!assignmentTracks.length) {
       return {
         assignedCount: 0,
         skippedAlreadyAssigned: 0,
@@ -83,7 +92,7 @@ export class TrackAssignmentService {
       return {
         assignedCount: 0,
         skippedAlreadyAssigned: alreadyAssigned,
-        trackCounts: event.tracks.map((t) => ({
+        trackCounts: assignmentTracks.map((t) => ({
           trackId: t.id,
           trackName: t.name,
           teamCount: 0,
@@ -93,13 +102,13 @@ export class TrackAssignmentService {
     }
 
     const shuffled = this.shuffle([...teams]);
-    const trackIds = event.tracks.map((t) => t.id);
+    const trackIds = assignmentTracks.map((t) => t.id);
     const plan = shuffled.map((team, index) => ({
       teamId: team.id,
       teamName: team.name,
       trackId: trackIds[index % trackIds.length],
       trackName:
-        event.tracks.find((t) => t.id === trackIds[index % trackIds.length])
+        assignmentTracks.find((t) => t.id === trackIds[index % trackIds.length])
           ?.name ?? "",
     }));
 
@@ -143,7 +152,7 @@ export class TrackAssignmentService {
     return {
       assignedCount: plan.length,
       skippedAlreadyAssigned: alreadyAssigned,
-      trackCounts: event.tracks.map((t) => ({
+      trackCounts: assignmentTracks.map((t) => ({
         trackId: t.id,
         trackName: t.name,
         teamCount: counts.get(t.id) || 0,

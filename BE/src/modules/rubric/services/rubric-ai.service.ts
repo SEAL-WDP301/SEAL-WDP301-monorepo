@@ -53,6 +53,7 @@ export class RubricAiService {
         id: true,
         name: true,
         description: true,
+        deferredTrackAssignment: true,
         tracks: {
           select: { id: true, name: true, description: true },
           orderBy: { id: "asc" },
@@ -72,7 +73,7 @@ export class RubricAiService {
         trackProblems: {
           select: {
             problemFileUrl: true,
-            track: { select: { id: true, name: true } },
+            track: { select: { id: true, name: true, description: true } },
           },
         },
       },
@@ -107,7 +108,12 @@ export class RubricAiService {
       });
     }
 
-    if (!event.tracks.length && !problemStatements.length) {
+    // Track-specific rounds use only tracks scoped into THIS round.
+    const scopedTracks = round.isTrackSpecific
+      ? round.trackProblems.map((tp) => tp.track)
+      : event.tracks;
+
+    if (!scopedTracks.length && !problemStatements.length) {
       throw new BadRequestException(
         "Add at least one track or upload a problem file before AI can suggest rubrics.",
       );
@@ -116,7 +122,7 @@ export class RubricAiService {
     const basedOn: SuggestRubricsResult["basedOn"] = {
       eventName: event.name,
       roundName: `Round ${round.roundNumber}: ${round.name}`,
-      tracks: event.tracks.map((t) => ({
+      tracks: scopedTracks.map((t) => ({
         name: t.name,
         description: t.description,
       })),

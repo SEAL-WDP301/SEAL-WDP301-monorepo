@@ -1265,7 +1265,14 @@ export class TeamStudentService {
       include: {
         team: {
           include: {
-            event: { select: { id: true, name: true, status: true } },
+            event: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                deferredTrackAssignment: true,
+              },
+            },
             track: true,
             award: true,
           },
@@ -1345,7 +1352,9 @@ export class TeamStudentService {
             round,
             teamMember.team.trackId,
           ),
-          trackPending: teamMember.team.trackId == null,
+          trackPending:
+            teamMember.team.trackId == null &&
+            round.status !== RoundStatus.not_started,
         },
         teamRound: teamRound
           ? { status: teamRound.status, score: teamRound.score }
@@ -1365,7 +1374,7 @@ export class TeamStudentService {
         canView: access.canView,
         lockReason:
           access.canSubmit && teamMember.team.trackId == null
-            ? "Track chưa được công bố. Chờ admin mở vòng thi để nhận track/đề."
+            ? "Đề thi chưa được công bố. Chờ BTC mở vòng để nhận đề và bắt đầu làm bài."
             : access.lockReason,
       };
     });
