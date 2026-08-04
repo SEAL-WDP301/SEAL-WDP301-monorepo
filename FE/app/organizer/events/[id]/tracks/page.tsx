@@ -1109,7 +1109,7 @@ export default function EventRoundsPage() {
                 disabled={
                   !canModifyStructure || saveStructureMutation.isPending
                 }
-                onClick={openCreateTrack}
+                onClick={() => openCreateTrack()}
               >
                 <Plus className="h-4 w-4" />
                 Add Track
