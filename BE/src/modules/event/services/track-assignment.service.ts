@@ -3,8 +3,14 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { RoundStatus, TeamMemberStatus, TeamStatus } from "@prisma/client";
+import {
+  RoundResultStatus,
+  RoundStatus,
+  TeamMemberStatus,
+  TeamStatus,
+} from "@prisma/client";
 import { PrismaService } from "../../../database/prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 
 export type TrackAssignmentResult = {
   assignedCount: number;
@@ -18,12 +24,18 @@ export class TrackAssignmentService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Evenly shuffle-assign event tracks to teams that still have null trackId.
-   * Only pending/approved teams are considered.
+   * Evenly shuffle-assign tracks to teams (Flow B / deferred events).
+   * - Manual reveal / first open: only teams with null trackId.
+   * - Opening a round (`reassignForRoundOpen`): all teams in that round get a
+   *   fresh track from the round's track pool (R2+ uses new đề/track, not R1).
    */
   async assignDeferredTracks(
     eventId: number,
-    options?: { forceReassign?: boolean; roundId?: number },
+    options?: {
+      forceReassign?: boolean;
+      roundId?: number;
+      reassignForRoundOpen?: boolean;
+    },
   ): Promise<TrackAssignmentResult> {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -68,25 +80,29 @@ export class TrackAssignmentService {
       };
     }
 
+    const teamWhere = await this.buildTeamAssignmentWhere(
+      eventId,
+      options?.roundId,
+      options?.reassignForRoundOpen,
+      options?.forceReassign,
+    );
+
     const teams = await this.prisma.team.findMany({
-      where: {
-        eventId,
-        status: { in: [TeamStatus.pending, TeamStatus.approved] },
-        ...(options?.forceReassign ? {} : { trackId: null }),
-      },
+      where: teamWhere,
       select: { id: true, name: true, trackId: true },
       orderBy: { id: "asc" },
     });
 
-    const alreadyAssigned = options?.forceReassign
-      ? 0
-      : await this.prisma.team.count({
-          where: {
-            eventId,
-            status: { in: [TeamStatus.pending, TeamStatus.approved] },
-            trackId: { not: null },
-          },
-        });
+    const alreadyAssigned =
+      options?.reassignForRoundOpen || options?.forceReassign
+        ? 0
+        : await this.prisma.team.count({
+            where: {
+              eventId,
+              status: { in: [TeamStatus.pending, TeamStatus.approved] },
+              trackId: { not: null },
+            },
+          });
 
     if (!teams.length) {
       return {
@@ -159,6 +175,44 @@ export class TrackAssignmentService {
       })),
       assignments: plan,
     };
+  }
+
+  /** Teams eligible for assignment when a deferred round is opened. */
+  private async buildTeamAssignmentWhere(
+    eventId: number,
+    roundId?: number,
+    reassignForRoundOpen?: boolean,
+    forceReassign?: boolean,
+  ): Promise<Prisma.TeamWhereInput> {
+    const base: Prisma.TeamWhereInput = {
+      eventId,
+      status: { in: [TeamStatus.pending, TeamStatus.approved] },
+    };
+
+    if (reassignForRoundOpen && roundId) {
+      const rows = await this.prisma.teamRound.findMany({
+        where: {
+          roundId,
+          status: {
+            in: [RoundResultStatus.competing, RoundResultStatus.advanced],
+          },
+          team: base,
+        },
+        select: { teamId: true },
+      });
+      const teamIds = rows.map((r) => r.teamId);
+      if (teamIds.length) {
+        return { id: { in: teamIds } };
+      }
+      // Fallback: R1 before team_round rows exist — unassigned teams only.
+      return { ...base, trackId: null };
+    }
+
+    if (forceReassign) {
+      return base;
+    }
+
+    return { ...base, trackId: null };
   }
 
   private shuffle<T>(items: T[]): T[] {
