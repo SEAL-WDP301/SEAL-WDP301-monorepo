@@ -13,6 +13,73 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { enqueueSnackbar } from "notistack";
 
+type RoundTrack = {
+  id: number;
+  name: string;
+};
+
+type RoundTeam = {
+  id: number;
+  name: string;
+  status: string;
+  trackId: number | null;
+  track?: RoundTrack | null;
+  mentorAssignments?: unknown[];
+};
+
+type RoundConfig = {
+  isTrackSpecific?: boolean;
+  trackProblems?: Array<{ trackId: number }>;
+};
+
+function resolveRoundTracksForAssignment(
+  roundObj: RoundConfig | undefined,
+  event: { tracks?: RoundTrack[]; deferredTrackAssignment?: boolean } | undefined,
+  teams: RoundTeam[],
+): RoundTrack[] {
+  const catalog = event?.tracks ?? [];
+  if (!roundObj) return [];
+
+  if (roundObj.isTrackSpecific) {
+    const scopedIds = new Set(
+      (roundObj.trackProblems ?? []).map((problem) => problem.trackId),
+    );
+    if (scopedIds.size > 0) {
+      return catalog
+        .filter((track) => scopedIds.has(track.id))
+        .sort((first, second) => first.name.localeCompare(second.name));
+    }
+  } else if (event?.deferredTrackAssignment) {
+    return [...catalog].sort((first, second) =>
+      first.name.localeCompare(second.name),
+    );
+  }
+
+  return Array.from(
+    new Map(
+      teams
+        .filter(
+          (team): team is RoundTeam & { trackId: number; track: RoundTrack } =>
+            team.trackId !== null && Boolean(team.track),
+        )
+        .map((team) => [team.trackId, team.track] as const),
+    ).values(),
+  ).sort((first, second) => first.name.localeCompare(second.name));
+}
+
+function roundTracksEmptyMessage(
+  roundObj: RoundConfig | undefined,
+  event: { deferredTrackAssignment?: boolean } | undefined,
+): string {
+  if (roundObj?.isTrackSpecific) {
+    return "No tracks are configured for this round yet. Add tracks on the Tracks page first.";
+  }
+  if (event?.deferredTrackAssignment) {
+    return "No tracks are configured for this event yet.";
+  }
+  return "No teams in this round have been assigned a track yet.";
+}
+
 export default function EventStakeholdersPage() {
   const params = useParams();
   const eventId = params.id as string;
@@ -27,7 +94,6 @@ export default function EventStakeholdersPage() {
   // Form state
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
-  const [selectedTrack, setSelectedTrack] = useState<number | "">("");
   const [selectedTrackIds, setSelectedTrackIds] = useState<number[]>([]);
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,12 +122,15 @@ export default function EventStakeholdersPage() {
     enabled: !!eventId,
   });
 
-  const { data: teams } = useQuery({
-    queryKey: ["organizerTeams", eventId],
+  const { data: teams = [] } = useQuery<RoundTeam[]>({
+    queryKey: ["organizerTeams", eventId, "stakeholder-assignment", roundId],
     queryFn: async () => {
-      const res = await axiosClient.get(`/organizer/teams/events/${eventId}`);
+      const res = await axiosClient.get(`/organizer/teams/events/${eventId}`, {
+        params: { roundId, limit: 1000 },
+      });
       return res.data.data;
     },
+    enabled: Boolean(eventId && roundId),
   });
 
   // Categorize stakeholders based on current round
@@ -86,6 +155,20 @@ export default function EventStakeholdersPage() {
   const requireJudgeTracks =
     Boolean(roundObj?.isTrackSpecific) ||
     Boolean(event?.deferredTrackAssignment);
+  const roundTracks = resolveRoundTracksForAssignment(roundObj, event, teams);
+  const availableMentorTeams = teams.filter(
+    (team) =>
+      team.status === "approved" &&
+      (!team.mentorAssignments || team.mentorAssignments.length === 0),
+  );
+  const areAllRoundTracksSelected =
+    roundTracks.length > 0 &&
+    roundTracks.every((track) => selectedTrackIds.includes(track.id));
+  const areAllMentorTeamsSelected =
+    availableMentorTeams.length > 0 &&
+    availableMentorTeams.every((team) =>
+      selectedTeamIds.includes(team.id),
+    );
 
   // Mutations
   const assignJudgeMutation = useMutation({
@@ -161,7 +244,6 @@ export default function EventStakeholdersPage() {
   const resetForms = () => {
     setSelectedUser(null);
     setSelectedUsers([]);
-    setSelectedTrack("");
     setSelectedTrackIds([]);
     setSelectedTeamIds([]);
     setModalSearchQuery("");
@@ -222,14 +304,7 @@ export default function EventStakeholdersPage() {
     doAssignMentor();
   };
 
-  const filteredTeams = teams?.filter((t: any) =>
-    t.trackId === selectedTrack &&
-    t.status === 'approved' &&
-    t.teamRounds?.some((tr: any) => tr.roundId === Number(roundId)) &&
-    (!t.mentorAssignments || t.mentorAssignments.length === 0)
-  ) || [];
-
-  const currentTeamDetails = teams?.find((t: any) => t.id === selectedTeamIdForDetails);
+  const currentTeamDetails = teams.find((team) => team.id === selectedTeamIdForDetails);
 
   return (
     <div className="space-y-6">
@@ -530,12 +605,24 @@ export default function EventStakeholdersPage() {
                       className="rounded border-border bg-background"
                       checked={
                         filteredModalUsers.length > 0 &&
-                        selectedUsers.length === filteredModalUsers.length
+                        filteredModalUsers.every(
+                          (user: (typeof filteredModalUsers)[number]) =>
+                            selectedUsers.includes(user.id),
+                        )
                       }
                       onChange={(e) => {
-                        const selectable = filteredModalUsers.map((u: any) => u.id);
-                        if (e.target.checked) setSelectedUsers(selectable);
-                        else setSelectedUsers([]);
+                        const selectable = filteredModalUsers.map(
+                          (user: (typeof filteredModalUsers)[number]) => user.id,
+                        );
+                        if (e.target.checked) {
+                          setSelectedUsers((current) => [
+                            ...new Set([...current, ...selectable]),
+                          ]);
+                        } else {
+                          setSelectedUsers((current) =>
+                            current.filter((id) => !selectable.includes(id)),
+                          );
+                        }
                       }}
                     />
                     <span className="text-sm font-semibold">Select All (Active Stakeholders)</span>
@@ -548,15 +635,24 @@ export default function EventStakeholdersPage() {
                     return (
                       <label
                         key={u.id}
-                        className="flex items-center space-x-2 p-1 rounded transition-colors hover:bg-muted/50 cursor-pointer"
+                        className={`flex items-center space-x-2 rounded border p-2 transition-colors cursor-pointer ${
+                          selectedUsers.includes(u.id)
+                            ? "border-blue-500/40 bg-blue-500/10"
+                            : "border-transparent hover:bg-muted/50"
+                        }`}
                       >
                         <input
                           type="checkbox"
                           className="rounded border-border bg-background"
                           checked={selectedUsers.includes(u.id)}
                           onChange={(e) => {
-                            if (e.target.checked) setSelectedUsers([...selectedUsers, u.id]);
-                            else setSelectedUsers(selectedUsers.filter(id => id !== u.id));
+                            if (e.target.checked) {
+                              setSelectedUsers((current) => [...current, u.id]);
+                            } else {
+                              setSelectedUsers((current) =>
+                                current.filter((id) => id !== u.id),
+                              );
+                            }
                           }}
                         />
                         <span className="text-sm flex items-center justify-between w-full pr-2 gap-2">
@@ -588,20 +684,64 @@ export default function EventStakeholdersPage() {
               <div>
                 <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">Select Tracks (Required)</label>
                 <div className="space-y-2 max-h-[150px] overflow-y-auto border border-border rounded-lg p-2">
-                  {event?.tracks?.map((track: any) => (
-                    <label key={track.id} className="flex items-center space-x-2 p-1 hover:bg-muted/50 rounded cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="rounded border-border bg-background"
-                        checked={selectedTrackIds.includes(track.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedTrackIds([...selectedTrackIds, track.id]);
-                          else setSelectedTrackIds(selectedTrackIds.filter(id => id !== track.id));
-                        }}
-                      />
-                      <span className="text-sm">{track.name}</span>
-                    </label>
-                  ))}
+                  {roundTracks.length > 0 ? (
+                    <>
+                      <label
+                        className={`flex cursor-pointer items-center space-x-2 rounded border p-2 ${
+                          areAllRoundTracksSelected
+                            ? "border-blue-500/40 bg-blue-500/10"
+                            : "border-transparent hover:bg-muted/50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="rounded border-border bg-background"
+                          checked={areAllRoundTracksSelected}
+                          onChange={(e) => {
+                            setSelectedTrackIds(
+                              e.target.checked
+                                ? roundTracks.map((track) => track.id)
+                                : [],
+                            );
+                          }}
+                        />
+                        <span className="text-sm font-semibold">Select all tracks</span>
+                      </label>
+                      {roundTracks.map((track) => (
+                        <label
+                          key={track.id}
+                          className={`flex cursor-pointer items-center space-x-2 rounded border p-2 ${
+                            selectedTrackIds.includes(track.id)
+                              ? "border-blue-500/40 bg-blue-500/10"
+                              : "border-transparent hover:bg-muted/50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="rounded border-border bg-background"
+                            checked={selectedTrackIds.includes(track.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTrackIds((current) => [
+                                  ...current,
+                                  track.id,
+                                ]);
+                              } else {
+                                setSelectedTrackIds((current) =>
+                                  current.filter((id) => id !== track.id),
+                                );
+                              }
+                            }}
+                          />
+                          <span className="text-sm">{track.name}</span>
+                        </label>
+                      ))}
+                    </>
+                  ) : (
+                    <p className="p-2 text-sm text-muted-foreground">
+                      No teams in this round have been assigned a track yet.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -629,7 +769,7 @@ export default function EventStakeholdersPage() {
         <DialogContent className="sm:max-w-[500px] bg-card border-border">
           <DialogHeader>
             <DialogTitle>Assign Mentor</DialogTitle>
-            <DialogDescription>Bulk assign a mentor to teams within a track.</DialogDescription>
+            <DialogDescription>Assign one mentor to approved teams in this round.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 mt-4">
@@ -638,96 +778,141 @@ export default function EventStakeholdersPage() {
               <p className="mb-2 text-xs text-muted-foreground">
                 All stakeholders are selectable, including current judges.
               </p>
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                className="w-full bg-background border border-border rounded-lg p-2.5 text-sm mb-2 outline-none focus:border-blue-500"
-                value={modalSearchQuery}
-                onChange={(e) => setModalSearchQuery(e.target.value)}
-              />
-              <select
-                value={selectedUser || ""}
-                onChange={(e) => setSelectedUser(Number(e.target.value))}
-                className="w-full bg-background border border-border text-foreground text-sm rounded-lg p-2.5"
-              >
-                <option value="">Choose...</option>
-                {filteredModalUsers?.map((u: any) => {
-                  const isJudge = u.judgeAssignments && u.judgeAssignments.length > 0;
-                  const isMentor = u.mentorAssignments && u.mentorAssignments.length > 0;
-                  const tags = [
-                    isJudge ? "Judge" : null,
-                    isMentor ? "Mentor" : null,
-                  ].filter(Boolean);
-                  return (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.email})
-                      {tags.length ? ` — ${tags.join(" · ")}` : ""}
-                    </option>
-                  );
-                })}
-              </select>
+              <div className="space-y-2 rounded-lg border border-border p-2">
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  className="mb-2 w-full rounded border border-border bg-muted/30 p-2 text-sm outline-none focus:border-amber-500"
+                  value={modalSearchQuery}
+                  onChange={(e) => setModalSearchQuery(e.target.value)}
+                />
+                <div className="max-h-[150px] space-y-1 overflow-y-auto">
+                  {filteredModalUsers.map(
+                    (user: (typeof filteredModalUsers)[number]) => {
+                      const isJudge =
+                        user.judgeAssignments &&
+                        user.judgeAssignments.length > 0;
+                      const isSelected = selectedUser === user.id;
+
+                      return (
+                        <label
+                          key={user.id}
+                          className={`flex cursor-pointer items-center space-x-2 rounded border p-2 transition-colors ${
+                            isSelected
+                              ? "border-amber-500/40 bg-amber-500/10"
+                              : "border-transparent hover:bg-muted/50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="mentor-stakeholder"
+                            className="border-border bg-background"
+                            checked={isSelected}
+                            onChange={() => setSelectedUser(user.id)}
+                          />
+                          <span className="flex w-full items-center justify-between gap-2 pr-2 text-sm">
+                            <span>
+                              {user.name}{" "}
+                              <span className="text-xs text-muted-foreground">
+                                ({user.email})
+                              </span>
+                            </span>
+                            {isJudge && (
+                              <span className="shrink-0 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                                Judge
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      );
+                    },
+                  )}
+                  {filteredModalUsers.length === 0 && (
+                    <div className="p-2 text-center text-sm text-muted-foreground">
+                      No stakeholders found.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase mb-1 block">Filter by Track</label>
-              <select
-                value={selectedTrack}
-                onChange={(e) => { setSelectedTrack(Number(e.target.value)); setSelectedTeamIds([]); }}
-                className="w-full bg-background border border-border text-foreground text-sm rounded-lg p-2.5"
-              >
-                <option value="">Select a track...</option>
-                {event?.tracks?.map((track: any) => {
-                  const availableCount = teams?.filter((t: any) =>
-                    t.trackId === track.id &&
-                    t.status === 'approved' &&
-                    (!t.mentorAssignments || t.mentorAssignments.length === 0)
-                  ).length || 0;
-                  return (
-                    <option key={track.id} value={track.id} disabled={availableCount === 0}>
-                      {track.name} {availableCount === 0 ? "(No teams available)" : `(${availableCount} available)`}
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            {selectedTrack !== "" && (
-              <div>
-                <label className="text-xs font-semibold flex justify-between text-muted-foreground uppercase mb-1">
-                  <span>Select Teams</span>
-                  <button
-                    type="button"
-                    className="text-blue-500 hover:underline"
-                    onClick={() => {
-                      if (selectedTeamIds.length === filteredTeams.length) setSelectedTeamIds([]);
-                      else setSelectedTeamIds(filteredTeams.map((t: any) => t.id));
-                    }}
-                  >
-                    Select All
-                  </button>
-                </label>
-                <div className="mb-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2.5 text-xs text-blue-600 dark:text-blue-400">
-                  Only <strong>approved teams</strong> that do not currently have an assigned mentor are shown here.
-                </div>
-                <div className="space-y-2 max-h-[150px] overflow-y-auto border border-border rounded-lg p-2">
-                  {filteredTeams.length === 0 && <p className="text-sm text-muted-foreground p-2">No satisfying teams in this track.</p>}
-                  {filteredTeams.map((team: any) => (
-                    <label key={team.id} className="flex items-center space-x-2 p-1 hover:bg-muted/50 rounded cursor-pointer">
+              <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+                Select Teams
+              </label>
+              <div className="mb-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2.5 text-xs text-blue-600 dark:text-blue-400">
+                Only <strong>approved teams</strong> in this round that do not currently have an assigned mentor are shown here.
+              </div>
+              <div className="max-h-[190px] space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                {availableMentorTeams.length > 0 ? (
+                  <>
+                    <label
+                      className={`mb-1 flex cursor-pointer items-center space-x-2 rounded border p-2 ${
+                        areAllMentorTeamsSelected
+                          ? "border-amber-500/40 bg-amber-500/10"
+                          : "border-transparent hover:bg-muted/50"
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         className="rounded border-border bg-background"
-                        checked={selectedTeamIds.includes(team.id)}
+                        checked={areAllMentorTeamsSelected}
                         onChange={(e) => {
-                          if (e.target.checked) setSelectedTeamIds([...selectedTeamIds, team.id]);
-                          else setSelectedTeamIds(selectedTeamIds.filter(id => id !== team.id));
+                          setSelectedTeamIds(
+                            e.target.checked
+                              ? availableMentorTeams.map((team) => team.id)
+                              : [],
+                          );
                         }}
                       />
-                      <span className="text-sm">{team.name}</span>
+                      <span className="text-sm font-semibold">Select All</span>
                     </label>
-                  ))}
-                </div>
+                    {availableMentorTeams.map((team) => {
+                      const isSelected = selectedTeamIds.includes(team.id);
+
+                      return (
+                        <label
+                          key={team.id}
+                          className={`flex cursor-pointer items-center space-x-2 rounded border p-2 transition-colors ${
+                            isSelected
+                              ? "border-amber-500/40 bg-amber-500/10"
+                              : "border-transparent hover:bg-muted/50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="rounded border-border bg-background"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTeamIds((current) => [
+                                  ...current,
+                                  team.id,
+                                ]);
+                              } else {
+                                setSelectedTeamIds((current) =>
+                                  current.filter((id) => id !== team.id),
+                                );
+                              }
+                            }}
+                          />
+                          <span className="flex w-full items-center justify-between gap-3 pr-2 text-sm">
+                            <span>{team.name}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {team.track?.name || "Track not assigned"}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    No approved teams without a mentor are available in this round.
+                  </p>
+                )}
               </div>
-            )}
+            </div>
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setIsMentorModalOpen(false)}>Cancel</Button>
