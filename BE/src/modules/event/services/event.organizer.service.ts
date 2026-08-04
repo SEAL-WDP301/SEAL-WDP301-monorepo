@@ -508,7 +508,9 @@ export class EventOrganizerService {
     if (status === RoundStatus.open && event.deferredTrackAssignment) {
       try {
         trackAssignment =
-          await this.trackAssignmentService.assignDeferredTracks(eventId);
+          await this.trackAssignmentService.assignDeferredTracks(eventId, {
+            roundId: targetRound.id,
+          });
         this.logger.log(
           `Deferred track reveal for event ${eventId}: assigned ${trackAssignment.assignedCount} team(s)`,
         );
@@ -557,45 +559,80 @@ export class EventOrganizerService {
     },
     deferredTrackAssignment: boolean,
   ) {
-    const tracks = await this.prisma.track.findMany({
-      where: { eventId },
-      select: { id: true, name: true },
-      orderBy: { id: "asc" },
-    });
-
-    if (!tracks.length) {
-      throw new BadRequestException(
-        `Cannot open "${round.name}" — create at least one track first.`,
-      );
-    }
-
     const requirePerTrackProblems =
       deferredTrackAssignment || round.isTrackSpecific;
 
-    if (requirePerTrackProblems) {
-      const problems = await this.prisma.roundTrackProblem.findMany({
-        where: { roundId: round.id },
-        select: { trackId: true, problemFileUrl: true },
-      });
-      const byTrack = new Map(
-        problems.map((p) => [p.trackId, p.problemFileUrl?.trim() || ""]),
-      );
-      const missing = tracks.filter((t) => !byTrack.get(t.id));
-      if (missing.length) {
+    if (!requirePerTrackProblems) {
+      if (!round.problemFileUrl?.trim()) {
         throw new BadRequestException(
-          `Cannot open "${round.name}" — each track needs a problem file before opening. Missing: ${missing
-            .map((t) => t.name)
-            .join(", ")}.`,
+          `Cannot open "${round.name}" — upload the round problem file first.`,
         );
       }
       return;
     }
 
-    if (!round.problemFileUrl?.trim()) {
+    // Track-specific rounds (Flow A & B): only tracks explicitly scoped into
+    // THIS round via RoundTrackProblem — adding to catalog or another round
+    // does not auto-sync here.
+    const tracks = (
+      await this.prisma.roundTrackProblem.findMany({
+        where: { roundId: round.id },
+        select: { track: { select: { id: true, name: true } } },
+        orderBy: { trackId: "asc" },
+      })
+    ).map((p) => p.track);
+
+    if (!tracks.length) {
       throw new BadRequestException(
-        `Cannot open "${round.name}" — upload the round problem file first.`,
+        `Cannot open "${round.name}" — add at least one track to this round first.`,
       );
     }
+
+    const problems = await this.prisma.roundTrackProblem.findMany({
+      where: { roundId: round.id },
+      select: { trackId: true, problemFileUrl: true },
+    });
+    const byTrack = new Map(
+      problems.map((p) => [p.trackId, p.problemFileUrl?.trim() || ""]),
+    );
+    const missing = tracks.filter((t) => !byTrack.get(t.id));
+    if (missing.length) {
+      throw new BadRequestException(
+        `Cannot open "${round.name}" — each track needs a problem file before opening. Missing: ${missing
+          .map((t) => t.name)
+          .join(", ")}.`,
+      );
+    }
+  }
+
+  /** Unscope a track from a round (delete its RoundTrackProblem row). Does
+   * NOT delete the Track itself — the track stays in the event catalog and
+   * in any other round it's scoped to. */
+  async removeTrackFromRound(eventId: number, roundId: number, trackId: number) {
+    const round = await this.prisma.round.findFirst({
+      where: { id: roundId, eventId },
+    });
+    if (!round) {
+      throw new NotFoundException("Round not found in this event");
+    }
+    if (round.status !== RoundStatus.not_started) {
+      throw new BadRequestException(
+        "Tracks can only be added to or removed from a round while it is Not Started.",
+      );
+    }
+
+    const existing = await this.prisma.roundTrackProblem.findUnique({
+      where: { roundId_trackId: { roundId, trackId } },
+    });
+    if (!existing) {
+      throw new NotFoundException("This track is not part of this round");
+    }
+
+    await this.prisma.roundTrackProblem.delete({
+      where: { roundId_trackId: { roundId, trackId } },
+    });
+
+    return { success: true };
   }
 
   async updateRoundDeadline(

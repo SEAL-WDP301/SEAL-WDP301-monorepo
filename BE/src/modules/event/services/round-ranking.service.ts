@@ -51,13 +51,7 @@ export class RoundRankingService {
   async getRoundRankings(eventId: number, roundId: number, trackId?: number) {
     const round = await this.assertRoundInEvent(eventId, roundId);
 
-    const tracks = await this.prisma.track.findMany({
-      where: {
-        eventId,
-        ...(trackId !== undefined && { id: trackId }),
-      },
-      orderBy: { id: "asc" },
-    });
+    const tracks = await this.getRoundScopedTracks(eventId, round, trackId);
 
     const nextRound = await this.prisma.round.findFirst({
       where: { eventId, roundNumber: round.roundNumber + 1 },
@@ -91,13 +85,7 @@ export class RoundRankingService {
   ) {
     const round = await this.assertRoundInEvent(eventId, roundId);
 
-    const tracks = await this.prisma.track.findMany({
-      where: {
-        eventId,
-        ...(trackId !== undefined && { id: trackId }),
-      },
-      orderBy: { id: "asc" },
-    });
+    const tracks = await this.getRoundScopedTracks(eventId, round, trackId);
 
     const nextRound = await this.prisma.round.findFirst({
       where: { eventId, roundNumber: round.roundNumber + 1 },
@@ -136,10 +124,7 @@ export class RoundRankingService {
       );
     }
 
-    const tracks = await this.prisma.track.findMany({
-      where: { eventId },
-      orderBy: { id: "asc" },
-    });
+    const tracks = await this.getRoundScopedTracks(eventId, round);
 
     const nextRound = await this.prisma.round.findFirst({
       where: { eventId, roundNumber: round.roundNumber + 1 },
@@ -694,6 +679,39 @@ export class RoundRankingService {
     }
 
     return round;
+  }
+
+  /**
+   * Tracks to rank/publish for a round.
+   * - Shared rounds or regular track-specific rounds (Flow A, "Use tracks
+   *   for this event" ticked — Track is the parent spanning every round):
+   *   only tracks scoped into this round (RoundTrackProblem row).
+   * - Shared rounds: all event catalog tracks.
+   */
+  private async getRoundScopedTracks(
+    eventId: number,
+    round: { id: number; isTrackSpecific: boolean },
+    trackIdFilter?: number,
+  ) {
+    if (round.isTrackSpecific) {
+      const problems = await this.prisma.roundTrackProblem.findMany({
+        where: {
+          roundId: round.id,
+          ...(trackIdFilter !== undefined && { trackId: trackIdFilter }),
+        },
+        select: { track: true },
+        orderBy: { trackId: "asc" },
+      });
+      return problems.map((p) => p.track);
+    }
+
+    return this.prisma.track.findMany({
+      where: {
+        eventId,
+        ...(trackIdFilter !== undefined && { id: trackIdFilter }),
+      },
+      orderBy: { id: "asc" },
+    });
   }
 
   private async notifyRoundResults(

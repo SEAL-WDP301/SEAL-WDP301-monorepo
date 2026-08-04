@@ -518,6 +518,19 @@ export async function updateRoundProblemFile(
   return unwrapData<unknown>(res);
 }
 
+/** Unscope a track from a round (delete the RoundTrackProblem row). Does NOT
+ * delete the track itself — it stays in the event catalog / other rounds. */
+export async function removeTrackFromRound(
+  eventId: string | number,
+  roundId: string | number,
+  trackId: number,
+) {
+  const res = await axiosClient.delete(
+    `/organizer/events/${eventId}/rounds/${roundId}/tracks/${trackId}`,
+  );
+  return unwrapData<unknown>(res);
+}
+
 export async function revealEventTracks(
   eventId: string | number,
   forceReassign = false,
