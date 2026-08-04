@@ -75,13 +75,17 @@ import {
   calculatePrizePoolTotals,
   formatPrizeAmount,
 } from "@/lib/events/prizes";
+import {
+  createDefaultEventSchedule,
+  getEventSeason,
+} from "@/lib/events/event-defaults";
 
 const defaultLocation = {
   venueName: "FPT University Ho Chi Minh City",
   room: "Innovation Hall",
   address: "Lô E2a-7, Đường D1, Khu Công nghệ cao, TP. Thủ Đức, TP.HCM",
   meetingPlatform: "Google Meet",
-  meetingUrl: "",
+  meetingUrl: "https://meet.google.com/",
   mapUrl: buildGoogleMapsSearchUrl(
     "FPT University Ho Chi Minh City, Lô E2a-7, Đường D1, Khu Công nghệ cao, TP. Thủ Đức, TP.HCM",
   ),
@@ -922,33 +926,54 @@ export default function EventForm({ initialData }: EventFormProps) {
   const DEFAULT_EVENT_DESCRIPTION =
     "Building a Retrieval-Augmented Generation (RAG) AI automation involves connecting a Large Language Model (LLM) to your private data sources (like PDFs or databases). When a user asks a question, the system retrieves relevant information and passes it to the AI, allowing it to generate accurate, context-aware responses without hallucinating";
 
+  const createPreset = useMemo(() => {
+    const schedule = createDefaultEventSchedule();
+    const startDate = new Date(schedule.startDate);
+
+    return {
+      ...schedule,
+      year: startDate.getFullYear(),
+      season: getEventSeason(startDate),
+    };
+  }, []);
+
   const defaultValues: Partial<EventFormValues> = {
-    name: initialData?.name || "",
+    name:
+      initialData?.name ||
+      (isEdit ? "" : `SEAL AI Innovation Hackathon ${createPreset.year}`),
     description: initialData?.description || DEFAULT_EVENT_DESCRIPTION,
-    imageUrl: initialData?.imageUrl || initialData?.image_url || "",
-    season: initialData?.season || "Spring",
-    year: initialData?.year || new Date().getFullYear(),
+    imageUrl: isEdit
+      ? initialData?.imageUrl || initialData?.image_url || ""
+      : "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
+    season: initialData?.season || createPreset.season,
+    year: initialData?.year || createPreset.year,
     maxTeams: initialData?.maxTeams ?? 50,
     // useTracks = students pick track at register (= !deferred). Never infer from track count
     // (Flow B may already have tracks added on Tracks & Rounds).
     useTracks: isEdit
       ? !(initialData?.deferredTrackAssignment ?? false)
-      : false,
+      : true,
     deferredTrackAssignment: isEdit
       ? (initialData?.deferredTrackAssignment ?? false)
-      : true,
+      : false,
     minMembersPerTeam: initialData?.minMembersPerTeam ?? 3,
     maxMembersPerTeam: initialData?.maxMembersPerTeam ?? 5,
     status: initialData?.status || "draft",
     registrationDeadline: initialData?.registrationDeadline
       ? new Date(initialData.registrationDeadline).toISOString().slice(0, 16)
-      : "",
+      : isEdit
+        ? ""
+        : createPreset.registrationDeadline,
     startDate: initialData?.startDate
       ? new Date(initialData.startDate).toISOString().slice(0, 16)
-      : "",
+      : isEdit
+        ? ""
+        : createPreset.startDate,
     endDate: initialData?.endDate
       ? new Date(initialData.endDate).toISOString().slice(0, 16)
-      : "",
+      : isEdit
+        ? ""
+        : createPreset.endDate,
     githubOrgUrl:
       initialData?.githubOrgUrl || "https://github.com/DEMO-SEAL-HackaThon-ORG",
     prizes: initialData?.prizes?.map((prize) => ({
@@ -993,29 +1018,42 @@ export default function EventForm({ initialData }: EventFormProps) {
         currency: "VND",
       },
     ],
-    tracks:
-      initialData?.tracks?.map((track) => ({
-        ...track,
-        description: track.description || "",
-      })) || [],
-    rounds: initialData?.rounds?.map((r) => ({
-      ...r,
-      submissionDeadline: r.submissionDeadline
-        ? new Date(r.submissionDeadline).toISOString().slice(0, 16)
-        : "",
-      maxFileSizeMb: r.maxFileSizeMb || 20,
-      isTrackSpecific:
-        r.isTrackSpecific !== undefined ? r.isTrackSpecific : false,
-    })) || [
-      {
-        roundNumber: 1,
-        name: "",
-        submissionType: "file",
-        submissionDeadline: "",
-        maxFileSizeMb: 20,
-        isTrackSpecific: true,
-      },
-    ],
+    tracks: isEdit
+      ? (initialData?.tracks || []).map((track) => ({
+          ...track,
+          description: track.description || "",
+        }))
+      : [
+          {
+            name: "AI & Data Innovation",
+            description:
+              "Build responsible AI, machine learning, analytics, or data-driven solutions for real-world challenges.",
+          },
+          {
+            name: "Smart Web Solutions",
+            description:
+              "Create accessible, scalable web products that improve learning, work, or community experiences.",
+          },
+        ],
+    rounds: isEdit
+      ? (initialData?.rounds || []).map((round) => ({
+          ...round,
+          submissionDeadline: round.submissionDeadline
+            ? new Date(round.submissionDeadline).toISOString().slice(0, 16)
+            : "",
+          maxFileSizeMb: round.maxFileSizeMb || 20,
+          isTrackSpecific: round.isTrackSpecific ?? false,
+        }))
+      : [
+          {
+            roundNumber: 1,
+            name: "Prototype & GitHub Submission",
+            submissionType: "github_link",
+            submissionDeadline: createPreset.roundDeadline,
+            maxFileSizeMb: 20,
+            isTrackSpecific: true,
+          },
+        ],
     location: {
       ...defaultLocation,
       ...initialLocation,
@@ -1069,10 +1107,6 @@ export default function EventForm({ initialData }: EventFormProps) {
   });
 
   const watchedStatus = useWatch({ control: form.control, name: "status" });
-  const watchedRegistrationDeadline = useWatch({
-    control: form.control,
-    name: "registrationDeadline",
-  });
   const watchedCreateGoogleMeet = useWatch({
     control: form.control,
     name: "createGoogleMeet",
