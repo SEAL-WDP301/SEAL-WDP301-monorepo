@@ -17,6 +17,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -365,6 +366,12 @@ const createEventSchema = (isEdit: boolean) =>
               .max(500, "Max 500MB")
               .default(20),
             isTrackSpecific: z.boolean().default(false),
+            advanceCount: z.coerce
+              .number()
+              .int()
+              .min(1, "Must be >= 1")
+              .optional()
+              .nullable(),
           }),
         )
         .min(1, "At least one round is required")
@@ -952,10 +959,10 @@ export default function EventForm({ initialData }: EventFormProps) {
     // (Flow B may already have tracks added on Tracks & Rounds).
     useTracks: isEdit
       ? !(initialData?.deferredTrackAssignment ?? false)
-      : true,
+      : false,
     deferredTrackAssignment: isEdit
       ? (initialData?.deferredTrackAssignment ?? false)
-      : false,
+      : true,
     minMembersPerTeam: initialData?.minMembersPerTeam ?? 3,
     maxMembersPerTeam: initialData?.maxMembersPerTeam ?? 5,
     status: initialData?.status || "draft",
@@ -1020,21 +1027,12 @@ export default function EventForm({ initialData }: EventFormProps) {
     ],
     tracks: isEdit
       ? (initialData?.tracks || []).map((track) => ({
-          ...track,
+          id: track.id,
+          name: track.name,
           description: track.description || "",
+          _count: track._count,
         }))
-      : [
-          {
-            name: "AI & Data Innovation",
-            description:
-              "Build responsible AI, machine learning, analytics, or data-driven solutions for real-world challenges.",
-          },
-          {
-            name: "Smart Web Solutions",
-            description:
-              "Create accessible, scalable web products that improve learning, work, or community experiences.",
-          },
-        ],
+      : [],
     rounds: isEdit
       ? (initialData?.rounds || []).map((round) => ({
           ...round,
@@ -1043,6 +1041,7 @@ export default function EventForm({ initialData }: EventFormProps) {
             : "",
           maxFileSizeMb: round.maxFileSizeMb || 20,
           isTrackSpecific: round.isTrackSpecific ?? false,
+          advanceCount: round.advanceCount ?? undefined,
         }))
       : [
           {
@@ -1403,6 +1402,8 @@ export default function EventForm({ initialData }: EventFormProps) {
         sendCalendarInvitations,
         notifyParticipants,
         useTracks,
+        tracks: _formTracks,
+        rounds: _formRounds,
         ...restData
       } = data;
 
@@ -1444,7 +1445,10 @@ export default function EventForm({ initialData }: EventFormProps) {
         // Checked useTracks → pick track at register.
         // Unchecked → assign tracks later when a round opens.
         deferredTrackAssignment: !useTracks,
-        rounds: data.rounds?.map((r) => ({
+        rounds: data.rounds?.map((r, _idx, arr) => {
+          const maxRoundNumber = Math.max(...arr.map((x) => x.roundNumber));
+          const isLastRound = r.roundNumber === maxRoundNumber;
+          return {
           id: r.id,
           roundNumber: r.roundNumber,
           name: r.name,
@@ -1453,9 +1457,11 @@ export default function EventForm({ initialData }: EventFormProps) {
             ? new Date(r.submissionDeadline).toISOString()
             : undefined,
           maxFileSizeMb: r.maxFileSizeMb,
-          // Flow B (no tracks at create): per-track đề when round opens.
-          isTrackSpecific: useTracks ? r.isTrackSpecific : true,
-        })),
+          // Flow B (no tracks at create): every round is track-specific.
+          isTrackSpecific: !useTracks ? true : r.isTrackSpecific,
+          advanceCount: isLastRound ? null : (r.advanceCount ?? null),
+        };
+        }),
         location: JSON.stringify({
           venueName: location.venueName || undefined,
           room: location.room || undefined,
@@ -2478,12 +2484,12 @@ export default function EventForm({ initialData }: EventFormProps) {
                 />
 
                 {!useTracks ? (
-                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-                    Not using tracks for now. You can add tracks anytime from{" "}
+                  <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                    Thêm bảng sau khi tạo event tại{" "}
                     <strong className="text-foreground">
                       Tracks &amp; Rounds
-                    </strong>{" "}
-                    after the event is created.
+                    </strong>
+                    .
                   </div>
                 ) : null}
 
@@ -2758,11 +2764,62 @@ export default function EventForm({ initialData }: EventFormProps) {
                             </Button>
                           )}
                         </div>
+                        {(() => {
+                          const allRounds = form.watch("rounds") ?? [];
+                          const thisNum = Number(allRounds[index]?.roundNumber);
+                          const maxNum = Math.max(
+                            ...allRounds.map((r) => Number(r.roundNumber) || 0),
+                          );
+                          const isLastRound =
+                            Number.isFinite(thisNum) && thisNum === maxNum;
+                          if (isLastRound) {
+                            return (
+                              <p className="md:col-span-12 text-xs text-muted-foreground border-t border-border/50 pt-3 mt-1">
+                                Final round: awards come from the Prizes section below.
+                              </p>
+                            );
+                          }
+                          return (
+                            <div className="md:col-span-3">
+                              <FormField
+                                control={control}
+                                name={`rounds.${index}.advanceCount`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                                      Top N advance *
+                                    </FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        min={1}
+                                        placeholder="e.g. 2, 3, 4"
+                                        className="bg-card/50 rounded-lg"
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        onChange={(e) => {
+                                          const raw = e.target.value;
+                                          field.onChange(
+                                            raw === "" ? undefined : Number(raw),
+                                          );
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormDescription className="text-xs">
+                                      Tùy cuộc thi — per track nếu bật track-specific.
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          );
+                        })()}
                         {useTracks ? (
-                          <div className="md:col-span-12 flex items-center justify-between mt-2 pt-4 border-t border-border/50">
-                            <FormField
-                              control={control}
-                              name={`rounds.${index}.isTrackSpecific`}
+                        <div className="md:col-span-12 flex items-center justify-between mt-2 pt-4 border-t border-border/50">
+                          <FormField
+                            control={control}
+                            name={`rounds.${index}.isTrackSpecific`}
                               render={({ field }) => (
                                 <FormItem className="flex flex-row items-center space-x-3 space-y-0">
                                   <FormControl>
@@ -2775,18 +2832,24 @@ export default function EventForm({ initialData }: EventFormProps) {
                                   </FormControl>
                                   <div className="space-y-1 leading-none">
                                     <FormLabel className="text-sm font-medium text-foreground">
-                                      Separate submissions by Track
+                                      Thi theo track (vòng này)
                                     </FormLabel>
                                     <p className="text-xs text-muted-foreground">
-                                      If checked, each track gets its own problem
-                                      file under the round.
+                                      Bật: mỗi track một đề. Tắt: một đề chung cả vòng.
                                     </p>
                                   </div>
                                 </FormItem>
                               )}
                             />
-                          </div>
-                        ) : null}
+                        </div>
+                        ) : (
+                        <div className="md:col-span-12 mt-2 pt-4 border-t border-border/50">
+                          <p className="text-xs text-muted-foreground">
+                            Luồng B: mọi vòng thi theo track — đội giữ nguyên bảng
+                            từ V1 tới chung kết; mỗi vòng có đề và tiêu chí chấm riêng.
+                          </p>
+                        </div>
+                        )}
                       </motion.div>
                     ))}
                   </AnimatePresence>

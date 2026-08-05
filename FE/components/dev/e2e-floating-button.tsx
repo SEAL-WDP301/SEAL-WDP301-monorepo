@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
   Presentation,
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -37,21 +38,28 @@ interface E2eScriptItem {
 }
 
 const E2E_SCRIPTS: E2eScriptItem[] = [
-  { key: "01-create-event", number: "01", title: "Create Event & Tracks", description: "Tạo Event mới kèm 2 Tracks & 2 Rounds", icon: CalendarPlus },
-  { key: "02-create-teams", number: "02", title: "Create Teams & Members", description: "Tạo đội thi pending & thêm thành viên sinh viên", icon: Users },
-  { key: "03-assign-judges", number: "03", title: "Assign Judges & Mentors", description: "Phân công Giám khảo & Mentor vào các Vòng", icon: UserCheck },
-  { key: "04-generate-rubrics", number: "04", title: "Generate Rubrics", description: "Khởi tạo bảng điểm & tiêu chí đánh giá", icon: FileSpreadsheet },
-  { key: "05-create-submissions", number: "05", title: "Create Submissions (R1)", description: "Nộp bài tự động cho Vòng sơ loại (Round 1)", icon: FileUp },
-  { key: "06-score-round1", number: "06", title: "Score Round 1", description: "Giám khảo chấm điểm tự động cho Vòng 1", icon: Award },
-  { key: "07-advance-to-round2", number: "07", title: "Advance to Round 2", description: "Duyệt và chuyển các Đội thi trúng tuyển vào Vòng 2", icon: TrendingUp },
-  { key: "08-create-submissions-round2", number: "08", title: "Create Submissions (R2)", description: "Nộp dự án tự động cho Vòng chung kết (Round 2)", icon: FileUp },
-  { key: "09-score-round2", number: "09", title: "Score Round 2", description: "Giám khảo chấm điểm chung kết & tổng kết giải", icon: Award },
+  {
+    key: "seed-demo-event",
+    number: "00",
+    title: "Seed Flow B Demo Event",
+    description: "Tạo event Flow B đầy đủ (API validate): giải, FAQ, rules, 3 bảng, pool, rubrics",
+    icon: Sparkles,
+  },
+  { key: "01-create-event", number: "01", title: "Create Event (alias)", description: "Giống 00 — tạo event Flow B mới", icon: CalendarPlus },
+  { key: "02-create-teams", number: "02", title: "Create Approved Teams", description: "Tạo 9 đội đã duyệt + gán Round 1 (giống SV đăng ký)", icon: Users },
+  { key: "03-assign-judges", number: "03", title: "Assign Judges & Mentors", description: "Phân công GK & Mentor (Flow B: theo bảng)", icon: UserCheck },
+  { key: "04-generate-rubrics", number: "04", title: "Generate Rubrics", description: "Khởi tạo rubric 40/30/30 cho mỗi vòng", icon: FileSpreadsheet },
+  { key: "05-create-submissions", number: "05", title: "Open R1 + Submissions", description: "Mở vòng 1 và nộp bài tự động", icon: FileUp },
+  { key: "06-score-round1", number: "06", title: "Score Round 1", description: "Đóng vòng 1 + chấm điểm", icon: Award },
+  { key: "07-advance-to-round2", number: "07", title: "Publish R1 + Open R2", description: "Publish kết quả (top 2/bảng) và mở chung kết", icon: TrendingUp },
+  { key: "08-create-submissions-round2", number: "08", title: "Create Submissions (R2)", description: "Nộp bài vòng chung kết", icon: FileUp },
+  { key: "09-score-round2", number: "09", title: "Score R2 + Awards", description: "Chấm chung kết và trao 4 giải", icon: Award },
 ];
 
 const LIVE_DEMO_SCRIPTS: E2eScriptItem[] = [
   { key: "live-01-seed-users", number: "L1", title: "Seed Demo Users", description: "Trước buổi demo (1 lần)", icon: UserCheck },
-  { key: "live-02-create-teams", number: "L2", title: "Create Pending Teams", description: "Tạo đội pending — chưa duyệt", icon: Users },
-  { key: "live-03-approve-teams", number: "L3", title: "Approve Teams", description: "Duyệt đội khi tới slide Teams", icon: UserCheck },
+  { key: "live-02-create-teams", number: "L2", title: "Create Approved Teams", description: "Tạo 9 đội approved — không cần L3", icon: Users },
+  { key: "live-03-approve-teams", number: "L3", title: "Approve Pending (fallback)", description: "Chỉ khi còn đội pending thủ công", icon: UserCheck },
   { key: "live-04-reveal-tracks", number: "L4", title: "Reveal Tracks", description: "Flow B — gán track sau duyệt", icon: TrendingUp },
   { key: "live-05-assign-stakeholders", number: "L5", title: "Assign Mentor & Judges", description: "Slide phân công", icon: UserCheck },
   { key: "live-06-setup-rubrics", number: "L6", title: "Setup Rubrics", description: "Slide rubric 40/30/30", icon: FileSpreadsheet },
@@ -72,6 +80,7 @@ function ScriptRow({
   disabled,
   onRun,
   compact,
+  highlight,
 }: {
   script: E2eScriptItem;
   isRunning: boolean;
@@ -79,6 +88,7 @@ function ScriptRow({
   disabled: boolean;
   onRun: () => void;
   compact?: boolean;
+  highlight?: boolean;
 }) {
   const Icon = script.icon;
   return (
@@ -88,6 +98,9 @@ function ScriptRow({
       className={cn(
         "w-full flex items-center justify-between rounded-xl text-left transition-all border group",
         compact ? "p-2" : "p-2.5",
+        highlight && !isRunning && status === "idle"
+          ? "bg-gradient-to-r from-amber-500/15 to-violet-500/10 border-amber-500/40"
+          : null,
         isRunning
           ? "bg-amber-500/10 border-amber-500/40 text-amber-300"
           : status === "success"
@@ -161,7 +174,15 @@ export function E2eFloatingButton({ eventId }: { eventId?: string | number }) {
       const result = await runE2eScriptApi(script.key, parsedEventId);
       if (result.success) {
         setScriptStatuses((prev) => ({ ...prev, [script.key]: "success" }));
-        enqueueSnackbar(`✅ ${result.message}`, { variant: "success" });
+        const eventMatch =
+          (script.key === "seed-demo-event" || script.key === "01-create-event") &&
+          result.output?.match(/TARGET_EVENT_ID=(\d+)/);
+        enqueueSnackbar(
+          eventMatch
+            ? `✅ Event #${eventMatch[1]} đã tạo — mở /organizer/events/${eventMatch[1]}`
+            : `✅ ${result.message}`,
+          { variant: "success" },
+        );
         queryClient.invalidateQueries();
       } else {
         setScriptStatuses((prev) => ({ ...prev, [script.key]: "error" }));
@@ -240,6 +261,7 @@ export function E2eFloatingButton({ eventId }: { eventId?: string | number }) {
                     status={scriptStatuses[script.key] || "idle"}
                     disabled={!!runningScriptKey}
                     onRun={() => handleRunScript(script)}
+                    highlight={script.key === "seed-demo-event"}
                   />
                 ))}
 

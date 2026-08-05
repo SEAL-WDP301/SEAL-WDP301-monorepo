@@ -3,8 +3,9 @@ import { exec } from 'child_process';
 import * as path from 'path';
 
 const LEGACY_SCRIPTS: Record<string, { file: string; title: string }> = {
+  'seed-demo-event': { file: 'scripts/e2e-tester/seed-demo-event.ts', title: '00. Seed Flow B Demo Event' },
   '01-create-event': { file: 'scripts/e2e-tester/01-create-event.ts', title: '01. Create Event & Tracks' },
-  '02-create-teams': { file: 'scripts/e2e-tester/02-create-teams.ts', title: '02. Create Teams & Members' },
+  '02-create-teams': { file: 'scripts/e2e-tester/02-create-teams.ts', title: '02. Create Approved Teams' },
   '03-assign-judges': { file: 'scripts/e2e-tester/03-assign-judges.ts', title: '03. Assign Judges & Mentors' },
   '04-generate-rubrics': { file: 'scripts/e2e-tester/04-generate-rubrics.ts', title: '04. Generate Rubrics' },
   '05-create-submissions': { file: 'scripts/e2e-tester/05-create-submissions.ts', title: '05. Create Submissions (R1)' },
@@ -16,8 +17,8 @@ const LEGACY_SCRIPTS: Record<string, { file: string; title: string }> = {
 
 const LIVE_DEMO_SCRIPTS: Record<string, { file: string; title: string }> = {
   'live-01-seed-users': { file: 'scripts/e2e-tester/live-01-seed-users.ts', title: 'Live 01. Seed Users' },
-  'live-02-create-teams': { file: 'scripts/e2e-tester/live-02-create-teams.ts', title: 'Live 02. Create Pending Teams' },
-  'live-03-approve-teams': { file: 'scripts/e2e-tester/live-03-approve-teams.ts', title: 'Live 03. Approve Teams' },
+  'live-02-create-teams': { file: 'scripts/e2e-tester/live-02-create-teams.ts', title: 'Live 02. Create Approved Teams' },
+  'live-03-approve-teams': { file: 'scripts/e2e-tester/live-03-approve-teams.ts', title: 'Live 03. Approve Pending (fallback)' },
   'live-04-reveal-tracks': { file: 'scripts/e2e-tester/live-04-reveal-tracks.ts', title: 'Live 04. Reveal Tracks' },
   'live-05-assign-stakeholders': { file: 'scripts/e2e-tester/live-05-assign-stakeholders.ts', title: 'Live 05. Assign Mentor & Judges' },
   'live-06-setup-rubrics': { file: 'scripts/e2e-tester/live-06-setup-rubrics.ts', title: 'Live 06. Setup Rubrics' },

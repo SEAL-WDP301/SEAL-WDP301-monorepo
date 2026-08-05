@@ -74,6 +74,7 @@ export class RoundRankingService {
         status: round.status,
         isFinalRound,
         isTrackSpecific: round.isTrackSpecific,
+        advanceCount: round.advanceCount,
       },
       tracks: rankingsByTrack,
     };
@@ -107,6 +108,7 @@ export class RoundRankingService {
         status: round.status,
         isFinalRound: !nextRound,
         isTrackSpecific: round.isTrackSpecific,
+        advanceCount: round.advanceCount,
       },
       tracks: rankingsByTrack,
     };
@@ -134,7 +136,11 @@ export class RoundRankingService {
     const isTrackSpecific = round.isTrackSpecific;
 
     const advanceCount =
-      dto.advanceCount == null ? null : Number(dto.advanceCount);
+      dto.advanceCount == null
+        ? round.advanceCount == null
+          ? null
+          : Number(round.advanceCount)
+        : Number(dto.advanceCount);
 
     if (!isFinalRound) {
       if (
@@ -167,8 +173,9 @@ export class RoundRankingService {
       ? await this.loadPrizeSlots(eventId)
       : [];
 
+    // Final round: pool all finalists globally for prize slots (SEAL: 6 teams → 4 awards).
     const awardByTeamId = isFinalRound
-      ? this.resolveAutoAwards(rankingsByTrack, prizeSlots, isTrackSpecific)
+      ? this.resolveAutoAwards(rankingsByTrack, prizeSlots, false)
       : new Map<number, number>();
 
     const summary: Array<{
@@ -178,7 +185,8 @@ export class RoundRankingService {
       eliminatedTeamIds: number[];
     }> = [];
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(
+      async (tx) => {
       for (const { track, entries } of rankingsByTrack) {
         const advancedIds = isFinalRound
           ? []
@@ -272,7 +280,9 @@ export class RoundRankingService {
         where: { id: roundId },
         data: { status: RoundStatus.results_published },
       });
-    });
+    },
+    { timeout: 30_000 },
+    );
 
     await this.notifyRoundResults(eventId, round.name, summary, isFinalRound);
 
@@ -300,7 +310,7 @@ export class RoundRankingService {
     return {
       roundId,
       status: RoundStatus.results_published,
-      advanceCount: dto.advanceCount ?? null,
+      advanceCount: advanceCount ?? round.advanceCount,
       advancingTeamIds: Array.from(advancingSet),
       awards: Array.from(awardByTeamId.entries()).map(([teamId, awardId]) => ({
         teamId,

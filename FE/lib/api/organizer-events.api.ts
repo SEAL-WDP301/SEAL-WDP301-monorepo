@@ -19,6 +19,8 @@ export interface OrganizerRoundInput {
   maxFileSizeMb?: number;
   isTrackSpecific: boolean;
   trackId?: number | null;
+  /** Non-final rounds: top N to advance (per track if track-specific). */
+  advanceCount?: number | null;
 }
 
 export interface OrganizerEventLocation {
@@ -87,8 +89,11 @@ export interface OrganizerEventPayload {
   maxTeams?: number | null;
   minMembersPerTeam: number;
   maxMembersPerTeam: number;
-  /** Register without track; random reveal when a round opens */
+  /** Register without track; random reveal once (Day 1 lottery), sticky through finals */
   deferredTrackAssignment?: boolean;
+  /** Flow B: leaders self-draw track on workspace during Phase 2 */
+  studentSelfTrackDraw?: boolean;
+  studentTrackDrawOpen?: boolean;
   status?: EventStatus;
   registrationDeadline?: string;
   startDate?: string;
@@ -124,10 +129,36 @@ export interface OrganizerRound extends OrganizerRoundInput {
   problemFileUrl?: string | null;
   trackProblems?: OrganizerRoundTrackProblem[];
   track?: OrganizerTrack | null;
+  advanceCount?: number | null;
   _count?: {
     submissions?: number;
   };
 }
+
+export interface OrganizerProblemPoolItem {
+  id: number;
+  eventId: number;
+  label: string;
+  problemFileUrl: string;
+  assignedRoundId?: number | null;
+  assignedTrackId?: number | null;
+  createdAt?: string;
+}
+
+export type ProblemLotteryAssignment = {
+  trackId: number;
+  trackName: string;
+  poolItemId: number;
+  label: string;
+  problemFileUrl: string;
+};
+
+export type TeamLotteryAssignment = {
+  teamId: number;
+  teamName: string;
+  trackId: number;
+  trackName: string;
+};
 
 export interface OrganizerEvent extends Omit<
   OrganizerEventPayload,
@@ -147,6 +178,7 @@ export interface OrganizerEvent extends Omit<
   prizePoolTotals?: PrizePoolTotal[];
   registeredTeams?: number;
   calendarMeeting?: EventCalendarMeeting | null;
+  problemPoolItems?: OrganizerProblemPoolItem[];
   _count?: {
     teams?: number;
     submissions?: number;
@@ -450,6 +482,7 @@ export interface DetailedRankingsResponse {
     status: string;
     isFinalRound: boolean;
     isTrackSpecific?: boolean;
+    advanceCount?: number | null;
   };
   tracks: {
     track: { id: number; name: string };
@@ -560,19 +593,103 @@ export async function removeTrackFromRound(
 
 export async function revealEventTracks(
   eventId: string | number,
-  forceReassign = false,
+  options?: { forceReassign?: boolean; roundId?: number; studentSelfDraw?: boolean },
 ) {
   const res = await axiosClient.post(
     `/organizer/events/${eventId}/tracks/reveal`,
-    { forceReassign },
+    {
+      forceReassign: options?.forceReassign ?? false,
+      roundId: options?.roundId,
+      studentSelfDraw: options?.studentSelfDraw,
+    },
   );
   return unwrapData<{
+    mode?: "bulk" | "student_draw_open" | "student_draw_closed";
     assignedCount: number;
     skippedAlreadyAssigned: number;
+    studentTrackDrawOpen?: boolean;
     trackCounts: Array<{
       trackId: number;
       trackName: string;
       teamCount: number;
     }>;
+    assignments: TeamLotteryAssignment[];
   }>(res);
+}
+
+export async function closeStudentTrackDraw(eventId: string | number) {
+  const res = await axiosClient.post(
+    `/organizer/events/${eventId}/tracks/close-student-draw`,
+  );
+  return unwrapData<{
+    mode?: string;
+    assignedCount: number;
+    studentTrackDrawOpen?: boolean;
+    trackCounts: Array<{
+      trackId: number;
+      trackName: string;
+      teamCount: number;
+    }>;
+    assignments: TeamLotteryAssignment[];
+  }>(res);
+}
+
+export async function getStudentTrackDrawStatus(
+  eventId: string | number,
+  roundId?: number,
+) {
+  const res = await axiosClient.get(
+    `/organizer/events/${eventId}/tracks/draw-status`,
+    { params: roundId != null ? { roundId } : undefined },
+  );
+  return unwrapData<{
+    mode?: string;
+    assignedCount: number;
+    skippedAlreadyAssigned: number;
+    studentTrackDrawOpen?: boolean;
+    trackCounts: Array<{
+      trackId: number;
+      trackName: string;
+      teamCount: number;
+    }>;
+    assignments: TeamLotteryAssignment[];
+  }>(res);
+}
+
+export async function getProblemPool(eventId: string | number) {
+  const res = await axiosClient.get(
+    `/organizer/events/${eventId}/problem-pool`,
+  );
+  return unwrapData<OrganizerProblemPoolItem[]>(res);
+}
+
+export async function addProblemPoolItem(
+  eventId: string | number,
+  body: { label: string; problemFileUrl: string },
+) {
+  const res = await axiosClient.post(
+    `/organizer/events/${eventId}/problem-pool`,
+    body,
+  );
+  return unwrapData<OrganizerProblemPoolItem>(res);
+}
+
+export async function removeProblemPoolItem(
+  eventId: string | number,
+  itemId: number,
+) {
+  const res = await axiosClient.delete(
+    `/organizer/events/${eventId}/problem-pool/${itemId}`,
+  );
+  return unwrapData<{ deleted: boolean }>(res);
+}
+
+export async function lotteryAssignProblemsToRound(
+  eventId: string | number,
+  roundId: number,
+) {
+  const res = await axiosClient.post(
+    `/organizer/events/${eventId}/rounds/${roundId}/lottery-problems`,
+  );
+  return unwrapData<{ assignments: ProblemLotteryAssignment[] }>(res);
 }

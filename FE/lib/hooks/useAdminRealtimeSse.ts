@@ -4,6 +4,10 @@ import { useEffect, useRef } from "react";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth.store";
+import {
+  isSseControlPayload,
+  parseSseJsonData,
+} from "@/lib/sse/parse-sse-data";
 
 interface UseAdminRealtimeSseProps {
   eventId?: number;
@@ -48,19 +52,15 @@ export function useAdminRealtimeSse({
           },
           signal: ctrl.signal,
           onmessage(ev) {
-            try {
-              if (!ev.data) return;
-              const payload = JSON.parse(ev.data);
+            if (!ev.data) return;
+            const payload = parseSseJsonData(ev.data);
+            if (!payload || isSseControlPayload(payload)) return;
 
-              // Invalidate Queries to refresh Teams list automatically
-              queryClient.invalidateQueries({ queryKey: ["organizerTeams"] });
-              queryClient.invalidateQueries({ queryKey: ["organizerEvent"] });
+            queryClient.invalidateQueries({ queryKey: ["organizerTeams"] });
+            queryClient.invalidateQueries({ queryKey: ["organizerEvent"] });
 
-              if (onEventUpdate) {
-                onEventUpdate(payload);
-              }
-            } catch (err) {
-              console.error("[SSE Admin Event] Error parsing event data:", err);
+            if (onEventUpdate) {
+              onEventUpdate(payload);
             }
           },
         });
@@ -98,19 +98,15 @@ export function useAdminRealtimeSse({
           },
           signal: ctrl.signal,
           onmessage(ev) {
-            try {
-              if (!ev.data) return;
-              const payload = JSON.parse(ev.data);
+            if (!ev.data) return;
+            const payload = parseSseJsonData(ev.data);
+            if (!payload || isSseControlPayload(payload)) return;
 
-              // Invalidate Queries to refresh Submissions list automatically
-              queryClient.invalidateQueries({ queryKey: ["organizerSubmissions"] });
-              queryClient.invalidateQueries({ queryKey: ["organizerRound"] });
+            queryClient.invalidateQueries({ queryKey: ["organizerSubmissions"] });
+            queryClient.invalidateQueries({ queryKey: ["organizerRound"] });
 
-              if (onRoundUpdate) {
-                onRoundUpdate(payload);
-              }
-            } catch (err) {
-              console.error("[SSE Admin Round] Error parsing round data:", err);
+            if (onRoundUpdate) {
+              onRoundUpdate(payload);
             }
           },
         });

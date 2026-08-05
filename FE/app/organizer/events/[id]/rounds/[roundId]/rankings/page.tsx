@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Award, Crown, Medal, ChevronDown, ChevronUp, AlertTriangle,
@@ -591,7 +590,6 @@ export default function RankingsPage() {
 
   const [selectedTrackIdx, setSelectedTrackIdx] = useState(0);
   const [sortMode, setSortMode] = useState<"score" | "votes">("score");
-  const [advanceCount, setAdvanceCount] = useState(3);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
@@ -602,9 +600,7 @@ export default function RankingsPage() {
 
   const { mutate: publish, isPending: isPublishing } = useMutation({
     mutationFn: async () => {
-      const payload: PublishResultsPayload = data?.round?.isFinalRound
-        ? {}
-        : { advanceCount };
+      const payload: PublishResultsPayload = {};
       const result = await publishRoundResults(eventId, roundId, payload);
       return result as { repoSyncStarted?: boolean };
     },
@@ -629,29 +625,45 @@ export default function RankingsPage() {
     queryFn: () => getOrganizerEvent(eventId),
     refetchOnWindowFocus: false,
   });
+
+  const prizeSlotCount = useMemo(
+    () =>
+      (eventData?.prizes || []).reduce(
+        (sum, p) => sum + Math.max(0, p.quantity ?? 1),
+        0,
+      ),
+    [eventData?.prizes],
+  );
+
+  const configuredAdvanceCount =
+    round?.advanceCount != null && round.advanceCount >= 1
+      ? round.advanceCount
+      : null;
+
   const isResultsPublished = round?.status === "results_published";
   const isTrackSpecific = round?.isTrackSpecific !== false;
+  const effectiveAdvanceCount = configuredAdvanceCount ?? 0;
 
   const advancingTeamIds = useMemo(() => {
     const next = new Set<number>();
-    if (!data?.tracks || round?.isFinalRound) return next;
+    if (!data?.tracks || round?.isFinalRound || effectiveAdvanceCount < 1) return next;
 
     if (isTrackSpecific) {
       for (const trackGroup of data.tracks) {
         const scored = [...trackGroup.entries]
           .filter((e) => e.finalScore !== null)
           .sort(compareRankedEntries);
-        scored.slice(0, advanceCount).forEach((e) => next.add(e.teamId));
+        scored.slice(0, effectiveAdvanceCount).forEach((e) => next.add(e.teamId));
       }
     } else {
       const pooled = data.tracks
         .flatMap((t) => t.entries)
         .filter((e) => e.finalScore !== null)
         .sort(compareRankedEntries);
-      pooled.slice(0, advanceCount).forEach((e) => next.add(e.teamId));
+      pooled.slice(0, effectiveAdvanceCount).forEach((e) => next.add(e.teamId));
     }
     return next;
-  }, [data?.tracks, round?.isFinalRound, isTrackSpecific, advanceCount]);
+  }, [data?.tracks, round?.isFinalRound, isTrackSpecific, effectiveAdvanceCount]);
 
   const previewAwards = useMemo(() => {
     const map: Record<number, OrganizerPrize> = {};
@@ -682,23 +694,12 @@ export default function RankingsPage() {
       }
     };
 
-    if (isTrackSpecific) {
-      for (const trackGroup of data.tracks) assign(trackGroup.entries);
-    } else {
-      assign(data.tracks.flatMap((t) => t.entries));
-    }
+    // Final: rank all finalists together for prize slots (not per track).
+    assign(data.tracks.flatMap((t) => t.entries));
     return map;
-  }, [data?.tracks, round?.isFinalRound, eventData?.prizes, isTrackSpecific]);
+  }, [data?.tracks, round?.isFinalRound, eventData?.prizes]);
 
   const previewAwardCount = Object.keys(previewAwards).length;
-  const prizeSlotCount = useMemo(
-    () =>
-      (eventData?.prizes || []).reduce(
-        (sum, p) => sum + Math.max(0, p.quantity ?? 1),
-        0,
-      ),
-    [eventData?.prizes],
-  );
   
   const tracks = useMemo<RankingTrackGroup[]>(() => {
     if (!data?.tracks) return [];
@@ -739,7 +740,15 @@ export default function RankingsPage() {
     return [allTracksGroup, ...processedTracks];
   }, [data, sortMode]);
 
-  const selectedTrack = tracks[selectedTrackIdx];
+  const visibleTracks = useMemo(
+    () =>
+      round?.isFinalRound && tracks.length > 0
+        ? [tracks[0]]
+        : tracks,
+    [tracks, round?.isFinalRound],
+  );
+
+  const selectedTrack = visibleTracks[selectedTrackIdx] ?? visibleTracks[0];
   const entries = useMemo<DetailedRankedTeamEntry[]>(() => {
     let raw = selectedTrack?.entries ?? [];
     if (isResultsPublished && round?.isFinalRound) {
@@ -787,7 +796,11 @@ export default function RankingsPage() {
               <Badge variant="outline" className={`text-xs capitalize font-semibold ${roundStatusColor[round.status] ?? ""}`}>
                 {round.status?.replace(/_/g, " ")}
               </Badge>
-              {round.isTrackSpecific !== false ? (
+              {round.isFinalRound ? (
+                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 border-yellow-500/30 dark:text-yellow-300 font-semibold gap-1.5 px-2.5 py-1 text-xs">
+                  <Trophy className="w-3.5 h-3.5" /> Chung kết · tự gán {prizeSlotCount} giải
+                </Badge>
+              ) : round.isTrackSpecific !== false ? (
                 <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 dark:text-purple-300 font-semibold gap-1.5 px-2.5 py-1 text-xs">
                   <Users className="w-3.5 h-3.5" /> Track-Specific Evaluation
                 </Badge>
@@ -802,48 +815,66 @@ export default function RankingsPage() {
 
         {!isResultsPublished && round && (
           <GlassCard className="p-4 flex flex-col sm:flex-row sm:items-end gap-3 shrink-0">
-            {!round.isFinalRound && (
+            {round.isFinalRound ? (
+              <div className="space-y-1 text-sm text-muted-foreground max-w-md">
+                <p>
+                  Vòng cuối — tự gán{" "}
+                  <strong className="text-foreground">{prizeSlotCount}</strong> giải
+                  cho top {prizeSlotCount} đội (xếp chung mọi finalist, theo Event → Prizes).
+                </p>
+                {prizeSlotCount === 0 ? (
+                  <p className="text-amber-600 dark:text-amber-400 text-xs">
+                    Thêm giải trong Event trước khi publish.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
               <div className="space-y-1.5">
-                <Label htmlFor="advance-top-n" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Top N {isTrackSpecific ? "(per track)" : "(this round)"}
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Advance (từ cấu hình round)
                 </Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="advance-top-n"
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={advanceCount}
-                    onChange={(e) => {
-                      const n = Number(e.target.value);
-                      if (!Number.isFinite(n)) return;
-                      setAdvanceCount(Math.max(1, Math.floor(n)));
-                    }}
-                    className="w-24 h-10 font-bold tabular-nums"
-                  />
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    → {advancingTeamIds.size} advance
-                  </span>
-                </div>
+                <p className="text-sm">
+                  {configuredAdvanceCount != null ? (
+                    <>
+                      Top{" "}
+                      <strong className="tabular-nums">{configuredAdvanceCount}</strong>
+                      {isTrackSpecific ? " / bảng" : " / vòng"}
+                      {" → "}
+                      <strong className="tabular-nums">{advancingTeamIds.size}</strong>{" "}
+                      đội vào vòng sau
+                    </>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Chưa set advanceCount — sửa round ở Tracks & Rounds.
+                    </span>
+                  )}
+                </p>
               </div>
             )}
             {round.status === "closed" ? (
               <Button
                 onClick={() => setShowConfirmModal(true)}
                 className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 h-10"
-                disabled={!round.isFinalRound && advanceCount < 1}
+                disabled={
+                  round.isFinalRound
+                    ? prizeSlotCount < 1
+                    : configuredAdvanceCount == null
+                }
               >
                 <Send className="w-4 h-4" />
                 Publish Results
-                {!round.isFinalRound
-                  ? ` (${advancingTeamIds.size})`
-                  : previewAwardCount > 0
-                    ? ` (${previewAwardCount} awards)`
+                {round.isFinalRound
+                  ? ` (${prizeSlotCount} giải)`
+                  : configuredAdvanceCount != null
+                    ? ` (${advancingTeamIds.size})`
                     : ""}
               </Button>
             ) : (
               <p className="text-xs text-muted-foreground max-w-[200px] pb-1">
-                Close the round to publish. Top N preview updates as you type.
+                Close the round to publish.
+                {!round.isFinalRound && configuredAdvanceCount != null
+                  ? " Advance lấy từ cấu hình round."
+                  : ""}
               </p>
             )}
           </GlassCard>
@@ -857,10 +888,10 @@ export default function RankingsPage() {
       </div>
 
       {/* Track Tabs & Sort Controls */}
-      {tracks.length > 0 && (
+      {visibleTracks.length > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex gap-2 flex-wrap">
-            {tracks.map((t, idx) => (
+            {visibleTracks.map((t, idx) => (
               <button
                 key={t.track.id}
                 onClick={() => setSelectedTrackIdx(idx)}
@@ -870,7 +901,7 @@ export default function RankingsPage() {
                     : "border-border text-muted-foreground hover:bg-muted"
                 }`}
               >
-                {t.track.name}
+                {round?.isFinalRound ? "Xếp chung finalist" : t.track.name}
                 <span className="ml-2 text-xs opacity-60">({t.entries.length})</span>
               </button>
             ))}
@@ -905,8 +936,7 @@ export default function RankingsPage() {
         <div className="flex flex-wrap items-center gap-3 bg-card/80 p-4 rounded-2xl border border-border shadow-sm">
           <span className="text-sm font-bold text-foreground flex items-center gap-2">
             <Trophy className="w-4 h-4 text-yellow-500" />
-            Auto prize preview
-            {isTrackSpecific ? " (per track)" : " (whole round)"}:
+            Auto prize preview — top {prizeSlotCount} đội nhận {prizeSlotCount} giải:
           </span>
           <div className="flex flex-wrap items-center gap-2">
             {eventData?.prizes?.map((prize) => {
@@ -1019,20 +1049,22 @@ export default function RankingsPage() {
               <p className="text-sm text-muted-foreground mb-6">
                 {round?.isFinalRound ? (
                   <>
-                    Auto-assign <strong>{prizeSlotCount}</strong> prize slot(s)
-                    {isTrackSpecific ? " per track" : " for this round"} to top-ranked teams
-                    ({previewAwardCount} team(s) previewed).
+                    Auto-assign <strong>{prizeSlotCount}</strong> prize slot(s) to the
+                    top-ranked finalists <strong>across all tracks</strong> (
+                    {previewAwardCount} team(s) previewed).
                     <br /><br />
                     This finalizes official results and notifies participants.
                   </>
                 ) : (
                   <>
-                    Advance top <strong>{advanceCount}</strong>{" "}
-                    {isTrackSpecific ? "per track" : "this round"} (
-                    <strong>{advancingTeamIds.size}</strong> team(s)). Others become{" "}
-                    <strong>Eliminated</strong>.
+                    Advance top{" "}
+                    <strong>{configuredAdvanceCount ?? "—"}</strong>
+                    {isTrackSpecific ? " / bảng" : " / vòng"} (
+                    <strong>{advancingTeamIds.size}</strong> đội). Còn lại bị loại.
                     <br /><br />
-                    This cannot be undone and will email participants.
+                    Thiết lập tại Tracks & Rounds — không chỉnh tay trên trang này.
+                    <br /><br />
+                    Không thể hoàn tác; sẽ gửi email thông báo.
                   </>
                 )}
               </p>

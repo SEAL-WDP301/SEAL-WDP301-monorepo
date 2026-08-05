@@ -28,6 +28,9 @@ import { UpdateEventStatusDto } from "../dto/update-event-status.dto";
 import { UpdateRoundStatusDto } from "../dto/update-round-status.dto";
 
 import { PublishRoundResultsDto } from "../dto/publish-round-results.dto";
+import { CreateProblemPoolItemDto } from "../dto/create-problem-pool-item.dto";
+import { RevealTracksDto } from "../dto/reveal-tracks.dto";
+import { ProblemPoolService } from "../services/problem-pool.service";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 
 @ApiTags("Organizer/Events")
@@ -40,6 +43,7 @@ export class EventOrganizerController {
     private readonly eventOrganizerService: EventOrganizerService,
     private readonly roundRankingService: RoundRankingService,
     private readonly adminRealtimeSseService: AdminRealtimeSseService,
+    private readonly problemPoolService: ProblemPoolService,
   ) {}
 
   @Sse(":eventId/stream")
@@ -254,17 +258,82 @@ export class EventOrganizerController {
   @Post(":id/tracks/reveal")
   @ApiOperation({
     summary:
-      "Randomly assign deferred tracks to unassigned teams (even distribution). Optional forceReassign reshuffles all.",
+      "Phase 2: bulk assign tracks, or open student self-draw when studentSelfDraw is true in the body.",
   })
   async revealTracks(
     @Param("id", ParseIntPipe) eventId: number,
-    @Body() dto?: { forceReassign?: boolean },
+    @Body() dto?: RevealTracksDto,
   ) {
     const data = await this.eventOrganizerService.revealTracks(
       eventId,
       Boolean(dto?.forceReassign),
+      dto?.roundId,
+      dto?.studentSelfDraw,
     );
     return { message: "Tracks revealed successfully", data };
+  }
+
+  @Post(":id/tracks/close-student-draw")
+  @ApiOperation({ summary: "Close student self-draw phase (Flow B)" })
+  async closeStudentTrackDraw(@Param("id", ParseIntPipe) eventId: number) {
+    const data = await this.eventOrganizerService.closeStudentTrackDraw(eventId);
+    return { message: "Student track draw closed", data };
+  }
+
+  @Get(":id/tracks/draw-status")
+  @ApiOperation({ summary: "Live status for student self-draw (projector board)" })
+  async getStudentTrackDrawStatus(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Query("roundId") roundId?: string,
+  ) {
+    const data = await this.eventOrganizerService.getStudentTrackDrawStatus(
+      eventId,
+      roundId ? Number(roundId) : undefined,
+    );
+    return { message: "Track draw status", data };
+  }
+
+  @Get(":id/problem-pool")
+  @ApiOperation({ summary: "List secret problem pool items for an event" })
+  async listProblemPool(@Param("id", ParseIntPipe) eventId: number) {
+    const data = await this.problemPoolService.listPoolItems(eventId);
+    return { message: "Problem pool fetched", data };
+  }
+
+  @Post(":id/problem-pool")
+  @ApiOperation({ summary: "Add a problem to the secret pool" })
+  async addProblemPoolItem(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Body() dto: CreateProblemPoolItemDto,
+  ) {
+    const data = await this.problemPoolService.addPoolItem(eventId, dto);
+    return { message: "Problem pool item added", data };
+  }
+
+  @Delete(":id/problem-pool/:itemId")
+  @ApiOperation({ summary: "Remove an unassigned pool item" })
+  async removeProblemPoolItem(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Param("itemId", ParseIntPipe) itemId: number,
+  ) {
+    const data = await this.problemPoolService.removePoolItem(eventId, itemId);
+    return { message: "Problem pool item removed", data };
+  }
+
+  @Post(":id/rounds/:roundId/lottery-problems")
+  @ApiOperation({
+    summary:
+      "Randomly assign pool problems to tracks in a round (ceremony Phase 1)",
+  })
+  async lotteryAssignProblems(
+    @Param("id", ParseIntPipe) eventId: number,
+    @Param("roundId", ParseIntPipe) roundId: number,
+  ) {
+    const data = await this.problemPoolService.lotteryAssignProblemsToRound(
+      eventId,
+      roundId,
+    );
+    return { message: "Problems assigned to tracks", data };
   }
 
   @Get(":id/submissions")

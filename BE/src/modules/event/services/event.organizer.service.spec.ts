@@ -70,7 +70,9 @@ describe("EventOrganizerService team member limits", () => {
 
 describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", () => {
   const prisma = {
-    roundTrackProblem: { findMany: jest.fn() },
+    event: { findUnique: jest.fn() },
+    round: { findFirst: jest.fn(), findMany: jest.fn() },
+    roundTrackProblem: { findMany: jest.fn(), findUnique: jest.fn() },
     track: { findMany: jest.fn() },
   };
   const service = new EventOrganizerService(
@@ -89,6 +91,10 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.event.findUnique.mockResolvedValue({ deferredTrackAssignment: true });
+    prisma.round.findFirst.mockResolvedValue({ roundNumber: 2 });
+    prisma.round.findMany.mockResolvedValue([]);
+    prisma.roundTrackProblem.findUnique.mockResolvedValue(null);
   });
 
   it("ignores event tracks not scoped to this round (Flow B, deferred)", async () => {
@@ -113,6 +119,20 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
     await expect(
       (service as any).assertRoundProblemsReady(1, round, true),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("allows opening Flow B round when đề is inherited from an earlier round", async () => {
+    prisma.roundTrackProblem.findMany
+      .mockResolvedValueOnce([{ track: { id: 1, name: "AI" } }])
+      .mockResolvedValueOnce([]); // no local file on R2
+    prisma.round.findMany.mockResolvedValueOnce([{ id: 9, roundNumber: 1 }]);
+    prisma.roundTrackProblem.findUnique.mockResolvedValueOnce({
+      problemFileUrl: "https://x/ai.pdf",
+    });
+
+    await expect(
+      (service as any).assertRoundProblemsReady(1, round, true),
+    ).resolves.toBeUndefined();
   });
 
   it("blocks opening a track-specific round with zero tracks scoped to it", async () => {

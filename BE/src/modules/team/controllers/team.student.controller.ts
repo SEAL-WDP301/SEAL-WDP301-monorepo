@@ -204,6 +204,21 @@ export class TeamStudentController {
     return { message: "Workspace overview fetched", data };
   }
 
+  @Post("my-team/draw-track")
+  @ApiOperation({
+    summary: "Leader self-draws a track during open Phase 2 (Flow B)",
+  })
+  async drawMyTeamTrack(
+    @Query("eventId", ParseIntPipe) eventId: number,
+    @CurrentUser("id") userId: string,
+  ) {
+    const data = await this.teamStudentService.drawMyTeamTrack(
+      Number(userId),
+      eventId,
+    );
+    return { message: "Track assigned", data };
+  }
+
   @Get("my-team/feedback")
   @ApiOperation({ summary: "Get mentor feedback for the student's team" })
   async getMentorFeedback(
