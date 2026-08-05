@@ -1,4 +1,4 @@
-/** Flow B: tracks hidden until organizer opens a round. */
+/** Flow B: tracks hidden until organizer reveals (lottery) or first round opens. */
 export function isDeferredTrackEvent(
   event?: { deferredTrackAssignment?: boolean | null } | null,
 ): boolean {
@@ -18,11 +18,11 @@ export function getVisibleStudentTrackName(opts: {
 
 export function getTrackPendingMessage(deferred?: boolean): string {
   if (deferred) {
-    return "Đề thi chưa được công bố. Chờ BTC mở vòng để nhận đề và bắt đầu làm bài.";
+    return "Track và đề thi sẽ được BTC bốc thăm / công bố một lần trước khi thi. Sau khi gán, track giữ nguyên suốt cuộc thi.";
   }
   return "Đề thi chưa sẵn sàng. Vui lòng chờ organizer cập nhật.";
 }
 
 export function getTrackPendingTitle(deferred?: boolean): string {
-  return deferred ? "Chưa có đề thi" : "Chưa có đề / track";
+  return deferred ? "Chưa có track / đề thi" : "Chưa có đề / track";
 }

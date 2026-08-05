@@ -8,6 +8,10 @@ import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import { axiosClient } from "@/lib/axios";
 import { Bell } from "lucide-react";
+import {
+  isSseControlPayload,
+  parseSseJsonData,
+} from "@/lib/sse/parse-sse-data";
 
 const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000/api";
 
@@ -63,36 +67,39 @@ export function SseProvider({ children }: { children: React.ReactNode }) {
             }
           },
           onmessage(ev) {
-            try {
-              if (!ev.data) return;
-              const data = JSON.parse(ev.data);
+            if (!ev.data) return;
 
-              // Render sleek Snackbar notification popup
-              enqueueSnackbar(
-                <div className="flex flex-col gap-1 max-w-sm">
-                  <div className="font-bold text-sm text-foreground flex items-center gap-2">
-                    <Bell className="size-4 text-orange-500 shrink-0 animate-bounce" />
-                    <span>{data.title || "New Notification"}</span>
-                  </div>
-                  {data.content && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                      {data.content}
-                    </p>
-                  )}
-                </div>,
-                {
-                  variant: "default",
-                  autoHideDuration: 6000,
-                  key: data.id ? `notification-${data.id}` : `notif-${Date.now()}`,
-                  preventDuplicate: true,
-                  anchorOrigin: { vertical: "top", horizontal: "right" },
-                },
-              );
+            const data = parseSseJsonData(ev.data);
+            if (!data || isSseControlPayload(data)) return;
 
-              queryClient.invalidateQueries({ queryKey: ["userNotifications"] });
-            } catch (e) {
-              console.error("Failed to parse SSE data", e);
-            }
+            const title =
+              typeof data.title === "string" ? data.title : "New Notification";
+            const content =
+              typeof data.content === "string" ? data.content : undefined;
+            const id = typeof data.id === "number" ? data.id : undefined;
+
+            enqueueSnackbar(
+              <div className="flex flex-col gap-1 max-w-sm">
+                <div className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Bell className="size-4 text-orange-500 shrink-0 animate-bounce" />
+                  <span>{title}</span>
+                </div>
+                {content && (
+                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                    {content}
+                  </p>
+                )}
+              </div>,
+              {
+                variant: "default",
+                autoHideDuration: 6000,
+                key: id ? `notification-${id}` : `notif-${Date.now()}`,
+                preventDuplicate: true,
+                anchorOrigin: { vertical: "top", horizontal: "right" },
+              },
+            );
+
+            queryClient.invalidateQueries({ queryKey: ["userNotifications"] });
           },
           onerror(err) {
             if (err instanceof FatalError) {

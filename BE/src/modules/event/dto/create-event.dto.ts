@@ -173,6 +173,15 @@ export class CreateEventDto {
   @IsOptional()
   deferredTrackAssignment?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      "Flow B: each team leader draws their track on workspace during Phase 2 (instead of bulk organizer lottery).",
+    default: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  studentSelfTrackDraw?: boolean;
+
   @ApiPropertyOptional({ type: [EventFaqItemDto] })
   @IsArray()
   @ValidateNested({ each: true })

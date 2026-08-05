@@ -37,6 +37,7 @@ import { useAdminSocket } from "@/hooks/use-admin-socket";
 import { axiosClient } from "@/lib/axios";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
 import { TrackPendingBanner } from "@/components/student/track-pending-banner";
+import { StudentTeamTrackPanel } from "@/components/student/student-team-track-panel";
 import { SubmissionLockBanner } from "@/components/student/submission-lock-banner";
 import {
   GithubCommitCard,
@@ -459,6 +460,15 @@ export default function SubmissionsPage() {
           />
         )}
 
+        <StudentTeamTrackPanel
+          eventId={eventId}
+          isLeader={Boolean(isLeader)}
+          teamTrackId={workspaceData?.team?.trackId}
+          teamTrackName={workspaceData?.team?.track?.name}
+          event={eventMeta}
+          trackDraw={workspaceData?.trackDraw}
+        />
+
         {displayRound?.trackPending && (
           <TrackPendingBanner event={eventMeta} />
         )}
@@ -645,6 +655,15 @@ export default function SubmissionsPage() {
           )}
         </div>
       </header>
+
+      <StudentTeamTrackPanel
+        eventId={eventId}
+        isLeader={Boolean(isLeader)}
+        teamTrackId={workspaceData?.team?.trackId}
+        teamTrackName={workspaceData?.team?.track?.name}
+        event={eventMeta}
+        trackDraw={workspaceData?.trackDraw}
+      />
 
       {displayRound?.trackPending && (
         <TrackPendingBanner event={eventMeta} />

@@ -4,6 +4,7 @@ import { MailService } from "../../../core/mail/mail.service";
 import { StorageService } from "../../../core/storage/storage.service";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { TeamStudentService } from "./team.student.service";
+import { TrackAssignmentService } from "../../event/services/track-assignment.service";
 
 describe("TeamStudentService event capacity", () => {
   const transactionClient = {
@@ -53,6 +54,7 @@ describe("TeamStudentService event capacity", () => {
     eventEmitter as unknown as EventEmitter2,
     { get: jest.fn().mockReturnValue("http://localhost:3001") } as never,
     { get: jest.fn(), set: jest.fn(), del: jest.fn() } as never,
+    {} as TrackAssignmentService,
   );
 
   beforeEach(() => {

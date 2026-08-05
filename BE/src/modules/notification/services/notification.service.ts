@@ -52,12 +52,14 @@ export class NotificationService {
     return this.redisService.subscribeChannel(channel).pipe(
       map((rawJson: string) => {
         try {
-          return {
-            data: JSON.parse(rawJson),
-          } as MessageEvent;
+          JSON.parse(rawJson);
+          return { data: rawJson } as MessageEvent;
         } catch {
           return {
-            data: { title: "Notification", content: rawJson },
+            data: JSON.stringify({
+              title: "Notification",
+              content: rawJson,
+            }),
           } as MessageEvent;
         }
       }),

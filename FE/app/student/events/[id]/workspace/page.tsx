@@ -34,6 +34,7 @@ import { OnlineMeetingCard } from "@/components/events/online-meeting-card";
 import { useEffect, useMemo, useState } from "react";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
 import { TrackPendingBanner } from "@/components/student/track-pending-banner";
+import { StudentTeamTrackPanel } from "@/components/student/student-team-track-panel";
 import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
 import { getVisibleStudentTrackName } from "@/lib/events/student-track-visibility";
 
@@ -107,7 +108,8 @@ export default function WorkspaceOverviewPage() {
   });
 
   const workspaceData = data?.data;
-  const isLeader = workspaceData?.role === "leader";
+  const isLeader = workspaceData?.isLeader ?? workspaceData?.role === "leader";
+  const trackDraw = workspaceData?.trackDraw;
   const currentActiveRound = workspaceData?.currentActiveRound;
   const rounds: WorkspaceRound[] = workspaceData?.rounds || [];
   const roundSubmissions: WorkspaceRoundSubmission[] = useMemo(
@@ -238,15 +240,22 @@ export default function WorkspaceOverviewPage() {
       {/* Header */}
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          {displayRound ? (
-            <Badge variant="outline" className="mb-3 border-orange-500/30 text-orange-400 bg-orange-500/10">
-              {displayRound.name}
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="mb-3 border-zinc-500/30 text-zinc-400 bg-zinc-500/10">
-              No Active Phase
-            </Badge>
-          )}
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            {visibleTrackName ? (
+              <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600">
+                Bảng: {visibleTrackName}
+              </Badge>
+            ) : null}
+            {displayRound ? (
+              <Badge variant="outline" className="border-orange-500/30 text-orange-400 bg-orange-500/10">
+                {displayRound.name}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="border-zinc-500/30 text-zinc-400 bg-zinc-500/10">
+                No Active Phase
+              </Badge>
+            )}
+          </div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground">
             Workspace Overview
           </h1>
@@ -459,9 +468,18 @@ export default function WorkspaceOverviewPage() {
         </GlassCard>
       </section>
 
-      {displayRound?.trackPending && (
+      <StudentTeamTrackPanel
+        eventId={Number(eventId)}
+        isLeader={Boolean(isLeader)}
+        teamTrackId={workspaceData?.team?.trackId}
+        teamTrackName={workspaceData?.team?.track?.name}
+        event={eventMeta}
+        trackDraw={trackDraw}
+      />
+
+      {displayRound?.trackPending ? (
         <TrackPendingBanner event={eventMeta} />
-      )}
+      ) : null}
 
       {displayRound?.problemFileUrl && (
         <ProblemStatementViewer

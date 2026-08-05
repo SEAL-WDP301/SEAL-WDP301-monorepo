@@ -7,6 +7,8 @@ import {
   ConflictException,
   HttpException,
   HttpStatus,
+  Inject,
+  forwardRef,
 } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ConfigService } from "@nestjs/config";
@@ -27,7 +29,11 @@ import { StorageService } from "../../../core/storage/storage.service";
 import { RedisService } from "../../../core/redis/redis.service";
 import { RegisterIndividualDto } from "../dto/register-individual.dto";
 import { RegisterTeamDto } from "../dto/register-team.dto";
-import { resolveProblemFileUrl } from "../../event/utils/problem-file.utils";
+import {
+  buildFlowBSharedProblemsByTrackId,
+  resolveProblemFileUrl,
+} from "../../event/utils/problem-file.utils";
+import { TrackAssignmentService } from "../../event/services/track-assignment.service";
 
 @Injectable()
 export class TeamStudentService {
@@ -40,6 +46,8 @@ export class TeamStudentService {
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
+    @Inject(forwardRef(() => TrackAssignmentService))
+    private readonly trackAssignmentService: TrackAssignmentService,
   ) {}
 
   private normalizeInvitationEmails(emails: string[], leaderEmail: string) {
@@ -1271,6 +1279,8 @@ export class TeamStudentService {
                 name: true,
                 status: true,
                 deferredTrackAssignment: true,
+                studentSelfTrackDraw: true,
+                studentTrackDrawOpen: true,
               },
             },
             track: true,
@@ -1328,6 +1338,10 @@ export class TeamStudentService {
       submissions.map((submission) => [submission.roundId, submission]),
     );
 
+    const flowBSharedProblems = teamMember.team.event.deferredTrackAssignment
+      ? buildFlowBSharedProblemsByTrackId(rounds)
+      : null;
+
     const roundSubmissions = rounds.map((round) => {
       const teamRound = round.teamRounds[0] ?? null;
       const submission = submissionByRoundId.get(round.id) ?? null;
@@ -1351,6 +1365,7 @@ export class TeamStudentService {
           problemFileUrl: resolveProblemFileUrl(
             round,
             teamMember.team.trackId,
+            flowBSharedProblems,
           ),
           trackPending:
             teamMember.team.trackId == null &&
@@ -1415,6 +1430,21 @@ export class TeamStudentService {
     return {
       team: teamMember.team,
       role: teamMember.role,
+      isLeader: teamMember.team.leaderId === userId,
+      trackDraw: {
+        studentSelfTrackDraw: Boolean(
+          teamMember.team.event.studentSelfTrackDraw,
+        ),
+        studentTrackDrawOpen: Boolean(
+          teamMember.team.event.studentTrackDrawOpen,
+        ),
+        canDrawTrack:
+          Boolean(teamMember.team.event.studentSelfTrackDraw) &&
+          Boolean(teamMember.team.event.studentTrackDrawOpen) &&
+          teamMember.team.leaderId === userId &&
+          teamMember.team.trackId == null &&
+          teamApproved,
+      },
       canSubmit: teamApproved,
       rounds,
       roundSubmissions,
@@ -1423,6 +1453,42 @@ export class TeamStudentService {
       mentorFeedbacks,
       isEliminated,
     };
+  }
+
+  async drawMyTeamTrack(userId: number, eventId: number) {
+    const teamMember = await this.prisma.teamMember.findFirst({
+      where: {
+        userId,
+        status: TeamMemberStatus.accepted,
+        team: {
+          eventId,
+          status: TeamStatus.approved,
+        },
+      },
+      select: { teamId: true },
+    });
+    if (!teamMember) {
+      throw new NotFoundException(
+        "You don't have an approved team for this event",
+      );
+    }
+
+    const ceremonyRound = await this.prisma.round.findFirst({
+      where: {
+        eventId,
+        status: RoundStatus.not_started,
+        trackProblems: { some: {} },
+      },
+      orderBy: { roundNumber: "asc" },
+      select: { id: true },
+    });
+
+    return this.trackAssignmentService.drawTrackForTeam(
+      eventId,
+      teamMember.teamId,
+      userId,
+      ceremonyRound?.id,
+    );
   }
 
   private resolveRoundSubmissionAccess(

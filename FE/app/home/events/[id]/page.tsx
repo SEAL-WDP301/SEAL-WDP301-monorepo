@@ -1633,11 +1633,11 @@ export default function EventDetailPage() {
               {isDeferred ? (
                 <div className="rounded-2xl border border-border bg-card p-6">
                   <p className="font-semibold text-foreground">
-                    Tracks will be revealed when the round opens
+                    Track được bốc thăm một lần trước ngày thi
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    This event assigns teams to tracks when the organizer opens a
-                    round. Track names are not listed publicly beforehand.
+                    BTC gán track ngẫu nhiên cho từng đội (Day 1). Sau khi gán,
+                    track giữ nguyên suốt cuộc thi — kể cả vòng chung kết.
                   </p>
                 </div>
               ) : (

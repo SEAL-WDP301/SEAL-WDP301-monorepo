@@ -50,4 +50,14 @@ export class CreateRoundDto {
   @IsInt()
   @IsOptional()
   trackId?: number | null;
+
+  @ApiPropertyOptional({
+    example: 2,
+    description:
+      "Non-final rounds only. Top N teams to advance (per track if track-specific).",
+  })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  advanceCount?: number | null;
 }

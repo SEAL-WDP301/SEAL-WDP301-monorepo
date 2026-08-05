@@ -23,7 +23,8 @@
     "prisma:studio": "prisma studio",
     "seed:run": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
     "seed:dashboard": "ts-node -r tsconfig-paths/register src/database/seeds/run-dashboard-seed.ts",
-    "events:backfill-images": "ts-node -r tsconfig-paths/register scripts/backfill-event-images.ts"
+    "events:backfill-images": "ts-node -r tsconfig-paths/register scripts/backfill-event-images.ts",
+    "demo:seed-event": "node -r ts-node/register/transpile-only scripts/e2e-tester/seed-demo-event.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1067.0",

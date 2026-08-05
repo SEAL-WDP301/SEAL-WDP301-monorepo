@@ -76,12 +76,12 @@ export class AdminRealtimeSseService {
           const parsed = JSON.parse(rawMessage);
           return {
             type: parsed.type || "message",
-            data: parsed.data || parsed,
+            data: JSON.stringify(parsed.data ?? parsed),
           };
         } catch {
           return {
             type: "message",
-            data: rawMessage,
+            data: JSON.stringify({ raw: rawMessage }),
           };
         }
       }),
@@ -101,12 +101,12 @@ export class AdminRealtimeSseService {
           const parsed = JSON.parse(rawMessage);
           return {
             type: parsed.type || "message",
-            data: parsed.data || parsed,
+            data: JSON.stringify(parsed.data ?? parsed),
           };
         } catch {
           return {
             type: "message",
-            data: rawMessage,
+            data: JSON.stringify({ raw: rawMessage }),
           };
         }
       }),

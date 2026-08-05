@@ -13,14 +13,32 @@ import { enqueueSnackbar } from "notistack";
 import {
   ChevronDown,
   Edit2,
+  GitMerge,
+  Layers,
   Loader2,
   Plus,
   Save,
+  Shuffle,
   Trash2,
   Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  canAddTrackForMaxTeams,
+  countEffectiveAssignedProblems,
+  countTeamsOnTracks,
+  countUnassignedPoolItems,
+  getCeremonyRound,
+  getEffectiveTrackProblemUrl,
+  getProblemLotteryDisableReason,
+  getTeamLotteryDisableReason,
+  isProblemLotteryDone,
+  isTeamLotteryDone,
+} from "@/lib/events/track-capacity";
 import { ProblemStatementViewer } from "@/components/problem/problem-statement-viewer";
+import { TracksProblemPoolTab } from "./_components/problem-pool-tab";
+import { ProblemLotteryDialog } from "./_components/problem-lottery-dialog";
+import { TeamLotteryDialog } from "./_components/team-lottery-dialog";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,6 +80,7 @@ type RoundDraft = {
   submissionDeadline: string;
   maxFileSizeMb: number | string;
   isTrackSpecific: boolean;
+  advanceCount: number | string;
 };
 
 type TrackDraft = {
@@ -69,6 +88,19 @@ type TrackDraft = {
   name: string;
   description: string;
 };
+
+function isLastRoundDraft(
+  draft: RoundDraft,
+  allRounds: OrganizerRound[],
+): boolean {
+  const draftNum = Number(draft.roundNumber);
+  if (!Number.isInteger(draftNum) || draftNum < 1) return false;
+  const numbers = allRounds
+    .filter((r) => r.id !== draft.id)
+    .map((r) => r.roundNumber);
+  numbers.push(draftNum);
+  return draftNum === Math.max(...numbers);
+}
 
 const emptyRound = (roundNumber: number): RoundDraft => ({
   roundNumber,
@@ -78,6 +110,7 @@ const emptyRound = (roundNumber: number): RoundDraft => ({
   submissionDeadline: "",
   maxFileSizeMb: 20,
   isTrackSpecific: false,
+  advanceCount: "",
 });
 
 const emptyTrack = (): TrackDraft => ({
@@ -110,6 +143,7 @@ function mapRound(round: OrganizerRound): OrganizerRoundInput {
     maxFileSizeMb: round.maxFileSizeMb,
     isTrackSpecific: round.isTrackSpecific,
     trackId: round.trackId ?? null,
+    advanceCount: round.advanceCount ?? null,
   };
 }
 
@@ -125,6 +159,38 @@ function canModifyRoundTracks(round: OrganizerRound) {
   return (round.status || "not_started") === "not_started";
 }
 
+function LotteryHeaderButton({
+  disableReason,
+  className,
+  children,
+  onClick,
+  variant,
+}: {
+  disableReason: string | null;
+  className?: string;
+  children: ReactNode;
+  onClick: () => void;
+  variant?: "default" | "outline";
+}) {
+  const disabled = Boolean(disableReason);
+  return (
+    <span
+      title={disableReason ?? undefined}
+      className={cn("inline-flex", disabled && "cursor-not-allowed")}
+    >
+      <Button
+        type="button"
+        variant={variant}
+        className={className}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </Button>
+    </span>
+  );
+}
+
 /** Client-side guard before opening a round (mirrors BE assertRoundProblemsReady). */
 function getOpenRoundBlockReason(
   event: OrganizerEvent,
@@ -135,8 +201,7 @@ function getOpenRoundBlockReason(
     return `Cannot open "${round.name}" - create at least one track first.`;
   }
 
-  const requirePerTrack =
-    Boolean(event.deferredTrackAssignment) || round.isTrackSpecific;
+  const requirePerTrack = round.isTrackSpecific;
 
   if (requirePerTrack) {
     const missing = tracks.filter(
@@ -146,9 +211,13 @@ function getOpenRoundBlockReason(
         ),
     );
     if (missing.length) {
-      return `Cannot open "${round.name}" - each track needs a problem file. Missing: ${missing
-        .map((t) => t.name)
-        .join(", ")}.`;
+      return event.deferredTrackAssignment
+        ? `Cannot open "${round.name}" - chưa gán đề cho bảng: ${missing
+            .map((t) => t.name)
+            .join(", ")}. Thêm đề vào Pool đề rồi chạy Bốc thăm Phase 1.`
+        : `Cannot open "${round.name}" - each track needs a problem file. Missing: ${missing
+            .map((t) => t.name)
+            .join(", ")}.`;
     }
     return null;
   }
@@ -177,7 +246,6 @@ function buildEventPayload(
     startDate: event.startDate || undefined,
     endDate: event.endDate || undefined,
     githubOrgUrl: event.githubOrgUrl || undefined,
-    // Preserve mode — never flip Flow B → A when saving structure here.
     deferredTrackAssignment: Boolean(event.deferredTrackAssignment),
     prizes: event.prizes?.map((p) => ({
       id: p.id,
@@ -203,9 +271,6 @@ export default function EventRoundsPage() {
   const [isTrackDialogOpen, setIsTrackDialogOpen] = useState(false);
   const [roundDraft, setRoundDraft] = useState<RoundDraft>(emptyRound(1));
   const [trackDraft, setTrackDraft] = useState<TrackDraft>(emptyTrack);
-  // Which round triggered "Add Track" (if any) — a brand-new track created
-  // from inside a round's section is scoped to ONLY that round, not every
-  // track-specific round in the event.
   const [createTrackRoundId, setCreateTrackRoundId] = useState<number | null>(
     null,
   );
@@ -215,6 +280,19 @@ export default function EventRoundsPage() {
   } | null>(null);
   const [expandedRoundIds, setExpandedRoundIds] = useState<number[]>([]);
   const [didInitExpanded, setDidInitExpanded] = useState(false);
+  const [lotteryRound, setLotteryRound] = useState<{
+    id: number;
+    name: string;
+    trackCount: number;
+    trackSlots: { trackId: number; trackName: string }[];
+  } | null>(null);
+  const [teamLotteryRound, setTeamLotteryRound] = useState<{
+    id: number;
+    name: string;
+    trackCount: number;
+    trackSlots: { trackId: number; trackName: string }[];
+  } | null>(null);
+  const [tracksTab, setTracksTab] = useState("rounds");
 
   const toggleRoundExpanded = (roundId: number) => {
     setExpandedRoundIds((current) =>
@@ -236,6 +314,99 @@ export default function EventRoundsPage() {
     [event?.rounds],
   );
   const tracks = useMemo(() => event?.tracks || [], [event?.tracks]);
+  const unassignedPoolCount = useMemo(
+    () => countUnassignedPoolItems(event?.problemPoolItems),
+    [event?.problemPoolItems],
+  );
+  const ceremonyRound = useMemo(() => getCeremonyRound(rounds), [rounds]);
+  const defaultCeremonyRound = useMemo(() => {
+    if (!ceremonyRound) return null;
+    const trackProblems = ceremonyRound.trackProblems ?? [];
+    return {
+      id: ceremonyRound.id!,
+      name: (rounds.find((r) => r.id === ceremonyRound.id)?.name ??
+        "Ceremony round") as string,
+      trackCount: trackProblems.length,
+      trackProblems,
+      trackSlots: trackProblems.map((tp) => ({
+        trackId: tp.trackId,
+        trackName:
+          tracks.find((t) => t.id === tp.trackId)?.name ?? `Bảng ${tp.trackId}`,
+      })),
+    };
+  }, [ceremonyRound, rounds, tracks]);
+
+  const poolPreviewItems = useMemo(
+    () =>
+      (event?.problemPoolItems ?? [])
+        .filter((item) => item.assignedRoundId == null)
+        .map((item) => ({ key: `p-${item.id}`, sourceLabel: item.label })),
+    [event?.problemPoolItems],
+  );
+
+  const phase1DisableReason = useMemo(() => {
+    if (!ceremonyRound) {
+      return getProblemLotteryDisableReason(0, unassignedPoolCount);
+    }
+    const assignedProblemCount = countEffectiveAssignedProblems(
+      (ceremonyRound.trackProblems ?? []).map((tp) => tp.trackId),
+      ceremonyRound,
+      rounds,
+      Boolean(event?.deferredTrackAssignment),
+    );
+    return getProblemLotteryDisableReason(
+      defaultCeremonyRound?.trackCount ?? 0,
+      unassignedPoolCount,
+      event?.maxTeams,
+      isProblemLotteryDone(
+        event?.problemPoolItems,
+        ceremonyRound.trackProblems?.length ?? 0,
+        assignedProblemCount,
+      ),
+    );
+  }, [
+    ceremonyRound,
+    defaultCeremonyRound,
+    unassignedPoolCount,
+    event?.maxTeams,
+    event?.problemPoolItems,
+    event?.deferredTrackAssignment,
+    rounds,
+  ]);
+
+  const teamsOnTracks = useMemo(
+    () => countTeamsOnTracks(tracks),
+    [tracks],
+  );
+
+  const phase2DisableReason = useMemo(() => {
+    if (!ceremonyRound) {
+      return getTeamLotteryDisableReason(0, event?.maxTeams, []);
+    }
+    const effectiveProblems = (ceremonyRound.trackProblems ?? []).map(
+      (tp) => ({
+        problemFileUrl: getEffectiveTrackProblemUrl(
+          tp.trackId,
+          ceremonyRound,
+          rounds,
+          Boolean(event?.deferredTrackAssignment),
+        ),
+      }),
+    );
+    return getTeamLotteryDisableReason(
+      ceremonyRound.trackProblems?.length ?? 0,
+      event?.maxTeams,
+      effectiveProblems,
+      isTeamLotteryDone(teamsOnTracks, event?.studentTrackDrawOpen),
+    );
+  }, [
+    ceremonyRound,
+    rounds,
+    event?.maxTeams,
+    event?.deferredTrackAssignment,
+    event?.studentTrackDrawOpen,
+    teamsOnTracks,
+  ]);
 
   useEffect(() => {
     if (!event || didInitExpanded) return;
@@ -243,9 +414,6 @@ export default function EventRoundsPage() {
     setDidInitExpanded(true);
   }, [didInitExpanded, event]);
 
-  // Allow tracks/rounds/problem setup until any round leaves not_started.
-  // Needed for Flow B recovery after registration deadline when Round 1
-  // could not auto-open (missing tracks/files) — event may already be ongoing.
   const canModifyStructure = (event?.rounds || []).every(
     (round) => (round.status || "not_started") === "not_started",
   );
@@ -417,7 +585,6 @@ export default function EventRoundsPage() {
         ? 1
         : Math.max(...rounds.map((round) => round.roundNumber)) + 1;
     const draft = emptyRound(nextRoundNumber);
-    // Flow B: rounds always need per-track problem files.
     if (event?.deferredTrackAssignment) {
       draft.isTrackSpecific = true;
     }
@@ -435,6 +602,7 @@ export default function EventRoundsPage() {
       submissionDeadline: toDateTimeInput(round.submissionDeadline),
       maxFileSizeMb: round.maxFileSizeMb ?? 20,
       isTrackSpecific: round.isTrackSpecific,
+      advanceCount: round.advanceCount ?? "",
     });
     setIsRoundDialogOpen(true);
   };
@@ -477,6 +645,21 @@ export default function EventRoundsPage() {
       return;
     }
 
+    const isLastRound = isLastRoundDraft(roundDraft, rounds);
+    const advanceCountRaw = Number(roundDraft.advanceCount);
+
+    if (!isLastRound) {
+      if (
+        !Number.isInteger(advanceCountRaw) ||
+        advanceCountRaw < 1
+      ) {
+        enqueueSnackbar("Advance count must be at least 1 for non-final rounds.", {
+          variant: "warning",
+        });
+        return;
+      }
+    }
+
     const savedRound: OrganizerRoundInput = {
       id: roundDraft.id,
       roundNumber,
@@ -489,6 +672,7 @@ export default function EventRoundsPage() {
       isTrackSpecific: event.deferredTrackAssignment
         ? true
         : roundDraft.isTrackSpecific,
+      advanceCount: isLastRound ? null : advanceCountRaw,
     };
 
     const nextRounds = roundDraft.id
@@ -622,6 +806,38 @@ export default function EventRoundsPage() {
     }
   };
 
+  const syncTracksFromPreviousRound = async (
+    targetRound: OrganizerRound,
+    sourceTrackIds: number[],
+  ) => {
+    const missing = sourceTrackIds.filter(
+      (trackId) =>
+        !targetRound.trackProblems?.some((p) => p.trackId === trackId),
+    );
+    if (missing.length === 0) {
+      enqueueSnackbar("Tất cả bảng đã có trong vòng này.", { variant: "info" });
+      return;
+    }
+    const key = `sync-${targetRound.id}`;
+    try {
+      setUploadingKey(key);
+      for (const trackId of missing) {
+        await updateRoundProblemFile(eventId, targetRound.id, null, trackId);
+      }
+      enqueueSnackbar(
+        `Đã đồng bộ ${missing.length} bảng từ vòng trước.`,
+        { variant: "success" },
+      );
+      eventQuery.refetch();
+    } catch (err: unknown) {
+      enqueueSnackbar(getApiMessage(err, "Failed to sync tracks from previous round"), {
+        variant: "error",
+      });
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
   const confirmRemoveTrackFromRound = async () => {
     if (!pendingRemove) return;
     const { round, track } = pendingRemove;
@@ -657,33 +873,30 @@ export default function EventRoundsPage() {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="mb-2 flex gap-2">
-            <Badge variant="outline">
-              {event.season} {event.year}
-            </Badge>
-            <Badge
-              variant={event.status === "draft" ? "warning" : "success"}
-              className="capitalize"
-            >
-              {event.status}
-            </Badge>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight">Tracks & Rounds</h1>
-          <p className="mt-1 text-muted-foreground">
-            Create and maintain the competition structure for {event.name}.
-          </p>
-        </div>
-      </div>
+  const isDeferred = Boolean(event.deferredTrackAssignment);
 
-﻿      {/* Event Rounds: horizontal rows + expand tree */}
-      <GlassCard className="rounded-[24px] border-border/50 p-6 shadow-sm">
+  const workspaceTabs = [
+    { id: "rounds", label: "Tracks & Rounds", icon: GitMerge },
+    { id: "pool", label: "Pool đề", icon: Layers },
+  ] as const;
+
+  const panelShellClass = (embedded: boolean) =>
+    cn(
+      "p-6 shadow-sm",
+      embedded
+        ? "rounded-none border-0 bg-transparent shadow-none hover:border-transparent"
+        : "rounded-[24px] border-border/50",
+    );
+
+  const roundsPanel = (embedded = false) => (
+    <GlassCard className={panelShellClass(embedded)}>
         <SectionHeader
           title="Event Rounds"
-          description={`${rounds.length} configured round${rounds.length === 1 ? "" : "s"} · expand a round to add tracks & upload problem files before opening`}
+          description={
+            isDeferred
+              ? `${rounds.length} round${rounds.length === 1 ? "" : "s"}`
+              : `${rounds.length} configured round${rounds.length === 1 ? "" : "s"} · expand a round to add tracks & upload problem files before opening`
+          }
           action={
             <div
               title={
@@ -728,12 +941,10 @@ export default function EventRoundsPage() {
                   const isRoundNotStarted =
                     (round.status || "not_started") === "not_started";
                   const expanded = expandedRoundIds.includes(round.id);
-                  // Flow B (deferred) and track-specific rounds need one file per track.
-                  const requirePerTrackProblems =
-                    Boolean(event.deferredTrackAssignment) ||
-                    round.isTrackSpecific;
-                  // Track-specific rounds scope their own subset — catalog
-                  // tracks are never auto-synced into every round.
+                  const previousRound = rounds.find(
+                    (r) => r.roundNumber === round.roundNumber - 1,
+                  );
+                  const requirePerTrackProblems = round.isTrackSpecific;
                   const isRoundScopedTracks = round.isTrackSpecific;
                   const roundTracks = isRoundScopedTracks
                     ? tracks.filter((track) =>
@@ -744,6 +955,20 @@ export default function EventRoundsPage() {
                     : tracks;
                   const sortedTracks = [...roundTracks].sort((a, b) =>
                     a.name.localeCompare(b.name),
+                  );
+                  const previousRoundTracks =
+                    previousRound && isDeferred
+                      ? tracks
+                          .filter((track) =>
+                            previousRound.trackProblems?.some(
+                              (p) => p.trackId === track.id,
+                            ),
+                          )
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                      : [];
+                  const tracksPendingSync = previousRoundTracks.filter(
+                    (track) =>
+                      !round.trackProblems?.some((p) => p.trackId === track.id),
                   );
                   const addableTracks = isRoundScopedTracks
                     ? [...tracks]
@@ -756,18 +981,26 @@ export default function EventRoundsPage() {
                         .sort((a, b) => a.name.localeCompare(b.name))
                     : [];
                   const uploadedCount = requirePerTrackProblems
-                    ? sortedTracks.filter((track) =>
-                        round.trackProblems?.some(
-                          (p) =>
-                            p.trackId === track.id && !!p.problemFileUrl?.trim(),
-                        ),
-                      ).length
+                    ? countEffectiveAssignedProblems(
+                        sortedTracks.map((track) => track.id),
+                        round,
+                        rounds,
+                        isDeferred,
+                      )
                     : round.problemFileUrl?.trim()
                       ? 1
                       : 0;
                   const totalFiles = requirePerTrackProblems
-                    ? Math.max(sortedTracks.length, 1)
+                    ? sortedTracks.length > 0
+                      ? sortedTracks.length
+                      : tracksPendingSync.length
                     : 1;
+                  const problemFilesLabel =
+                    sortedTracks.length === 0 && tracksPendingSync.length > 0
+                      ? `Chưa đồng bộ · ${tracksPendingSync.length} bảng`
+                      : totalFiles === 0
+                        ? "Chưa có bảng"
+                        : `${uploadedCount}/${totalFiles}`;
 
                   return (
                     <Fragment key={round.id}>
@@ -809,9 +1042,7 @@ export default function EventRoundsPage() {
                         </td>
                         <td className="px-4 py-3">
                           {round.isTrackSpecific ? (
-                            <Badge variant="default">
-                              Track specific
-                            </Badge>
+                            <Badge variant="default">Track specific</Badge>
                           ) : (
                             <Badge variant="outline">
                               All tracks combined
@@ -839,8 +1070,8 @@ export default function EventRoundsPage() {
                             className="font-medium text-orange-400 hover:underline"
                             onClick={() => toggleRoundExpanded(round.id)}
                           >
-                            {uploadedCount}/{totalFiles} uploaded
-                            {!expanded ? " · Expand list" : ""}
+                            {problemFilesLabel}
+                            {!expanded && sortedTracks.length > 0 ? " · Expand list" : ""}
                           </button>
                         </td>
                         <td className="px-4 py-3">
@@ -924,13 +1155,42 @@ export default function EventRoundsPage() {
                                 <p className="text-sm font-semibold">
                                   Tracks under Round {round.roundNumber}
                                 </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {requirePerTrackProblems
-                                    ? "Each round has its own tracks and problem files. Round 1 status does not block adding tracks to Round 2."
-                                    : "Before opening this round: upload one shared problem file for all teams."}
-                                </p>
+                                {!isDeferred && requirePerTrackProblems ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Upload file đề trực tiếp cho từng track (round
+                                    chưa mở mới sửa được).
+                                  </p>
+                                ) : null}
                               </div>
                               <div className="flex flex-wrap items-center gap-2">
+                                {isDeferred &&
+                                tracksPendingSync.length > 0 &&
+                                canModifyRoundTracks(round) ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-2"
+                                    disabled={
+                                      saveStructureMutation.isPending ||
+                                      uploadingKey === `sync-${round.id}`
+                                    }
+                                    onClick={() =>
+                                      syncTracksFromPreviousRound(
+                                        round,
+                                        previousRoundTracks.map((t) => t.id),
+                                      )
+                                    }
+                                  >
+                                    {uploadingKey === `sync-${round.id}` ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <GitMerge className="h-4 w-4" />
+                                    )}
+                                    Đồng bộ {tracksPendingSync.length} bảng từ R
+                                    {previousRound!.roundNumber}
+                                  </Button>
+                                ) : null}
                                 {isRoundScopedTracks &&
                                 addableTracks.length > 0 &&
                                 canModifyRoundTracks(round) ? (
@@ -967,12 +1227,21 @@ export default function EventRoundsPage() {
                                     className="gap-2 bg-orange-600 hover:bg-orange-700"
                                     disabled={
                                       !canModifyRoundTracks(round) ||
-                                      roundTrackMutation.isPending
+                                      roundTrackMutation.isPending ||
+                                      !canAddTrackForMaxTeams(
+                                        event.maxTeams,
+                                        sortedTracks.length,
+                                      )
                                     }
                                     title={
-                                      !canModifyRoundTracks(round)
-                                        ? "Tracks can only be added while this round is Not Started."
-                                        : undefined
+                                      !canAddTrackForMaxTeams(
+                                        event.maxTeams,
+                                        sortedTracks.length,
+                                      )
+                                        ? `Max ${event.maxTeams} đội → tối đa ${event.maxTeams} bảng trong round này.`
+                                        : !canModifyRoundTracks(round)
+                                          ? "Tracks can only be added while this round is Not Started."
+                                          : undefined
                                     }
                                     onClick={() => openCreateTrack(round.id)}
                                   >
@@ -990,13 +1259,32 @@ export default function EventRoundsPage() {
                                     const problem = round.trackProblems?.find(
                                       (p) => p.trackId === track.id,
                                     );
+                                    const effectiveUrl = isDeferred
+                                      ? getEffectiveTrackProblemUrl(
+                                          track.id,
+                                          round,
+                                          rounds,
+                                          isDeferred,
+                                        )
+                                      : problem?.problemFileUrl ?? null;
                                     const key = `${round.id}-${track.id}`;
                                     return (
                                       <ProblemTrackRow
                                         key={track.id}
                                         name={track.name}
-                                        fileUrl={problem?.problemFileUrl}
-                                        canUpload={isRoundNotStarted}
+                                        fileUrl={effectiveUrl}
+                                        canUpload={
+                                          isRoundNotStarted &&
+                                          !isDeferred &&
+                                          requirePerTrackProblems
+                                        }
+                                        emptyHint={
+                                          isDeferred && !effectiveUrl
+                                            ? "Chưa có đề"
+                                            : isRoundNotStarted
+                                              ? "Chưa upload — chọn file bên phải"
+                                              : undefined
+                                        }
                                         busy={uploadingKey === key}
                                         canEditTrack={canModifyRoundTracks(round)}
                                         onEditTrack={() => openEditTrack(track)}
@@ -1023,6 +1311,20 @@ export default function EventRoundsPage() {
                                       />
                                     );
                                   })
+                                ) : tracksPendingSync.length > 0 ? (
+                                  <ul className="space-y-2 px-3 py-4">
+                                    {tracksPendingSync.map((track) => (
+                                      <li
+                                        key={track.id}
+                                        className="flex items-center justify-between rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2 text-sm"
+                                      >
+                                        <span className="font-medium">{track.name}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          Chưa gán vào vòng này
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
                                 ) : (
                                   <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                                     No tracks yet. Click{" "}
@@ -1034,7 +1336,16 @@ export default function EventRoundsPage() {
                                 <ProblemTrackRow
                                   name="All tracks (shared)"
                                   fileUrl={round.problemFileUrl}
-                                  canUpload={isRoundNotStarted}
+                                  canUpload={isRoundNotStarted && !requirePerTrackProblems}
+                                  emptyHint={
+                                    !requirePerTrackProblems
+                                      ? isRoundNotStarted
+                                        ? "Upload một file đề chung cho vòng này"
+                                        : undefined
+                                      : isDeferred
+                                        ? "Round shared — dùng Pool đề nếu cần"
+                                        : "Chưa upload — chọn file bên phải"
+                                  }
                                   busy={uploadingKey === String(round.id)}
                                   onUpload={(file) =>
                                     handleProblemFileUpload(round.id, file)
@@ -1057,7 +1368,164 @@ export default function EventRoundsPage() {
         ) : (
           <EmptyState text="No rounds configured. Add the first round to define a submission stage." />
         )}
-      </GlassCard>
+    </GlassCard>
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="mb-2 flex gap-2">
+            <Badge variant="outline">
+              {event.season} {event.year}
+            </Badge>
+            <Badge
+              variant={event.status === "draft" ? "warning" : "success"}
+              className="capitalize"
+            >
+              {event.status}
+            </Badge>
+            <Badge variant={isDeferred ? "default" : "outline"}>
+              {isDeferred ? "Flow B · Pool + lottery" : "Flow A · Direct upload"}
+            </Badge>
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Tracks & Rounds</h1>
+          <p className="mt-1 text-muted-foreground">
+            Create and maintain the competition structure for {event.name}.
+          </p>
+        </div>
+        {isDeferred ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            <LotteryHeaderButton
+              disableReason={phase1DisableReason}
+              className="gap-2 bg-orange-600 hover:bg-orange-700"
+              onClick={() => {
+                if (!defaultCeremonyRound) return;
+                setLotteryRound({
+                  id: defaultCeremonyRound.id,
+                  name: defaultCeremonyRound.name,
+                  trackCount: defaultCeremonyRound.trackCount,
+                  trackSlots: defaultCeremonyRound.trackSlots,
+                });
+              }}
+            >
+              <Shuffle className="h-4 w-4" />
+              Random Track (Phase 1)
+            </LotteryHeaderButton>
+            <LotteryHeaderButton
+              disableReason={phase2DisableReason}
+              variant="outline"
+              className="gap-2 border-orange-500/40 text-orange-600 hover:bg-orange-500/10"
+              onClick={() => {
+                if (!defaultCeremonyRound) return;
+                setTeamLotteryRound({
+                  id: defaultCeremonyRound.id,
+                  name: defaultCeremonyRound.name,
+                  trackCount: defaultCeremonyRound.trackCount,
+                  trackSlots: defaultCeremonyRound.trackSlots,
+                });
+              }}
+            >
+              <Shuffle className="h-4 w-4" />
+              Bốc thăm đội (Phase 2)
+              {event.studentTrackDrawOpen ? " · SV đang bốc" : ""}
+            </LotteryHeaderButton>
+          </div>
+        ) : null}
+      </div>
+
+      {isDeferred ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <div
+            role="tablist"
+            aria-label="Tracks workspace"
+            className="grid grid-cols-2 border-b border-border"
+          >
+            {workspaceTabs.map(({ id, label, icon: Icon }) => {
+              const active = tracksTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTracksTab(id)}
+                  className={cn(
+                    "flex items-center gap-2 border-r border-border px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide transition-colors last:border-r-0",
+                    active
+                      ? "bg-orange-500/10 text-orange-700 dark:text-orange-300"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                  )}
+                >
+                  <Icon
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0",
+                      active ? "text-orange-500" : "text-muted-foreground/70",
+                    )}
+                  />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div role="tabpanel">
+            {tracksTab === "rounds" ? (
+              roundsPanel(true)
+            ) : (
+              <TracksProblemPoolTab
+                eventId={eventId}
+                embedded
+                maxTeams={event.maxTeams}
+                minPoolNeeded={rounds.reduce(
+                  (max, r) =>
+                    Math.max(max, (r.trackProblems ?? []).length),
+                  0,
+                )}
+                unassignedPoolCount={unassignedPoolCount}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        roundsPanel()
+      )}
+
+      <ProblemLotteryDialog
+        open={lotteryRound != null}
+        onOpenChange={(open) => {
+          if (!open) setLotteryRound(null);
+        }}
+        eventId={eventId}
+        roundId={lotteryRound?.id ?? 0}
+        roundName={lotteryRound?.name ?? ""}
+        trackCount={lotteryRound?.trackCount ?? 0}
+        trackSlots={lotteryRound?.trackSlots ?? []}
+        previewItems={poolPreviewItems}
+        unassignedPoolCount={unassignedPoolCount}
+        onComplete={() => {
+          eventQuery.refetch();
+          queryClient.invalidateQueries({ queryKey: ["problemPool", eventId] });
+        }}
+      />
+
+      <TeamLotteryDialog
+        open={teamLotteryRound != null}
+        onOpenChange={(open) => {
+          if (!open) setTeamLotteryRound(null);
+        }}
+        eventId={eventId}
+        roundId={teamLotteryRound?.id ?? 0}
+        roundName={teamLotteryRound?.name ?? ""}
+        trackCount={teamLotteryRound?.trackCount ?? 0}
+        trackSlots={teamLotteryRound?.trackSlots ?? []}
+        studentTrackDrawOpen={Boolean(event.studentTrackDrawOpen)}
+        onComplete={() => {
+          eventQuery.refetch();
+          queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
+          queryClient.invalidateQueries({ queryKey: ["organizerTeams", eventId] });
+        }}
+      />
 
       <RoundDialog
         open={isRoundDialogOpen}
@@ -1067,6 +1535,11 @@ export default function EventRoundsPage() {
         isSaving={saveStructureMutation.isPending}
         onSave={saveRound}
         deferredTrackAssignment={Boolean(event.deferredTrackAssignment)}
+        allRounds={rounds}
+        prizeSlotCount={(event.prizes ?? []).reduce(
+          (sum, p) => sum + (p.quantity ?? 1),
+          0,
+        )}
       />
 
       <TrackDialog
@@ -1142,6 +1615,8 @@ function RoundDialog({
   isSaving,
   onSave,
   deferredTrackAssignment,
+  allRounds,
+  prizeSlotCount,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1150,7 +1625,12 @@ function RoundDialog({
   isSaving: boolean;
   onSave: () => void;
   deferredTrackAssignment: boolean;
+  allRounds: OrganizerRound[];
+  prizeSlotCount: number;
 }) {
+  const isLastRound = isLastRoundDraft(draft, allRounds);
+  const isTrackSpecific = draft.isTrackSpecific;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -1233,33 +1713,70 @@ function RoundDialog({
             />
           </Field>
 
-          {!deferredTrackAssignment ? (
-            <label className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-4 text-sm md:col-span-2">
-              <input
-                type="checkbox"
-                checked={draft.isTrackSpecific}
-                onChange={(changeEvent) =>
+          {deferredTrackAssignment ? (
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 text-sm md:col-span-2">
+              <strong className="text-foreground">Luồng B — thi theo track</strong>
+              <p className="mt-1 text-muted-foreground">
+                Mọi vòng đều theo bảng: đội bốc được track nào thì thi track đó
+                tới hết (chung kết vẫn theo bảng). Mỗi vòng upload đề riêng và
+                cấu hình tiêu chí chấm riêng.
+              </p>
+            </div>
+          ) : (
+          <label className="flex items-center gap-3 rounded-xl border border-border bg-muted/20 p-4 text-sm md:col-span-2">
+            <input
+              type="checkbox"
+              checked={draft.isTrackSpecific}
+              onChange={(changeEvent) =>
+                setDraft((current) => ({
+                  ...current,
+                  isTrackSpecific: changeEvent.target.checked,
+                }))
+              }
+              className="h-4 w-4"
+            />
+            <span>
+              <strong>Track-specific round</strong>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Bật: mỗi track một đề. Tắt: một file đề chung cho cả vòng.
+              </span>
+            </span>
+          </label>
+          )}
+
+          {isLastRound ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm md:col-span-2">
+              <strong className="text-foreground">Final round</strong>
+              <p className="mt-1 text-muted-foreground">
+                No advance count — winners are chosen from{" "}
+                <strong>Event → Prizes</strong>
+                {prizeSlotCount > 0
+                  ? ` (${prizeSlotCount} prize slot${prizeSlotCount === 1 ? "" : "s"} configured)`
+                  : " (add prizes when creating or editing the event)"}
+                . Publish on the Rankings page auto-assigns awards by rank.
+              </p>
+            </div>
+          ) : (
+            <Field
+              label={`Top N advance ${isTrackSpecific ? "(per track)" : "(whole round)"} *`}
+            >
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                placeholder="e.g. 2, 3, 4"
+                value={draft.advanceCount}
+                onChange={(event) =>
                   setDraft((current) => ({
                     ...current,
-                    isTrackSpecific: changeEvent.target.checked,
+                    advanceCount: event.target.value,
                   }))
                 }
-                className="h-4 w-4"
               />
-              <span>
-                <strong>Track-specific round</strong>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  Disable this option for a shared final round that applies to
-                  all tracks. Opening still requires at least one track and a
-                  problem file.
-                </span>
-              </span>
-            </label>
-          ) : (
-            <p className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground md:col-span-2">
-              This event assigns tracks when a round opens - each track must
-              have its own problem file before you can open the round.
-            </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Tùy cuộc thi — ví dụ top 2/bảng, top 3, top 4…
+              </p>
+            </Field>
           )}
         </div>
 
@@ -1385,6 +1902,7 @@ function ProblemTrackRow({
   name,
   fileUrl,
   canUpload,
+  emptyHint,
   busy,
   canEditTrack,
   onEditTrack,
@@ -1395,11 +1913,10 @@ function ProblemTrackRow({
   name: string;
   fileUrl?: string | null;
   canUpload: boolean;
+  emptyHint?: string;
   busy: boolean;
   canEditTrack?: boolean;
   onEditTrack?: () => void;
-  /** Unscope this track from the round (RoundTrackProblem row). Omit for the
-   * shared "All tracks" row, which isn't a real per-track scope. */
   onRemoveFromRound?: () => void;
   onUpload: (file: File) => void;
   onRemove: () => void;
@@ -1490,10 +2007,13 @@ function ProblemTrackRow({
           </label>
         ) : (
           <span
-            title="Problem file can only be uploaded when round status is Not Started"
+            title={
+              emptyHint ??
+              "Problem file can only be uploaded when round status is Not Started"
+            }
             className="text-xs italic text-muted-foreground"
           >
-            No file (Locked)
+            {emptyHint ?? "No file (Locked)"}
           </span>
         )}
       </div>

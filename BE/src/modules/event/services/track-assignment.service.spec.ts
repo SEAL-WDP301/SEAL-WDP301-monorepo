@@ -32,6 +32,7 @@ describe("TrackAssignmentService even distribution", () => {
     prisma.event.findUnique.mockResolvedValue({
       id: 1,
       deferredTrackAssignment: true,
+      maxTeams: null,
       tracks: [{ id: 1, name: "Only" }],
     });
     prisma.round.count.mockResolvedValue(1);
@@ -47,6 +48,7 @@ describe("TrackAssignmentService even distribution", () => {
     prisma.event.findUnique.mockResolvedValue({
       id: 1,
       deferredTrackAssignment: true,
+      maxTeams: null,
       tracks: [1, 2, 3, 4, 5, 6].map((id) => ({ id, name: `T${id}` })),
     });
     prisma.roundTrackProblem.findMany.mockResolvedValue(
@@ -73,6 +75,7 @@ describe("TrackAssignmentService even distribution", () => {
     prisma.event.findUnique.mockResolvedValue({
       id: 1,
       deferredTrackAssignment: true,
+      maxTeams: null,
       tracks: [1, 2, 3, 4, 5].map((id) => ({ id, name: `T${id}` })),
     });
     prisma.team.findMany.mockResolvedValue(
@@ -93,6 +96,7 @@ describe("TrackAssignmentService even distribution", () => {
     prisma.event.findUnique.mockResolvedValue({
       id: 1,
       deferredTrackAssignment: true,
+      maxTeams: null,
       tracks: [{ id: 1, name: "Only" }],
     });
     prisma.team.findMany.mockResolvedValue([]);
@@ -103,10 +107,58 @@ describe("TrackAssignmentService even distribution", () => {
     expect(result.skippedAlreadyAssigned).toBe(3);
   });
 
-  it("reassigns teams already on a track when opening a later round", async () => {
+  it("does not reassign teams that already have a track when opening a later round", async () => {
     prisma.event.findUnique.mockResolvedValue({
       id: 1,
       deferredTrackAssignment: true,
+      maxTeams: null,
+      tracks: [
+        { id: 1, name: "Track A" },
+        { id: 2, name: "Track B" },
+      ],
+    });
+    prisma.roundTrackProblem.findMany.mockResolvedValue([
+      { track: { id: 2, name: "Track B" } },
+    ]);
+    prisma.team.findMany.mockResolvedValue([]);
+    prisma.team.count.mockResolvedValue(2);
+
+    const result = await service.assignDeferredTracks(1, { roundId: 50 });
+
+    expect(result.assignedCount).toBe(0);
+    expect(result.skippedAlreadyAssigned).toBe(2);
+    expect(prisma.team.update).not.toHaveBeenCalled();
+  });
+
+  it("assigns 7 teams across 3 round-scoped tracks (3+2+2 or 3+3+1)", async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 1,
+      deferredTrackAssignment: true,
+      maxTeams: null,
+      tracks: [1, 2, 3].map((id) => ({ id, name: `T${id}` })),
+    });
+    prisma.roundTrackProblem.findMany.mockResolvedValue(
+      [1, 2, 3].map((id) => ({ track: { id, name: `T${id}` } })),
+    );
+    prisma.team.findMany.mockResolvedValue(
+      Array.from({ length: 7 }, (_, i) => ({
+        id: i + 1,
+        name: `Team ${i + 1}`,
+        trackId: null,
+      })),
+    );
+
+    const result = await service.assignDeferredTracks(1, { roundId: 99 });
+    expect(result.assignedCount).toBe(7);
+    const counts = result.trackCounts.map((c) => c.teamCount).sort();
+    expect(counts).toEqual([2, 2, 3]);
+  });
+
+  it("legacy reassignForRoundOpen still reshuffles when explicitly requested", async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 1,
+      deferredTrackAssignment: true,
+      maxTeams: null,
       tracks: [
         { id: 1, name: "R1-A" },
         { id: 2, name: "R2-only" },
@@ -131,8 +183,13 @@ describe("TrackAssignmentService even distribution", () => {
 
     expect(result.assignedCount).toBe(2);
     expect(result.assignments.every((a) => a.trackId === 2)).toBe(true);
-    expect(prisma.teamRound.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ roundId: 50 }) }),
-    );
+  });
+
+  it("blocks ceremony team lottery when teams already have tracks", async () => {
+    prisma.team.count.mockResolvedValue(2);
+
+    await expect(
+      service.assertCeremonyTeamLotteryNotYetRun(1),
+    ).rejects.toThrow("Phase 2 đã chạy");
   });
 });

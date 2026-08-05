@@ -195,6 +195,10 @@ model Event {
   /// When true: students register without choosing a track; tracks are
   /// evenly random-assigned when the first round is opened (reveal).
   deferredTrackAssignment Boolean  @default(false) @map("deferred_track_assignment")
+  /// Flow B: leader of each team draws their track on workspace (Phase 2 alt).
+  studentSelfTrackDraw    Boolean  @default(false) @map("student_self_track_draw")
+  /// When true, approved teams without a track may self-draw (organizer opens via Phase 2).
+  studentTrackDrawOpen    Boolean  @default(false) @map("student_track_draw_open")
   registrationDeadline DateTime?   @map("registration_deadline")
   startDate            DateTime?   @map("start_date")
   endDate              DateTime?   @map("end_date")
@@ -215,6 +219,7 @@ model Event {
   notifications   Notification[]
   prizes          EventPrize[]
   calendarMeeting EventCalendarMeeting?
+  problemPoolItems EventProblemPoolItem[]
 
   @@index([createdById])
   @@index([status])
@@ -285,6 +290,23 @@ model EventPrize {
   @@map("event_prizes")
 }
 
+/// Secret problem pool for Flow B ceremony — assigned to tracks via lottery.
+model EventProblemPoolItem {
+  id              Int      @id @default(autoincrement())
+  eventId         Int      @map("event_id")
+  label           String
+  problemFileUrl  String   @map("problem_file_url")
+  assignedRoundId Int?     @map("assigned_round_id")
+  assignedTrackId Int?     @map("assigned_track_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([assignedRoundId])
+  @@map("event_problem_pool_items")
+}
+
 model Track {
   id          Int      @id @default(autoincrement())
   eventId     Int      @map("event_id")
@@ -312,6 +334,8 @@ model Round {
   submissionDeadline DateTime?      @map("submission_deadline")
   maxFileSizeMb      Int            @default(20) @map("max_file_size_mb")
   isTrackSpecific    Boolean        @default(true) @map("is_track_specific")
+  /// Top N teams to advance (per track if track-specific). Null on final round — prizes apply instead.
+  advanceCount       Int?           @map("advance_count")
   problemFileUrl     String?        @map("problem_file_url")
   isReminderSent     Boolean        @default(false) @map("is_reminder_sent")
   isRepoFrozen       Boolean        @default(false) @map("is_repo_frozen")

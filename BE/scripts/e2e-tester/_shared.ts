@@ -18,7 +18,7 @@ export const E2E = {
   mentorJudge: "e2e.mentorjudge@test.com",
   judge: "e2e.judge@test.com",
   admin: "admin@gmail.com",
-  students: Array.from({ length: 6 }, (_, i) => `e2e.student${i + 1}@test.com`),
+  students: Array.from({ length: 9 }, (_, i) => `e2e.student${i + 1}@test.com`),
 };
 
 export const log = (...args: unknown[]) => console.log(...args);
@@ -143,6 +143,7 @@ export async function loadEvent(eventId: number) {
         include: { trackProblems: true },
       },
       prizes: true,
+      problemPoolItems: { orderBy: { id: "asc" } },
     },
   });
   if (!event) fail(`Event ${eventId} not found`);
@@ -181,12 +182,370 @@ const DEMO_TEAM_NAMES = [
   "Byte Warriors",
   "Null Pointers",
   "Syntax Squad",
+  "Binary Beasts",
+  "Stack Smashers",
+  "Dev Dominators",
 ];
 
-/** Step 02 — create pending teams only (show on Teams tab before approve). */
+const RUBRIC_DEFS = [
+  { name: "Technical", weight: 40, description: "Implementation quality" },
+  { name: "Impact", weight: 30, description: "Problem fit & impact" },
+  { name: "Presentation", weight: 30, description: "Demo & clarity" },
+];
+
+const DEMO_TRACKS = [
+  { name: "Bảng AI & Data", description: "Machine Learning, Data Science" },
+  { name: "Bảng Web3", description: "Blockchain, DeFi, Smart Contracts" },
+  { name: "Bảng Green Tech", description: "Sustainability, IoT, Energy" },
+];
+
+const DEMO_CONTACTS = [
+  {
+    label: "Organizer Support",
+    name: "SEAL Organizing Committee",
+    email: "seal@fe.edu.vn",
+    phone: "0123 456 789",
+    detail:
+      "Questions about registration, teams, schedules, and event logistics.",
+    responseTime: "Within 24 hours",
+  },
+  {
+    label: "Technical Support",
+    name: "SEAL Technical Team",
+    email: "tech.seal@fe.edu.vn",
+    phone: "0987 654 321",
+    detail:
+      "Support for GitHub, submissions, file upload, and workspace access.",
+    responseTime: "During competition hours",
+  },
+];
+
+const DEMO_RULE_GROUPS = [
+  {
+    title: "Team Rules",
+    rules: [
+      "Each team must follow the official team size configured for the event.",
+      "Participants must use their registered account and team workspace.",
+      "Team members are responsible for keeping project work original and transparent.",
+    ],
+  },
+  {
+    title: "Submission Rules",
+    rules: [
+      "Submit before the round deadline shown in the event workspace.",
+      "GitHub repositories or uploaded files must be accessible to organizers and judges.",
+      "Late, inaccessible, or incomplete submissions may not be evaluated.",
+    ],
+  },
+  {
+    title: "Judging Rules",
+    rules: [
+      "Projects are evaluated using the official rubric for each round.",
+      "Judge decisions are based on submitted work, presentation, and rule compliance.",
+      "Organizers may request clarification when submission evidence is unclear.",
+    ],
+  },
+];
+
+const DEMO_FAQ = [
+  {
+    question: "Who can join this event?",
+    answer:
+      "Students who meet the event eligibility rules can register as part of a team.",
+  },
+  {
+    question: "Can a team update its submission?",
+    answer:
+      "Teams can update submissions while the round is still open. After the deadline, submissions are locked for evaluation.",
+  },
+  {
+    question: "Where will announcements be posted?",
+    answer:
+      "Official announcements are posted in the event workspace and registered contact channels.",
+  },
+];
+
+function demoSeason(date: Date): "Spring" | "Summer" | "Fall" {
+  const month = date.getMonth() + 1;
+  if (month <= 4) return "Spring";
+  if (month <= 8) return "Summer";
+  return "Fall";
+}
+
+function demoSchedule(now = Date.now()) {
+  const at = (daysFromNow: number, hours: number, minutes = 0) => {
+    const date = new Date(now);
+    date.setDate(date.getDate() + daysFromNow);
+    date.setHours(hours, minutes, 0, 0);
+    return date.toISOString();
+  };
+  return {
+    registrationDeadline: at(7, 23, 59),
+    startDate: at(8, 8),
+    endDate: at(10, 17),
+    round1Deadline: at(9, 23, 59),
+    round2Deadline: at(10, 16),
+  };
+}
+
+/** Payload giống form organizer — pass CreateEventDto validation. */
+export function buildFlowBDemoEventPayload(now = Date.now()) {
+  const schedule = demoSchedule(now);
+  const tag = new Date(now).toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  return {
+    name: `SEAL Demo ${tag}`,
+    description:
+      "Flow B demo: pool đề + ceremony 2 phase, 3 bảng, top 2/vòng 1 → 6 finalist, 4 giải chung kết.",
+    season: demoSeason(new Date(now)),
+    year: new Date(now).getFullYear(),
+    status: "active" as const,
+    deferredTrackAssignment: true,
+    studentSelfTrackDraw: false,
+    maxTeams: 12,
+    minMembersPerTeam: 1,
+    maxMembersPerTeam: 4,
+    registrationDeadline: schedule.registrationDeadline,
+    startDate: schedule.startDate,
+    endDate: schedule.endDate,
+    githubOrgUrl: "https://github.com/DEMO-SEAL-Hackathon",
+    location: JSON.stringify({
+      venueName: "FPT University HCM",
+      room: "Innovation Hall",
+      address: "Lô E2a-7, Khu Công nghệ cao, TP. Thủ Đức",
+      meetingPlatform: "Google Meet",
+      meetingUrl: "https://meet.google.com/",
+      note: "Teams receive room allocation before event day.",
+    }),
+    contact: JSON.stringify(DEMO_CONTACTS),
+    rules: JSON.stringify(DEMO_RULE_GROUPS),
+    faq: DEMO_FAQ,
+    prizes: [
+      {
+        name: "Giải Nhất",
+        description: "Champion — Gold Trophy + AWS Credits",
+        quantity: 1,
+        amount: 10_000_000,
+        placement: 1 as const,
+        currency: "VND",
+      },
+      {
+        name: "Giải Nhì",
+        description: "Runner-up — Silver Trophy + AWS Credits",
+        quantity: 1,
+        amount: 5_000_000,
+        placement: 2 as const,
+        currency: "VND",
+      },
+      {
+        name: "Giải Ba",
+        description: "Third place — Bronze + Swag",
+        quantity: 1,
+        amount: 2_500_000,
+        placement: 3 as const,
+        currency: "VND",
+      },
+      {
+        name: "Giải Khuyến khích",
+        description: "Honorable mention — Swag + Credits",
+        quantity: 1,
+        amount: 1_000_000,
+        placement: null,
+        currency: "VND",
+      },
+    ],
+    tracks: [],
+    rounds: [
+      {
+        roundNumber: 1,
+        name: "Vòng Sơ loại (Round 1)",
+        submissionType: "file" as const,
+        submissionDeadline: schedule.round1Deadline,
+        maxFileSizeMb: 50,
+        isTrackSpecific: true,
+        advanceCount: 2,
+      },
+      {
+        roundNumber: 2,
+        name: "Vòng Chung kết (Round 2)",
+        submissionType: "github_link" as const,
+        submissionDeadline: schedule.round2Deadline,
+        maxFileSizeMb: 20,
+        isTrackSpecific: true,
+        advanceCount: null,
+      },
+    ],
+  };
+}
+
+async function setupFlowBDemoTracksAndPool(
+  eventId: number,
+  token: string,
+  round1Id: number,
+  round2Id: number,
+) {
+  const trackIds: number[] = [];
+  for (const track of DEMO_TRACKS) {
+    const created = await api<{ id: number; name: string }>(
+      "POST",
+      `/organizer/events/${eventId}/rounds/${round1Id}/tracks`,
+      { token, body: track },
+    );
+    trackIds.push(created.id);
+    log(`  Track R1: ${created.name}`);
+  }
+
+  for (const trackId of trackIds) {
+    await api("PATCH", `/organizer/events/${eventId}/rounds/${round2Id}/problem-file`, {
+      token,
+      body: { problemFileUrl: null, trackId },
+    });
+  }
+  log(`  Synced ${trackIds.length} bảng → R2`);
+
+  for (let i = 0; i < DEMO_TRACKS.length; i++) {
+    await api("POST", `/organizer/events/${eventId}/problem-pool`, {
+      token,
+      body: {
+        label: `Đề mẫu ${i + 1}`,
+        problemFileUrl: DUMMY_PDF,
+      },
+    });
+  }
+  log(`  Pool: ${DEMO_TRACKS.length} đề chưa gán`);
+}
+
+async function seedDemoRubricsForEvent(eventId: number, authorId: number) {
+  const event = await loadEvent(eventId);
+  for (const round of event.rounds) {
+    for (const rubric of RUBRIC_DEFS) {
+      const existing = await prisma.criterion.findFirst({
+        where: { roundId: round.id, trackId: null, name: rubric.name },
+      });
+      if (existing) continue;
+      await prisma.criterion.create({
+        data: {
+          name: rubric.name,
+          description: rubric.description,
+          maxScore: 10,
+          weight: rubric.weight,
+          roundId: round.id,
+          trackId: null,
+          createdById: authorId,
+        },
+      });
+    }
+    log(`  Rubrics: ${round.name} (40/30/30)`);
+  }
+}
+
+async function assertFlowBDemoEventReady(eventId: number) {
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: {
+      tracks: true,
+      rounds: { include: { trackProblems: true }, orderBy: { roundNumber: "asc" } },
+      prizes: true,
+      problemPoolItems: true,
+    },
+  });
+  if (!event) fail(`Event ${eventId} missing after create`);
+
+  if (!event.deferredTrackAssignment) fail("Event must use Flow B");
+  if (event.tracks.length !== DEMO_TRACKS.length) {
+    fail(`Expected ${DEMO_TRACKS.length} tracks, got ${event.tracks.length}`);
+  }
+  if (event.rounds.length !== 2) fail(`Expected 2 rounds, got ${event.rounds.length}`);
+  if (event.prizes.length !== 4) fail(`Expected 4 prizes, got ${event.prizes.length}`);
+
+  const ranked = event.prizes
+    .filter((p) => p.placement != null)
+    .sort((a, b) => (a.placement ?? 0) - (b.placement ?? 0));
+  if (ranked.length !== 3) fail("Expected 3 ranked prizes");
+  for (let i = 1; i < ranked.length; i++) {
+    if ((ranked[i - 1].amount ?? 0) <= (ranked[i].amount ?? 0)) {
+      fail("Prize amounts must decrease by placement");
+    }
+  }
+
+  const round1 = event.rounds.find((r) => r.roundNumber === 1);
+  const round2 = event.rounds.find((r) => r.roundNumber === 2);
+  if (!round1?.isTrackSpecific || !round2?.isTrackSpecific) {
+    fail("Both rounds must be track-specific");
+  }
+  if (round1.advanceCount !== 2) fail("R1 advanceCount must be 2");
+  if (round2.advanceCount != null) fail("Final round must not have advanceCount");
+
+  if (round1.trackProblems.length !== DEMO_TRACKS.length) {
+    fail(`R1 needs ${DEMO_TRACKS.length} scoped tracks`);
+  }
+  if (round2.trackProblems.length !== DEMO_TRACKS.length) {
+    fail(`R2 needs ${DEMO_TRACKS.length} synced tracks`);
+  }
+
+  if (event.problemPoolItems.length < DEMO_TRACKS.length) {
+    fail("Problem pool must have at least 3 items");
+  }
+  if (event.problemPoolItems.some((p) => p.assignedRoundId != null)) {
+    fail("Pool items must be unassigned before Phase 1");
+  }
+
+  if (!event.contact?.trim() || !event.rules?.trim() || !event.faq) {
+    fail("Event must include contact, rules, and FAQ");
+  }
+
+  const rubricCount = await prisma.criterion.count({
+    where: { round: { eventId } },
+  });
+  if (rubricCount < event.rounds.length * RUBRIC_DEFS.length) {
+    fail("Each round must have demo rubrics");
+  }
+}
+
+/** One-click Flow B event — API create (validated) + tracks, pool, rubrics. */
+export async function createFlowBDemoEvent(): Promise<number> {
+  log("=== [00] Create Flow B SEAL demo event (validated) ===");
+  await seedUsers();
+
+  const admin = await prisma.user.findUnique({ where: { email: E2E.admin } });
+  if (!admin) fail("Admin user missing after seed");
+
+  const token = await organizerToken();
+  const payload = buildFlowBDemoEventPayload();
+
+  const created = await api<{
+    id: number;
+    name: string;
+    rounds: Array<{ id: number; roundNumber: number; name: string }>;
+  }>("POST", "/organizer/events", { token, body: payload });
+
+  const round1 = created.rounds.find((r) => r.roundNumber === 1);
+  const round2 = created.rounds.find((r) => r.roundNumber === 2);
+  if (!round1 || !round2) fail("Created event missing R1/R2");
+
+  log(`OK Event #${created.id}: ${created.name} (via API)`);
+  await setupFlowBDemoTracksAndPool(created.id, token, round1.id, round2.id);
+  await seedDemoRubricsForEvent(created.id, admin.id);
+  await assertFlowBDemoEventReady(created.id);
+
+  log(`  R1: advanceCount=2 · R2: finals · ${DEMO_TRACKS.length} bảng · pool + rubrics`);
+  log(`\n👉 TARGET_EVENT_ID=${created.id}`);
+  log(`   Mở /organizer/events/${created.id} → L2 (teams) → ceremony → L7+`);
+  return created.id;
+}
+
+export function runScriptMain(fn: () => Promise<void>) {
+  fn()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(disconnect);
+}
+
+/** Step 02 — create approved teams (matches student register flow: auto-approved). */
 export async function createDemoTeams() {
   const eventId = getTargetEventId();
-  log(`=== [02] Create pending teams (event ${eventId}) ===`);
+  log(`=== [02] Create approved teams (event ${eventId}) ===`);
   const event = await loadEvent(eventId);
   const round1 = event.rounds.find((r) => r.roundNumber === 1);
   if (!round1) fail("Event needs Round 1");
@@ -195,7 +554,7 @@ export async function createDemoTeams() {
     E2E.students.map((email) => prisma.user.findUnique({ where: { email } })),
   );
   const validStudents = students.filter(Boolean);
-  if (!validStudents.length) fail("Run 01-seed-users first");
+  if (!validStudents.length) fail("Run live-01-seed-users first");
 
   let created = 0;
   let trackToggle = 0;
@@ -220,7 +579,7 @@ export async function createDemoTeams() {
         name: DEMO_TEAM_NAMES[i % DEMO_TEAM_NAMES.length],
         eventId,
         trackId: track?.id ?? null,
-        status: TeamStatus.pending,
+        status: TeamStatus.approved,
         leaderId: student.id,
         members: {
           create: {
@@ -231,15 +590,22 @@ export async function createDemoTeams() {
         },
       },
     });
-    log(`Created pending: ${team.name}${track ? ` (${track.name})` : ""}`);
+
+    await prisma.teamRound.upsert({
+      where: { teamId_roundId: { teamId: team.id, roundId: round1.id } },
+      update: { status: "competing" },
+      create: { teamId: team.id, roundId: round1.id, status: "competing" },
+    });
+
+    log(`Created approved: ${team.name}${track ? ` (${track.name})` : ""}`);
     created++;
   }
 
   if (!created) log("No new teams — demo students may already be registered");
-  else log(`OK ${created} pending team(s) — refresh Teams tab (chưa duyệt)`);
+  else log(`OK ${created} approved team(s) — sẵn sàng ceremony / Phase 2`);
 }
 
-/** Step 03 — approve pending teams only (run on Teams slide). */
+/** Step 03 — approve any leftover pending teams (usually no-op after 02). */
 export async function approveTeams() {
   const eventId = getTargetEventId();
   log(`=== [03] Approve pending teams (event ${eventId}) ===`);
@@ -250,7 +616,7 @@ export async function approveTeams() {
     select: { id: true, name: true },
   });
   if (!pending.length) {
-    log("No pending teams — run 02-create-teams or approve manually");
+    log("No pending teams — all already approved (giống luồng đăng ký thật)");
     return;
   }
 
@@ -279,14 +645,14 @@ export async function approveTeams() {
 export async function revealTracks() {
   const eventId = getTargetEventId();
   log(`=== [04] Reveal tracks (event ${eventId}) ===`);
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { deferredTrackAssignment: true, tracks: { select: { id: true } } },
-  });
-  if (!event?.deferredTrackAssignment) {
+  const event = await loadEvent(eventId);
+  if (!event.deferredTrackAssignment) {
     log("Skip — not deferred track assignment (Flow A)");
     return;
   }
+  const round1 = event.rounds.find((r) => r.roundNumber === 1);
+  if (!round1) fail("Event needs Round 1 for track ceremony");
+
   const untracked = await prisma.team.count({
     where: { eventId, status: TeamStatus.approved, trackId: null },
   });
@@ -299,9 +665,9 @@ export async function revealTracks() {
   const token = await organizerToken();
   await api("POST", `/organizer/events/${eventId}/tracks/reveal`, {
     token,
-    body: {},
+    body: { roundId: round1.id, studentSelfDraw: false },
   });
-  log(`OK revealed tracks for ${untracked} team(s)`);
+  log(`OK revealed tracks for ${untracked} team(s) (roundId=${round1.id})`);
 }
 
 export async function assignStakeholders() {
@@ -378,12 +744,6 @@ export async function assignStakeholders() {
     }
   }
 }
-
-const RUBRIC_DEFS = [
-  { name: "Technical", weight: 40, description: "Implementation quality" },
-  { name: "Impact", weight: 30, description: "Problem fit & impact" },
-  { name: "Presentation", weight: 30, description: "Demo & clarity" },
-];
 
 export async function setupRubrics() {
   const eventId = getTargetEventId();
@@ -627,7 +987,7 @@ export async function publishRound1() {
   const result = await api<{ advancingTeamIds?: number[] }>(
     "POST",
     `/organizer/events/${eventId}/rounds/${round1.id}/publish-results`,
-    { token: orgToken, body: { advanceCount: 1 } },
+    { token: orgToken, body: {} },
   );
   log("OK published — advanced:", result.advancingTeamIds?.length ?? 0, "team(s)");
 }
