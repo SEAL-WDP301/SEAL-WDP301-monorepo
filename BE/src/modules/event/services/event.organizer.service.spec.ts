@@ -66,6 +66,81 @@ describe("EventOrganizerService team member limits", () => {
 
     expect(prisma.event.create).not.toHaveBeenCalled();
   });
+
+  it("allows ranked prizes to have equal amounts", async () => {
+    await service.createEvent(42, {
+      ...dto,
+      prizes: [
+        { name: "First", placement: 1, amount: 10_000_000 },
+        { name: "Second", placement: 2, amount: 10_000_000 },
+        { name: "Third", placement: 3, amount: 10_000_000 },
+      ],
+    });
+
+    expect(prisma.event.create).toHaveBeenCalled();
+  });
+
+  it("rejects a third prize worth more than the second prize", async () => {
+    await expect(
+      service.createEvent(42, {
+        ...dto,
+        prizes: [
+          { name: "Third", placement: 3, amount: 10_000_000 },
+          { name: "Second", placement: 2, amount: 5_000_000 },
+          { name: "First", placement: 1, amount: 12_500_000 },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: "INVALID_PRIZE_ORDER" }),
+    });
+
+    expect(prisma.event.create).not.toHaveBeenCalled();
+  });
+
+  it("compares ranked prizes when the middle placement is missing", async () => {
+    await expect(
+      service.createEvent(42, {
+        ...dto,
+        prizes: [
+          { name: "First", placement: 1, amount: 5_000_000 },
+          { name: "Third", placement: 3, amount: 10_000_000 },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: "INVALID_PRIZE_ORDER" }),
+    });
+
+    expect(prisma.event.create).not.toHaveBeenCalled();
+  });
+
+  it("allows dynamically ranked prizes beyond third place", async () => {
+    await service.createEvent(42, {
+      ...dto,
+      prizes: [
+        { name: "First", placement: 1, amount: 10_000_000 },
+        { name: "Fourth", placement: 4, amount: 5_000_000 },
+        { name: "Sixth", placement: 6, amount: 1_000_000 },
+      ],
+    });
+
+    expect(prisma.event.create).toHaveBeenCalled();
+  });
+
+  it("validates the amount order for dynamic placements", async () => {
+    await expect(
+      service.createEvent(42, {
+        ...dto,
+        prizes: [
+          { name: "Third", placement: 3, amount: 5_000_000 },
+          { name: "Fourth", placement: 4, amount: 6_000_000 },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ errorCode: "INVALID_PRIZE_ORDER" }),
+    });
+
+    expect(prisma.event.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", () => {

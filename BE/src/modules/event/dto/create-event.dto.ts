@@ -11,7 +11,6 @@ import {
   ArrayMinSize,
   Min,
   Max,
-  IsIn,
   Matches,
   IsBoolean,
 } from "class-validator";
@@ -54,12 +53,12 @@ export class CreatePrizeDto {
   amount?: number;
 
   @ApiPropertyOptional({
-    description: "1 = first, 2 = second, 3 = third, null = special prize",
-    enum: [1, 2, 3],
+    description: "Positive integer rank; null = special prize",
+    minimum: 1,
     nullable: true,
   })
   @IsInt()
-  @IsIn([1, 2, 3])
+  @Min(1)
   @IsOptional()
   placement?: number | null;
 
