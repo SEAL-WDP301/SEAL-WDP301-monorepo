@@ -20,7 +20,7 @@ export default function VerifyEmailContent() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!email) {
-      enqueueSnackbar("Không tìm thấy email. Vui lòng đăng ký lại.", { variant: "error" });
+      enqueueSnackbar("Email not found. Please register again.", { variant: "error" });
       return;
     }
 
@@ -31,7 +31,7 @@ export default function VerifyEmailContent() {
         otp,
       });
 
-      enqueueSnackbar(res.data?.message || "Xác thực thành công!", { variant: "success" });
+      enqueueSnackbar(res.data?.message || "Verification successful!", { variant: "success" });
       const params = new URLSearchParams();
       if (email) params.set("email", email);
       if (
@@ -44,8 +44,8 @@ export default function VerifyEmailContent() {
     } catch (error: unknown) {
       enqueueSnackbar(
         isAxiosError<{ message?: string }>(error)
-          ? error.response?.data?.message || "Mã OTP không hợp lệ hoặc đã hết hạn."
-          : "Mã OTP không hợp lệ hoặc đã hết hạn.",
+          ? error.response?.data?.message || "OTP is invalid or expired."
+          : "OTP is invalid or expired.",
         { variant: "error" }
       );
     } finally {
@@ -57,8 +57,8 @@ export default function VerifyEmailContent() {
     <AuthCard>
       <div className="space-y-5">
         <AuthHeader
-          title="Xác thực Email"
-          subtitle={`Mã OTP gồm 6 chữ số đã được gửi đến ${email || 'email của bạn'}`}
+          title="Email Verification"
+          subtitle={`A 6-digit OTP has been sent to ${email || 'your email'}`}
         />
 
         <form className="space-y-6" onSubmit={handleSubmit}>
@@ -77,7 +77,7 @@ export default function VerifyEmailContent() {
               {loading ? (
                 <Loader2 className="size-4 animate-spin mx-auto" />
               ) : (
-                <>Xác nhận <ArrowRight className="size-4" /></>
+                <>Confirm <ArrowRight className="size-4" /></>
               )}
             </Button>
           </div>

@@ -338,7 +338,7 @@ export function GithubCommitCard({
               rel="noreferrer"
               className="inline-flex shrink-0 items-center gap-1 rounded-md border border-orange-500/35 bg-orange-500/10 px-2 py-1 text-[11px] font-semibold text-orange-600 hover:bg-orange-500/20"
             >
-              Mở commit
+              Open commit
               <ExternalLink className="h-3 w-3" />
             </a>
           ) : null}
@@ -359,7 +359,7 @@ export function GithubCommitCard({
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-1 font-mono text-orange-600 hover:underline"
-                title="Mở commit trên GitHub"
+                title="Open commit on GitHub"
               >
                 <GitCommitHorizontal className="h-3 w-3" />
                 {shortHash}

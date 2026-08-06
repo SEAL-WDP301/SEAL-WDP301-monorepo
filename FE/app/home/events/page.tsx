@@ -27,8 +27,8 @@ export default function EventPage() {
   ] as const;
 
   return (
-    // Đổi toàn bộ màu nền sang Đen gỗ ấm đặc trưng: bg-[#120F0E] 
-    // Thay đổi toàn bộ font chữ mặc định thành font-bold/font-black dầy cộm
+    // Change the entire background color to characteristic warm wood black: bg-[#120F0E] 
+    // Change the default font to chunky font-bold/font-black
     <div
       className="relative min-h-screen bg-background text-foreground py-16 px-6 sm:px-12 lg:px-16 transition-colors"
     >
@@ -36,18 +36,18 @@ export default function EventPage() {
         <Header />
       </div>
 
-      {/* Khối Banner phía trên - Cho rộng tối đa max-w-[1400px] */}
+      {/* Top Banner block - Max width max-w-[1400px] */}
       <div className="mx-auto max-w-[1400px]">
         <Banner />
       </div>
 
-      {/* Grid nội dung chính bung rộng tối đa (max-w-[1400px]) và tăng khoảng cách gap-12 */}
+      {/* Main content grid expands to max width (max-w-[1400px]) and increases gap to gap-12 */}
       <div className="mx-auto max-w-[1400px] mt-12 grid gap-12 lg:grid-cols-[1fr_420px] items-start">
 
-        {/* Cột trái: Tab Bar & Chi tiết nội dung */}
+        {/* Left column: Tab Bar & Content Details */}
         <main className="space-y-10 w-full">
 
-          {/* Thanh Tab Navigation - Size chữ đẩy lên text-lg, font-black siêu dày */}
+          {/* Tab Navigation bar - Text size pushed up to text-lg, ultra-thick font-black */}
           <div
             className="sticky top-0 z-20 flex gap-4 overflow-x-auto border-b border-border bg-background/95 pb-4 backdrop-blur-md scrollbar-none"
           >
@@ -57,7 +57,7 @@ export default function EventPage() {
                 onClick={() => setActiveTab(tab.id)}
                 variant={activeTab === tab.id ? "eventTabActive" : "eventTab"}
                 size="eventTab"
-                // Thu nhỏ font-size một chút trên mobile (text-sm md:text-base) để các tab vừa vặn tầm mắt
+                // Slightly reduce font size on mobile (text-sm md:text-base) to fit tabs comfortably
                 className="font-black duration-150 text-sm md:text-base flex-shrink-0"
               >
                 {tab.label}
@@ -65,15 +65,15 @@ export default function EventPage() {
             ))}
           </div>
 
-          {/* Nội dung động của Tab */}
+          {/* Dynamic Tab content */}
           <div className="w-full min-w-0">
             <TabsContent activeTab={activeTab} />
           </div>
 
         </main>
 
-        {/* Cột phải: Sidebar (Countdown + Thông số) */}
-        {/* Khi ở mobile, khối này sẽ tự động xếp hàng rơi xuống dưới cùng của cột trái nhờ cơ chế Grid hệ thống */}
+        {/* Right column: Sidebar (Countdown + Metrics) */}
+        {/* On mobile, this block will automatically drop to the bottom of the left column due to the Grid system */}
         <div className="w-full">
           <Sidebar />
         </div>

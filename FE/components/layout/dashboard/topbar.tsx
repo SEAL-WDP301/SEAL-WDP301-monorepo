@@ -81,15 +81,15 @@ export function Topbar({ customCenterContent, showDesktopLogo }: { customCenterC
 
     return (
         <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
-            {/* Giảm min-h xuống 16 (h-16) trên mobile để đỡ chiếm diện tích, lên lg mới là min-h-20 */}
+            {/* Reduce min-h to 16 (h-16) on mobile to save space, change to min-h-20 on lg */}
             <div className="flex min-h-16 lg:min-h-20 items-center gap-2 md:gap-4 px-4 py-3 lg:px-8">
 
-                {/* Logo: Hiện trên Mobile, hoặc hiện trên Desktop nếu được yêu cầu (ví dụ khi ẩn Sidebar) */}
+                {/* Logo: Show on Mobile, or show on Desktop if requested (e.g. when Sidebar is hidden) */}
                 <div className={`flex items-center ${!showDesktopLogo ? "lg:hidden" : "mr-4"}`}>
                     <Logo size="sm" showText={showDesktopLogo} />
                 </div>
 
-                {/* Khu vực Search hoặc Custom Content */}
+                {/* Search area or Custom Content */}
                 <div id="topbar-center-content" className="relative mr-auto flex items-center md:flex-1 pr-2 overflow-x-auto no-scrollbar">
                     {customCenterContent ? (
                         customCenterContent

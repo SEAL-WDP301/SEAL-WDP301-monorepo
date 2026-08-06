@@ -42,35 +42,35 @@ const E2E_SCRIPTS: E2eScriptItem[] = [
     key: "seed-demo-event",
     number: "00",
     title: "Seed Flow B Demo Event",
-    description: "Tạo event Flow B đầy đủ (API validate): giải, FAQ, rules, 3 bảng, pool, rubrics",
+    description: "Create full Flow B event (API validate): prizes, FAQ, rules, 3 tracks, pool, rubrics",
     icon: Sparkles,
   },
-  { key: "01-create-event", number: "01", title: "Create Event (alias)", description: "Giống 00 — tạo event Flow B mới", icon: CalendarPlus },
-  { key: "02-create-teams", number: "02", title: "Create Approved Teams", description: "Tạo 9 đội đã duyệt + gán Round 1 (giống SV đăng ký)", icon: Users },
-  { key: "03-assign-judges", number: "03", title: "Assign Judges & Mentors", description: "Phân công GK & Mentor (Flow B: theo bảng)", icon: UserCheck },
-  { key: "04-generate-rubrics", number: "04", title: "Generate Rubrics", description: "Khởi tạo rubric 40/30/30 cho mỗi vòng", icon: FileSpreadsheet },
-  { key: "05-create-submissions", number: "05", title: "Open R1 + Submissions", description: "Mở vòng 1 và nộp bài tự động", icon: FileUp },
-  { key: "06-score-round1", number: "06", title: "Score Round 1", description: "Đóng vòng 1 + chấm điểm", icon: Award },
-  { key: "07-advance-to-round2", number: "07", title: "Publish R1 + Open R2", description: "Publish kết quả (top 2/bảng) và mở chung kết", icon: TrendingUp },
-  { key: "08-create-submissions-round2", number: "08", title: "Create Submissions (R2)", description: "Nộp bài vòng chung kết", icon: FileUp },
-  { key: "09-score-round2", number: "09", title: "Score R2 + Awards", description: "Chấm chung kết và trao 4 giải", icon: Award },
+  { key: "01-create-event", number: "01", title: "Create Event (alias)", description: "Same as 00 — create new Flow B event", icon: CalendarPlus },
+  { key: "02-create-teams", number: "02", title: "Create Approved Teams", description: "Create 9 approved teams + assign Round 1 (same as Student registration)", icon: Users },
+  { key: "03-assign-judges", number: "03", title: "Assign Judges & Mentors", description: "Assign Judges & Mentors (Flow B: by track)", icon: UserCheck },
+  { key: "04-generate-rubrics", number: "04", title: "Generate Rubrics", description: "Init 40/30/30 rubric for each round", icon: FileSpreadsheet },
+  { key: "05-create-submissions", number: "05", title: "Open R1 + Submissions", description: "Open round 1 and auto-submit", icon: FileUp },
+  { key: "06-score-round1", number: "06", title: "Score Round 1", description: "Close round 1 + score", icon: Award },
+  { key: "07-advance-to-round2", number: "07", title: "Publish R1 + Open R2", description: "Publish results (top 2/track) and open finals", icon: TrendingUp },
+  { key: "08-create-submissions-round2", number: "08", title: "Create Submissions (R2)", description: "Submit finals", icon: FileUp },
+  { key: "09-score-round2", number: "09", title: "Score R2 + Awards", description: "Score finals and give 4 awards", icon: Award },
 ];
 
 const LIVE_DEMO_SCRIPTS: E2eScriptItem[] = [
-  { key: "live-01-seed-users", number: "L1", title: "Seed Demo Users", description: "Trước buổi demo (1 lần)", icon: UserCheck },
-  { key: "live-02-create-teams", number: "L2", title: "Create Approved Teams", description: "Tạo 9 đội approved — không cần L3", icon: Users },
-  { key: "live-03-approve-teams", number: "L3", title: "Approve Pending (fallback)", description: "Chỉ khi còn đội pending thủ công", icon: UserCheck },
-  { key: "live-04-reveal-tracks", number: "L4", title: "Reveal Tracks", description: "Flow B — gán track sau duyệt", icon: TrendingUp },
-  { key: "live-05-assign-stakeholders", number: "L5", title: "Assign Mentor & Judges", description: "Slide phân công", icon: UserCheck },
-  { key: "live-06-setup-rubrics", number: "L6", title: "Setup Rubrics", description: "Slide rubric 40/30/30", icon: FileSpreadsheet },
-  { key: "live-07-open-r1", number: "L7", title: "Open Round 1", description: "Chỉ mở vòng — chưa nộp bài", icon: FileUp },
-  { key: "live-08-submit-r1", number: "L8", title: "Submit Round 1", description: "Tạo submission các đội", icon: FileUp },
-  { key: "live-09-score-r1", number: "L9", title: "Score Round 1", description: "Đóng vòng + chấm điểm", icon: Award },
+  { key: "live-01-seed-users", number: "L1", title: "Seed Demo Users", description: "Before demo session (1 time)", icon: UserCheck },
+  { key: "live-02-create-teams", number: "L2", title: "Create Approved Teams", description: "Create 9 approved teams — no L3 needed", icon: Users },
+  { key: "live-03-approve-teams", number: "L3", title: "Approve Pending (fallback)", description: "Only when pending teams remain manually", icon: UserCheck },
+  { key: "live-04-reveal-tracks", number: "L4", title: "Reveal Tracks", description: "Flow B — assign track after approval", icon: TrendingUp },
+  { key: "live-05-assign-stakeholders", number: "L5", title: "Assign Mentor & Judges", description: "Assignment slide", icon: UserCheck },
+  { key: "live-06-setup-rubrics", number: "L6", title: "Setup Rubrics", description: "Rubric slide 40/30/30", icon: FileSpreadsheet },
+  { key: "live-07-open-r1", number: "L7", title: "Open Round 1", description: "Open round only — no submissions yet", icon: FileUp },
+  { key: "live-08-submit-r1", number: "L8", title: "Submit Round 1", description: "Create team submissions", icon: FileUp },
+  { key: "live-09-score-r1", number: "L9", title: "Score Round 1", description: "Close round + score", icon: Award },
   { key: "live-10-publish-r1", number: "L10", title: "Publish Round 1", description: "Publish + advance", icon: TrendingUp },
-  { key: "live-11-open-r2", number: "L11", title: "Open Round 2", description: "Mở chung kết", icon: FileUp },
-  { key: "live-12-submit-r2", number: "L12", title: "Submit Round 2", description: "Nộp bài vòng 2", icon: FileUp },
-  { key: "live-13-score-r2", number: "L13", title: "Score Round 2", description: "Chấm chung kết", icon: Award },
-  { key: "live-14-publish-r2", number: "L14", title: "Publish Finals", description: "Trao giải", icon: Award },
+  { key: "live-11-open-r2", number: "L11", title: "Open Round 2", description: "Open finals", icon: FileUp },
+  { key: "live-12-submit-r2", number: "L12", title: "Submit Round 2", description: "Submit round 2", icon: FileUp },
+  { key: "live-13-score-r2", number: "L13", title: "Score Round 2", description: "Score finals", icon: Award },
+  { key: "live-14-publish-r2", number: "L14", title: "Publish Finals", description: "Give awards", icon: Award },
 ];
 
 function ScriptRow({
@@ -179,7 +179,7 @@ export function E2eFloatingButton({ eventId }: { eventId?: string | number }) {
           result.output?.match(/TARGET_EVENT_ID=(\d+)/);
         enqueueSnackbar(
           eventMatch
-            ? `✅ Event #${eventMatch[1]} đã tạo — mở /organizer/events/${eventMatch[1]}`
+            ? `✅ Event #${eventMatch[1]} created — open /organizer/events/${eventMatch[1]}`
             : `✅ ${result.message}`,
           { variant: "success" },
         );
@@ -243,7 +243,7 @@ export function E2eFloatingButton({ eventId }: { eventId?: string | number }) {
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">Admin E2E Tester</h4>
                     <p className="text-[11px] text-slate-400">
-                      {parsedEventId ? `Event #${parsedEventId}` : "Mở trang event trước"}
+                      {parsedEventId ? `Event #${parsedEventId}` : "Open event page first"}
                     </p>
                   </div>
                 </div>
@@ -276,7 +276,7 @@ export function E2eFloatingButton({ eventId }: { eventId?: string | number }) {
                       <Presentation className="h-4 w-4 text-violet-400" />
                       <div className="text-left">
                         <div className="text-[11px] font-bold text-violet-200">Live Demo Assist</div>
-                        <div className="text-[10px] text-slate-400">14 bước — bấm khi thuyết trình</div>
+                        <div className="text-[10px] text-slate-400">14 steps — click when presenting</div>
                       </div>
                     </div>
                     {liveDemoOpen ? (

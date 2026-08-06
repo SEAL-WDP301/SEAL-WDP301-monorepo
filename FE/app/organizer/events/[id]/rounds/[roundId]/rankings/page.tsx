@@ -798,7 +798,7 @@ export default function RankingsPage() {
               </Badge>
               {round.isFinalRound ? (
                 <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700 border-yellow-500/30 dark:text-yellow-300 font-semibold gap-1.5 px-2.5 py-1 text-xs">
-                  <Trophy className="w-3.5 h-3.5" /> Chung kết · tự gán {prizeSlotCount} giải
+                  <Trophy className="w-3.5 h-3.5" /> Finals · auto assign {prizeSlotCount} prizes
                 </Badge>
               ) : round.isTrackSpecific !== false ? (
                 <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 dark:text-purple-300 font-semibold gap-1.5 px-2.5 py-1 text-xs">
@@ -818,34 +818,34 @@ export default function RankingsPage() {
             {round.isFinalRound ? (
               <div className="space-y-1 text-sm text-muted-foreground max-w-md">
                 <p>
-                  Vòng cuối — tự gán{" "}
-                  <strong className="text-foreground">{prizeSlotCount}</strong> giải
-                  cho top {prizeSlotCount} đội (xếp chung mọi finalist, theo Event → Prizes).
+                  Final round — auto assign{" "}
+                  <strong className="text-foreground">{prizeSlotCount}</strong> prizes
+                  to top {prizeSlotCount} teams (ranking all finalists together, per Event → Prizes).
                 </p>
                 {prizeSlotCount === 0 ? (
                   <p className="text-amber-600 dark:text-amber-400 text-xs">
-                    Thêm giải trong Event trước khi publish.
+                    Add prizes in Event before publishing.
                   </p>
                 ) : null}
               </div>
             ) : (
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Advance (từ cấu hình round)
+                  Advance (from round config)
                 </Label>
                 <p className="text-sm">
                   {configuredAdvanceCount != null ? (
                     <>
                       Top{" "}
                       <strong className="tabular-nums">{configuredAdvanceCount}</strong>
-                      {isTrackSpecific ? " / bảng" : " / vòng"}
+                      {isTrackSpecific ? " / track" : " / round"}
                       {" → "}
                       <strong className="tabular-nums">{advancingTeamIds.size}</strong>{" "}
-                      đội vào vòng sau
+                      teams advancing
                     </>
                   ) : (
                     <span className="text-amber-600 dark:text-amber-400">
-                      Chưa set advanceCount — sửa round ở Tracks & Rounds.
+                      advanceCount not set — edit round in Tracks & Rounds.
                     </span>
                   )}
                 </p>
@@ -864,7 +864,7 @@ export default function RankingsPage() {
                 <Send className="w-4 h-4" />
                 Publish Results
                 {round.isFinalRound
-                  ? ` (${prizeSlotCount} giải)`
+                  ? ` (${prizeSlotCount} prizes)`
                   : configuredAdvanceCount != null
                     ? ` (${advancingTeamIds.size})`
                     : ""}
@@ -873,7 +873,7 @@ export default function RankingsPage() {
               <p className="text-xs text-muted-foreground max-w-[200px] pb-1">
                 Close the round to publish.
                 {!round.isFinalRound && configuredAdvanceCount != null
-                  ? " Advance lấy từ cấu hình round."
+                  ? " Advance taken from round config."
                   : ""}
               </p>
             )}
@@ -901,7 +901,7 @@ export default function RankingsPage() {
                     : "border-border text-muted-foreground hover:bg-muted"
                 }`}
               >
-                {round?.isFinalRound ? "Xếp chung finalist" : t.track.name}
+                {round?.isFinalRound ? "Rank finalists together" : t.track.name}
                 <span className="ml-2 text-xs opacity-60">({t.entries.length})</span>
               </button>
             ))}
@@ -936,7 +936,7 @@ export default function RankingsPage() {
         <div className="flex flex-wrap items-center gap-3 bg-card/80 p-4 rounded-2xl border border-border shadow-sm">
           <span className="text-sm font-bold text-foreground flex items-center gap-2">
             <Trophy className="w-4 h-4 text-yellow-500" />
-            Auto prize preview — top {prizeSlotCount} đội nhận {prizeSlotCount} giải:
+            Auto prize preview — top {prizeSlotCount} teams receive {prizeSlotCount} prizes:
           </span>
           <div className="flex flex-wrap items-center gap-2">
             {eventData?.prizes?.map((prize) => {
@@ -1059,12 +1059,12 @@ export default function RankingsPage() {
                   <>
                     Advance top{" "}
                     <strong>{configuredAdvanceCount ?? "—"}</strong>
-                    {isTrackSpecific ? " / bảng" : " / vòng"} (
-                    <strong>{advancingTeamIds.size}</strong> đội). Còn lại bị loại.
+                    {isTrackSpecific ? " / track" : " / round"} (
+                    <strong>{advancingTeamIds.size}</strong> teams). The rest are eliminated.
                     <br /><br />
-                    Thiết lập tại Tracks & Rounds — không chỉnh tay trên trang này.
+                    Configured at Tracks & Rounds — cannot edit manually on this page.
                     <br /><br />
-                    Không thể hoàn tác; sẽ gửi email thông báo.
+                    Cannot be undone; notification emails will be sent.
                   </>
                 )}
               </p>

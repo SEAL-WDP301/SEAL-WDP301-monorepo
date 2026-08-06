@@ -11,6 +11,13 @@ import { TeamDetailsDialog } from "../../../components/team-details-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { enqueueSnackbar } from "notistack";
 
 type RoundTrack = {
@@ -67,19 +74,6 @@ function resolveRoundTracksForAssignment(
   ).sort((first, second) => first.name.localeCompare(second.name));
 }
 
-function roundTracksEmptyMessage(
-  roundObj: RoundConfig | undefined,
-  event: { deferredTrackAssignment?: boolean } | undefined,
-): string {
-  if (roundObj?.isTrackSpecific) {
-    return "No tracks are configured for this round yet. Add tracks on the Tracks page first.";
-  }
-  if (event?.deferredTrackAssignment) {
-    return "No tracks are configured for this event yet.";
-  }
-  return "No teams in this round have been assigned a track yet.";
-}
-
 export default function EventStakeholdersPage() {
   const params = useParams();
   const eventId = params.id as string;
@@ -95,6 +89,9 @@ export default function EventStakeholdersPage() {
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<number[]>([]);
   const [selectedTrackIds, setSelectedTrackIds] = useState<number[]>([]);
+  const [selectedMentorTrackId, setSelectedMentorTrackId] = useState<
+    number | null
+  >(null);
   const [selectedTeamIds, setSelectedTeamIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [modalSearchQuery, setModalSearchQuery] = useState("");
@@ -104,7 +101,7 @@ export default function EventStakeholdersPage() {
     names: string[];
   }>(null);
 
-  // Queries — organizer API (public hides tracks/đề for deferred events).
+  // Queries — organizer API (public hides tracks/problem statements for deferred events).
   const { data: event } = useQuery({
     queryKey: ["organizerEvent", eventId],
     queryFn: async () => {
@@ -133,6 +130,35 @@ export default function EventStakeholdersPage() {
     enabled: Boolean(eventId && roundId),
   });
 
+  const {
+    data: mentorAvailableTeams = [],
+    isFetching: isFetchingMentorTeams,
+    isError: isMentorTeamsError,
+  } = useQuery<RoundTeam[]>({
+    queryKey: [
+      "organizerTeams",
+      eventId,
+      "mentor-track-assignment",
+      roundId,
+      selectedMentorTrackId ?? "all",
+    ],
+    queryFn: async () => {
+      const res = await axiosClient.get(`/organizer/teams/events/${eventId}`, {
+        params: {
+          roundId,
+          ...(selectedMentorTrackId !== null
+            ? { trackId: selectedMentorTrackId }
+            : {}),
+          status: "approved",
+          hasMentor: "false",
+          limit: 1000,
+        },
+      });
+      return res.data.data;
+    },
+    enabled: isMentorModalOpen,
+  });
+
   // Categorize stakeholders based on current round
   const mentors = stakeholders?.filter((s: any) =>
     s.mentorAssignments?.some((ma: any) => ma.team?.teamRounds?.some((tr: any) => tr.roundId === Number(roundId)))
@@ -156,8 +182,15 @@ export default function EventStakeholdersPage() {
     Boolean(roundObj?.isTrackSpecific) ||
     Boolean(event?.deferredTrackAssignment);
   const roundTracks = resolveRoundTracksForAssignment(roundObj, event, teams);
-  const availableMentorTeams = teams.filter(
+  const selectedMentorTrackName =
+    selectedMentorTrackId === null
+      ? "All Tracks"
+      : roundTracks.find((track) => track.id === selectedMentorTrackId)?.name ??
+        "Select Track";
+  const availableMentorTeams = mentorAvailableTeams.filter(
     (team) =>
+      (selectedMentorTrackId === null ||
+        team.trackId === selectedMentorTrackId) &&
       team.status === "approved" &&
       (!team.mentorAssignments || team.mentorAssignments.length === 0),
   );
@@ -245,8 +278,25 @@ export default function EventStakeholdersPage() {
     setSelectedUser(null);
     setSelectedUsers([]);
     setSelectedTrackIds([]);
+    setSelectedMentorTrackId(null);
     setSelectedTeamIds([]);
     setModalSearchQuery("");
+  };
+
+  const selectMentorTrack = (trackId: number | null) => {
+    if (trackId === selectedMentorTrackId) return;
+    void queryClient.invalidateQueries({
+      queryKey: [
+        "organizerTeams",
+        eventId,
+        "mentor-track-assignment",
+        roundId,
+        trackId ?? "all",
+      ],
+      exact: true,
+    });
+    setSelectedMentorTrackId(trackId);
+    setSelectedTeamIds([]);
   };
 
   const doAssignJudge = () => {
@@ -766,7 +816,7 @@ export default function EventStakeholdersPage() {
 
       {/* Assign Mentor Modal */}
       <Dialog open={isMentorModalOpen} onOpenChange={setIsMentorModalOpen}>
-        <DialogContent className="sm:max-w-[500px] bg-card border-border">
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[500px] bg-card border-border">
           <DialogHeader>
             <DialogTitle>Assign Mentor</DialogTitle>
             <DialogDescription>Assign one mentor to approved teams in this round.</DialogDescription>
@@ -837,14 +887,49 @@ export default function EventStakeholdersPage() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
-                Select Teams
-              </label>
-              <div className="mb-2 rounded-lg border border-blue-500/20 bg-blue-500/10 p-2.5 text-xs text-blue-600 dark:text-blue-400">
-                Only <strong>approved teams</strong> in this round that do not currently have an assigned mentor are shown here.
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className="block text-xs font-semibold uppercase text-muted-foreground">
+                  Select Teams
+                </label>
+                <Select
+                  value={
+                    selectedMentorTrackId === null
+                      ? "all"
+                      : String(selectedMentorTrackId)
+                  }
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    selectMentorTrack(value === "all" ? null : Number(value));
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    aria-label="Select track"
+                    className="min-w-32 bg-muted/30"
+                  >
+                    <SelectValue>{selectedMentorTrackName}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="all">All Tracks</SelectItem>
+                    {roundTracks.map((track) => (
+                      <SelectItem key={track.id} value={String(track.id)}>
+                        {track.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="max-h-[190px] space-y-1 overflow-y-auto rounded-lg border border-border p-2">
-                {availableMentorTeams.length > 0 ? (
+                {isFetchingMentorTeams ? (
+                  <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading teams...
+                  </div>
+                ) : isMentorTeamsError ? (
+                  <p className="p-2 text-sm text-destructive">
+                    Failed to load teams. Please try again.
+                  </p>
+                ) : availableMentorTeams.length > 0 ? (
                   <>
                     <label
                       className={`mb-1 flex cursor-pointer items-center space-x-2 rounded border p-2 ${
@@ -908,7 +993,10 @@ export default function EventStakeholdersPage() {
                   </>
                 ) : (
                   <p className="p-2 text-sm text-muted-foreground">
-                    No approved teams without a mentor are available in this round.
+                    No approved teams without a mentor are available
+                    {selectedMentorTrackId === null
+                      ? " in this round."
+                      : " for this track in this round."}
                   </p>
                 )}
               </div>

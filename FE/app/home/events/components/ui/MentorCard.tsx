@@ -7,7 +7,7 @@ interface MentorCardProps {
 export default function MentorCard({ initials, name, role }: MentorCardProps) {
     return (
         <div className="bg-[#221A15] border border-white/[0.02] rounded-3xl p-6 flex items-center gap-5 hover:border-[#FF6B2C]/30 transition-all">
-            {/* Avatar viết tắt dạng tròn xịn sò giống hình */}
+            {/* Cool round abbreviated avatar similar to the image */}
             <div className="h-14 w-14 rounded-full bg-[#FF6B2C] text-foreground grid place-items-center font-bold text-base shadow-md shrink-0">
                 {initials}
             </div>

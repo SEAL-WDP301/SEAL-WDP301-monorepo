@@ -5,12 +5,12 @@ import Countdown from "./Countdown";
 export default function Sidebar() {
     return (
         <>
-            {/* 1. SIDEBAR CHÍNH: Hiển thị tự nhiên trên Desktop, tạo khoảng cách đệm trên Mobile */}
+            {/* 1. MAIN SIDEBAR: Display naturally on Desktop, add padding on Mobile */}
             <aside className="lg:sticky lg:top-8 self-start space-y-6 pb-24 lg:pb-0">
                 {/* Live Countdown Component */}
                 <Countdown />
 
-                {/* Khối thông số chi tiết */}
+                {/* Detailed parameters block */}
                 <div className="bg-[#141210] border border-white/[0.04] rounded-[24px] p-6 space-y-4 text-sm font-medium">
                     <div className="flex justify-between items-center pb-3 border-b border-white/[0.04]">
                         <span className="text-[#A39690]">Status</span>
@@ -20,7 +20,7 @@ export default function Sidebar() {
                     </div>
                     <div className="flex justify-between items-center pb-3 border-b border-white/[0.04]">
                         <span className="text-[#A39690]">Format</span>
-                        {/* Tối ưu chữ dài trên mobile: Thêm text-right để tránh vỡ dòng lộn xộn */}
+                        {/* Optimize long text on mobile: Add text-right to avoid messy wrapping */}
                         <span className="text-white font-semibold text-right max-w-[60%] lg:max-w-none">
                             Hybrid (Online + FPTU HCMC)
                         </span>
@@ -39,7 +39,7 @@ export default function Sidebar() {
                     </div>
                 </div>
 
-                {/* Cặp nút CTA tĩnh: Chỉ xuất hiện trên màn hình máy tính (lg trở lên), ẩn hoàn toàn trên mobile */}
+                {/* Static CTA button pair: Only appear on desktop (lg and up), completely hidden on mobile */}
                 <div className="hidden lg:block space-y-3">
                     <Button
                         asChild
@@ -57,8 +57,8 @@ export default function Sidebar() {
                 </div>
             </aside>
 
-            {/* 2. STICKY BOTTOM BAR CHO MOBILE: Cố định 2 nút hành động ở đáy màn hình điện thoại */}
-            {/* class "lg:hidden" bảo đảm khối này biến mất hoàn toàn trên máy tính */}
+            {/* 2. STICKY BOTTOM BAR FOR MOBILE: Fix 2 action buttons at the bottom of the phone screen */}
+            {/* "lg:hidden" class ensures this block disappears completely on desktop */}
             <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-[#141210]/95 backdrop-blur-md border-t border-white/[0.06] p-4 shadow-[0_-10px_30px_rgba(0,0,0,0.5)] flex gap-3">
                 <Button variant="eventOutline" size="sm" className="flex-1 font-semibold text-xs h-12 py-0">
                     Discord Support

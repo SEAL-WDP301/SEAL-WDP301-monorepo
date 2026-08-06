@@ -1,4 +1,3 @@
-import { Tag } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -10,10 +9,9 @@ import { ProblemStatementViewer } from "@/components/problem/problem-statement-v
 
 interface TeamHeaderProps {
   detail?: JudgeSubmissionDetail | null;
-  roundName?: string;
 }
 
-export function TeamHeader({ detail, roundName }: TeamHeaderProps) {
+export function TeamHeader({ detail }: TeamHeaderProps) {
   if (!detail) {
     return (
       <GlassCard className="p-6">
@@ -31,50 +29,30 @@ export function TeamHeader({ detail, roundName }: TeamHeaderProps) {
   const teamBadge = `T${team?.anonymousIndex ?? detail.id}`;
 
   return (
-    <div className="space-y-4">
-      <GlassCard className="p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-500 text-xl font-bold text-black shrink-0">
+    <div className="space-y-3">
+      <GlassCard className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-base font-bold text-black">
             {teamBadge}
           </div>
 
-          <div className="flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-2xl font-bold">{submissionLabel}</h2>
-              <Badge
-                variant={detail.status.toLowerCase() === "submitted" ? "outline" : "default"}
-                className={cn(
-                  "capitalize",
-                  detail.status.toLowerCase() === "submitted"
-                    ? "border-green-500 text-green-600 dark:border-green-400 dark:text-green-400"
-                    : "",
-                )}
-              >
-                {detail.status}
-              </Badge>
-              {team.track?.name && (
-                <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-0">
-                  Track: {team.track.name}
-                </Badge>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <h2 className="truncate text-xl font-bold">{submissionLabel}</h2>
+            <Badge
+              variant={detail.status.toLowerCase() === "submitted" ? "outline" : "default"}
+              className={cn(
+                "capitalize",
+                detail.status.toLowerCase() === "submitted"
+                  ? "border-green-500 text-green-600 dark:border-green-400 dark:text-green-400"
+                  : "",
               )}
-            </div>
-
-            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <Tag size={16} />
-              Track: {team.track?.name || "—"}
-            </div>
-          </div>
-
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <Badge variant="success">{roundName || detail.round.name}</Badge>
-            {detail.round?.problemFileUrl && (
-              <ProblemStatementViewer
-                compact
-                fileUrl={detail.round.problemFileUrl}
-                title={`${detail.round.name} — Đề bài`}
-                trackName={team.track?.name}
-                roundName={detail.round.name}
-              />
+            >
+              {detail.status}
+            </Badge>
+            {team.track?.name && (
+              <Badge className="border-0 bg-orange-500/15 text-orange-700 dark:text-orange-300">
+                Track: {team.track.name}
+              </Badge>
             )}
           </div>
         </div>
@@ -82,10 +60,9 @@ export function TeamHeader({ detail, roundName }: TeamHeaderProps) {
 
       {detail.round?.problemFileUrl && (
         <ProblemStatementViewer
+          streamlined
           fileUrl={detail.round.problemFileUrl}
-          title={`${detail.round.name} — Đề bài`}
-          trackName={team.track?.name}
-          roundName={detail.round.name}
+          title={`${detail.round.name} - Problem Statement`}
         />
       )}
     </div>

@@ -49,8 +49,8 @@ export default function SubmitTab() {
     return (
         <div className="space-y-6 sm:space-y-8 animate-fadeIn font-sans w-full">
 
-            {/* Khối Header của phần Submit */}
-            {/* ĐÃ SỬA: Đồng bộ hóa nền bg-card và viền border-border cho responsive theme */}
+            {/* Submit section header block */}
+            {/* FIXED: Synchronized bg-card background and border-border for responsive theming */}
             <section className="border rounded-[32px] p-5 sm:p-10 relative overflow-hidden shadow-xl bg-card border-border/60 dark:bg-[#1A1512] dark:border-white/[0.04] transition-colors duration-300">
                 <div className="absolute -inset-x-20 -top-20 h-44 bg-[#FF6B2C]/10 blur-[100px] pointer-events-none" />
                 <div className="relative">
@@ -64,20 +64,20 @@ export default function SubmitTab() {
                 </div>
             </section>
 
-            {/* Danh sách các trường dữ liệu cần chuẩn bị nộp */}
+            {/* List of required submission fields */}
             <div className="space-y-4 w-full">
                 {requirements.map((req) => (
                     <div
                         key={req.step}
-                        /* ĐÃ SỬA: Thay đổi bg-card, border-border, giảm padding nhẹ trên mobile để các card gọn gàng */
+                        /* FIXED: Updated bg-card, border-border, slightly reduced mobile padding to keep cards compact */
                         className="border rounded-2xl p-5 sm:p-6 flex flex-col md:flex-row md:items-start gap-4 sm:gap-6 hover:border-[#FF6B2C]/40 bg-card border-border/80 dark:bg-[#1A1512] dark:border-white/8 transition-all duration-200"
                     >
-                        {/* Vòng tròn số thứ tự bước */}
+                        {/* Step number circle */}
                         <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-[#E25A20]/10 border-2 border-[#E25A20] font-black text-sm sm:text-base text-[#FF6B2C] flex items-center justify-center shrink-0 shadow-md">
                             {req.step}
                         </div>
 
-                        {/* Chi tiết yêu cầu */}
+                        {/* Requirement details */}
                         <div className="flex-1 space-y-2 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                                 <h4 className="font-black text-lg sm:text-xl text-foreground tracking-wide">{req.label}</h4>

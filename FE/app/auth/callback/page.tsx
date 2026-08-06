@@ -46,8 +46,8 @@ function CallbackContent() {
               </div>
             )}
             <div className="flex flex-col">
-              <span className="text-sm font-semibold text-foreground">Đăng nhập thành công!</span>
-              <span className="text-xs text-muted-foreground">Chào mừng {user.name}</span>
+              <span className="text-sm font-semibold text-foreground">Signed in successfully!</span>
+              <span className="text-xs text-muted-foreground">Welcome {user.name}</span>
             </div>
           </div>,
           { variant: "default", preventDuplicate: true }
@@ -65,12 +65,12 @@ function CallbackContent() {
       })
       .catch(err => {
         console.error(err);
-        enqueueSnackbar("Lỗi khi lấy thông tin người dùng", { variant: "error" });
+        enqueueSnackbar("Failed to fetch user information", { variant: "error" });
         router.push("/");
       });
 
     } else {
-      enqueueSnackbar("Đăng nhập thất bại. Không tìm thấy token.", { variant: "error" });
+      enqueueSnackbar("Sign in failed. Token not found.", { variant: "error" });
       router.push("/login");
     }
   }, [router, searchParams]);

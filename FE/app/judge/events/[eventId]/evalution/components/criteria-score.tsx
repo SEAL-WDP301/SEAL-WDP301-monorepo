@@ -6,7 +6,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  criterionContribution,
   JUDGE_SCORE_SCALE,
   type JudgeRubric,
 } from "@/lib/api/judge.api";
@@ -37,34 +36,30 @@ export function CriteriaScoring({
   }
 
   return (
-    <div className="space-y-6 w-full">
+    <div className="space-y-3 w-full">
       {rubrics.map((item) => {
         const score = scores[item.id] ?? 0;
         const weight = Number(item.weight);
 
         return (
-          <GlassCard key={item.id} className="p-8">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h3 className="text-xl font-semibold">{item.name}</h3>
-                  <Badge variant="highlight">Weight {weight}%</Badge>
+          <GlassCard key={item.id} className="px-5 py-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-semibold truncate">{item.name}</h3>
+                  <Badge variant="highlight" className="shrink-0 text-[10px] px-1.5 py-0">
+                    {weight}%
+                  </Badge>
                 </div>
                 {item.description && (
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                     {item.description}
-                  </p>
-                )}
-                {score > 0 && (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Contribution {criterionContribution(score, weight).toFixed(2)}{" "}
-                    / {JUDGE_SCORE_SCALE}
                   </p>
                 )}
               </div>
 
               <div className="text-right shrink-0">
-                <div className={`text-4xl font-bold ${disabled ? "text-muted-foreground opacity-60" : "text-orange-500"}`}>
+                <div className={`text-3xl font-bold leading-none ${disabled ? "text-muted-foreground opacity-60" : "text-orange-500"}`}>
                   {score.toFixed(1)}
                 </div>
                 <span className="text-xs text-muted-foreground">
@@ -73,7 +68,7 @@ export function CriteriaScoring({
               </div>
             </div>
 
-            <div className="mt-5 flex items-center gap-4">
+            <div className="mt-4 flex items-center gap-3">
               <Slider
                 value={[score]}
                 max={JUDGE_SCORE_SCALE}
@@ -91,7 +86,7 @@ export function CriteriaScoring({
                 step={0.5}
                 disabled={disabled}
                 value={score}
-                className="w-24 text-center"
+                className="w-20 text-center h-9"
                 onChange={(e) =>
                   onScoreChange(
                     item.id,
@@ -102,7 +97,7 @@ export function CriteriaScoring({
             </div>
 
             <Textarea
-              className="mt-4 min-h-[90px]"
+              className="mt-3 min-h-[70px] text-sm"
               disabled={disabled}
               placeholder="Comment on this criterion..."
               value={comments[item.id] ?? ""}

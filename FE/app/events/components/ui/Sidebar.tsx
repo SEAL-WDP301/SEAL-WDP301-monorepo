@@ -43,7 +43,7 @@ export default function Sidebar() {
 
                 </div>
 
-                {/* Cặp nút CTA tĩnh: Chỉ xuất hiện trên màn hình máy tính (lg trở lên), ẩn hoàn toàn trên mobile */}
+                {/* Static CTA button pair: Only visible on desktop (lg and above), hidden on mobile */}
                 <div className="hidden lg:block space-y-3">
                     <Button
                         asChild
@@ -61,8 +61,8 @@ export default function Sidebar() {
                 </div>
             </aside>
 
-            {/* 2. STICKY BOTTOM BAR CHO MOBILE: Cố định 2 nút hành động ở đáy màn hình điện thoại */}
-            {/* ĐÃ SỬA: Đồng bộ hóa nền bg-background/95 kết hợp border-border để thanh dock chân thực, thanh thoát trên cả nền sáng */}
+            {/* 2. STICKY BOTTOM BAR FOR MOBILE: Pins 2 action buttons at the bottom of the phone screen */}
+            {/* FIXED: Synchronized bg-background/95 with border-border for an authentic dock bar that works on both light and dark backgrounds */}
             <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-border dark:bg-[#141210]/95 dark:border-white/[0.06] p-4 shadow-[0_-10px_30px_rgba(0,0,0,0.15)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.5)] flex gap-3 transition-colors duration-300">
                 <Button variant="eventOutline" size="sm" className="flex-1 font-semibold text-xs h-12 py-0 border-border dark:border-white/[0.06]">
                     Discord Support

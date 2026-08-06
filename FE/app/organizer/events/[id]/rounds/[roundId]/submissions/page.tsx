@@ -202,7 +202,7 @@ export default function EventSubmissionsPage() {
 
     const handleNewCommit = (data: any) => {
       enqueueSnackbar(
-        `🚀 [${data.teamName}] ${data.pusher} vừa commit: "${data.message}"`, 
+        `🚀 [${data.teamName}] ${data.pusher} just committed: "${data.message}"`, 
         { variant: 'info' }
       );
       
@@ -277,7 +277,7 @@ export default function EventSubmissionsPage() {
       return res.data;
     },
     onSuccess: (data, newDeadlineStr) => {
-      enqueueSnackbar(data.message || "Cập nhật deadline thành công!", { variant: "success" });
+      enqueueSnackbar(data.message || "Deadline updated successfully!", { variant: "success" });
       const isoDeadline = new Date(newDeadlineStr).toISOString();
       queryClient.setQueryData(["organizerEvent", eventId], (oldData: any) => {
         if (!oldData || !oldData.rounds) return oldData;
@@ -295,7 +295,7 @@ export default function EventSubmissionsPage() {
     },
     onError: (error: any) => {
       enqueueSnackbar(
-        error.response?.data?.message || "Lỗi khi cập nhật deadline",
+        error.response?.data?.message || "Error updating deadline",
         { variant: "error" }
       );
     },

@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 
 export default function Countdown() {
-    // Giả định mốc thời gian diễn ra sự kiện Hackathon SEAL Spring 2026
+    // Assumed event date for SEAL Spring 2026 Hackathon
     const targetDate = new Date("2026-12-31T00:00:00").getTime();
 
-    // Khởi tạo state bằng một hàm callback để tránh tính toán lại mỗi lần render
+    // Initialize state with a callback function to avoid recomputation on every render
     const [timeLeft, setTimeLeft] = useState(() => {
         const now = Date.now();
         const difference = targetDate - now;
@@ -14,10 +14,10 @@ export default function Countdown() {
     });
 
     useEffect(() => {
-        // Nếu thời gian đã hết thì không chạy interval nữa
+        // If time has run out, stop the interval
         if (timeLeft <= 0) return;
 
-        // ĐÃ SỬA: Chạy bộ đếm thời gian thông qua setInterval một cách bất đồng bộ an toàn
+        // FIXED: Running the countdown timer via setInterval in a safe async manner
         const timer = setInterval(() => {
             const now = Date.now();
             const difference = targetDate - now;
@@ -30,17 +30,17 @@ export default function Countdown() {
             }
         }, 1000);
 
-        // Dọn dẹp bộ nhớ khi component bị unmount
+        // Cleanup when the component is unmounted
         return () => clearInterval(timer);
     }, [targetDate]);
 
-    // Tính toán ra Ngày, Giờ, Phút, Giây để hiển thị giao diện
+    // Compute Days, Hours, Minutes, Seconds for display
     const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
     const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
 
-    // Định dạng số hiển thị luôn có 2 chữ số (ví dụ: 09 thay vì 9)
+    // Format numbers to always display 2 digits (e.g. 09 instead of 9)
     const formatNumber = (num: number) => String(num).padStart(2, "0");
 
     return (
@@ -50,17 +50,17 @@ export default function Countdown() {
             </p>
 
             <div className="grid grid-cols-4 gap-3">
-                {/* Khối Ngày */}
+                {/* Days block */}
                 <div className="bg-muted/50 dark:bg-white/[0.02] rounded-[16px] p-3 border border-border/40 dark:border-white/[0.02]">
                     <div className="text-2xl md:text-3xl font-mono font-black text-foreground dark:text-white">
                         {formatNumber(days)}
                     </div>
                     <div className="text-[10px] font-bold text-muted-foreground dark:text-[#A39690] uppercase tracking-wider mt-1">
-                        Daze
+                        Days
                     </div>
                 </div>
 
-                {/* Khối Giờ */}
+                {/* Hours block */}
                 <div className="bg-muted/50 dark:bg-white/[0.02] rounded-[16px] p-3 border border-border/40 dark:border-white/[0.02]">
                     <div className="text-2xl md:text-3xl font-mono font-black text-foreground dark:text-white">
                         {formatNumber(hours)}
@@ -70,7 +70,7 @@ export default function Countdown() {
                     </div>
                 </div>
 
-                {/* Khối Phút */}
+                {/* Minutes block */}
                 <div className="bg-muted/50 dark:bg-white/[0.02] rounded-[16px] p-3 border border-border/40 dark:border-white/[0.02]">
                     <div className="text-2xl md:text-3xl font-mono font-black text-foreground dark:text-white">
                         {formatNumber(minutes)}
@@ -80,7 +80,7 @@ export default function Countdown() {
                     </div>
                 </div>
 
-                {/* Khối Giây */}
+                {/* Seconds block */}
                 <div className="bg-muted/50 dark:bg-white/[0.02] rounded-[16px] p-3 border border-border/40 dark:border-white/[0.02]">
                     <div className="text-2xl md:text-3xl font-mono font-black text-[#FF6B2C] animate-pulse">
                         {formatNumber(seconds)}

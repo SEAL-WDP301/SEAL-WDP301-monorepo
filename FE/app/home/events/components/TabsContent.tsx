@@ -8,7 +8,7 @@ interface TabsContentProps {
 }
 
 export default function TabsContent({ activeTab }: TabsContentProps) {
-    // Hàm helper để bọc layout chuẩn Responsive cho tất cả các Tab con
+    // Helper function to wrap standard Responsive layout for all child Tabs
     const renderContent = () => {
         switch (activeTab) {
             case "overview":
