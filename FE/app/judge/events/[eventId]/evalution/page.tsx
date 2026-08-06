@@ -434,10 +434,7 @@ export default function EvaluationPage() {
             </div>
           ) : (
             <>
-              <TeamHeader
-                detail={submissionDetail}
-                roundName={selectedRound?.roundName}
-              />
+              <TeamHeader detail={submissionDetail} />
 
               <div className="mt-8 space-y-8">
                 <SubmissionContentCard detail={submissionDetail} />

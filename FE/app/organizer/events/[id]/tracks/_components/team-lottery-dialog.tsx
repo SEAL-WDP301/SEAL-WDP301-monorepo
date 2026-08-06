@@ -166,7 +166,7 @@ export function TeamLotteryDialog({
         setWantStudentSelfDraw(true);
         setPhase("student_live");
         enqueueSnackbar(
-          "Đã mở bốc thăm — đội leader bấm Sắp xếp trên workspace.",
+          "Track draw opened — team leaders can click Sort on workspace.",
           { variant: "success" },
         );
         return;
@@ -174,7 +174,7 @@ export function TeamLotteryDialog({
       runBulkSuccess(data);
     },
     onError: (error) => {
-      const msg = getApiMessage(error, "Bốc thăm đội thất bại");
+      const msg = getApiMessage(error, "Team draw failed");
       setLastError(msg);
       enqueueSnackbar(msg, { variant: "error" });
     },
@@ -187,10 +187,10 @@ export function TeamLotteryDialog({
       setWantStudentSelfDraw(false);
       setAssignments(data.assignments ?? []);
       setPhase("done");
-      enqueueSnackbar("Đã khóa bốc thăm đội.", { variant: "info" });
+      enqueueSnackbar("Locked team draw.", { variant: "info" });
     },
     onError: (error) => {
-      enqueueSnackbar(getApiMessage(error, "Khóa bốc thăm thất bại"), {
+      enqueueSnackbar(getApiMessage(error, "Lock draw failed"), {
         variant: "error",
       });
     },
@@ -203,7 +203,7 @@ export function TeamLotteryDialog({
   }) {
     setSkippedAlreadyAssigned(data.skippedAlreadyAssigned);
     if (data.assignedCount === 0) {
-      enqueueSnackbar("Không có đội nào cần gán bảng.", { variant: "info" });
+      enqueueSnackbar("No teams need to be assigned to a track.", { variant: "info" });
       setPhase("done");
       return;
     }
@@ -253,13 +253,13 @@ export function TeamLotteryDialog({
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-orange-500" />
             {isStudentLive
-              ? "Bốc thăm đội — tự bốc (SV)"
-              : "Bốc thăm đội → bảng"}
+              ? "Team Draw — Student self-draw"
+              : "Team Draw → Track"}
           </DialogTitle>
           <DialogDescription>
             {isStudentLive
-              ? `${roundName} · Leader từng đội bấm Sắp xếp trên workspace. Bảng live bên dưới.`
-              : `${roundName} · ${trackCount} bảng — đội bay sang từng track (chiếu lên projector).`}
+              ? `${roundName} · Each team leader clicks Sort on workspace. Live board below.`
+              : `${roundName} · ${trackCount} tracks — teams fly to each track (projector view).`}
           </DialogDescription>
         </DialogHeader>
 
@@ -274,12 +274,12 @@ export function TeamLotteryDialog({
               />
               <div>
                 <p className="font-medium text-foreground">
-                  Đội tự bốc thăm track
+                  Student self-draw
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Bật: leader từng đội vào workspace bấm{" "}
-                  <strong>Sắp xếp</strong> để random vào bảng. Tắt: BTC bốc
-                  hàng loạt trên projector.
+                  Enable: each team leader enters workspace and clicks{" "}
+                  <strong>Sort</strong> to randomly draw a track. Disable: Organizers draw
+                  all teams at once on projector.
                 </p>
               </div>
             </label>
@@ -288,8 +288,8 @@ export function TeamLotteryDialog({
           {showEmptyDone ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
               {skippedAlreadyAssigned > 0
-                ? `Tất cả ${skippedAlreadyAssigned} đội đã có bảng.`
-                : "Không có đội nào cần gán."}
+                ? `All ${skippedAlreadyAssigned} teams already have a track.`
+                : "No teams need assignment."}
             </p>
           ) : (
             <>
@@ -306,15 +306,15 @@ export function TeamLotteryDialog({
 
               {isStudentLive ? (
                 <p className="mt-3 text-center text-xs text-emerald-600">
-                  Đang mở — {boardItems.length} đội đã bốc
-                  {pendingCount > 0 ? ` · còn ${pendingCount} đội` : ""}
+                  Open — {boardItems.length} teams drawn
+                  {pendingCount > 0 ? ` · ${pendingCount} teams remaining` : ""}
                 </p>
               ) : null}
 
               {teamsPreviewQuery.isLoading && phase === "ready" ? (
                 <p className="mt-3 text-center text-xs text-muted-foreground">
                   <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />
-                  Đang tải danh sách đội...
+                  Loading teams...
                 </p>
               ) : null}
 
@@ -327,7 +327,7 @@ export function TeamLotteryDialog({
                     className="mt-4 text-center text-sm font-medium text-muted-foreground"
                   >
                     <Loader2 className="mr-2 inline h-4 w-4 animate-spin text-orange-500" />
-                    Đang trộn và bốc thăm đội...
+                    Shuffling and drawing teams...
                   </motion.p>
                 )}
                 {phase === "done" && boardItems.length > 0 && (
@@ -337,7 +337,7 @@ export function TeamLotteryDialog({
                     animate={{ opacity: 1 }}
                     className="mt-4 text-center text-sm font-semibold text-emerald-600"
                   >
-                    Hoàn tất {boardItems.length} đội!
+                    Completed {boardItems.length} teams!
                   </motion.p>
                 )}
               </AnimatePresence>
@@ -352,16 +352,16 @@ export function TeamLotteryDialog({
                 <span className="text-red-500">{lastError}</span>
               ) : (
                 <>
-                  Chỉ gán cho đội <strong>chưa có bảng</strong> —{" "}
+                  Only assign for teams <strong>without a track</strong> —{" "}
                   {teamsPreviewQuery.isLoading
-                    ? "đang tải..."
-                    : `${previewItems.length} đội sẵn sàng.`}
+                    ? "loading..."
+                    : `${previewItems.length} teams ready.`}
                 </>
               )}
             </p>
           ) : isStudentLive ? (
             <p className="text-left text-xs text-muted-foreground sm:max-w-md">
-              Đội leader vào workspace → nút <strong>Sắp xếp</strong>.
+              Team leader goes to workspace → <strong>Sort</strong> button.
             </p>
           ) : (
             <span />
@@ -385,8 +385,8 @@ export function TeamLotteryDialog({
                   <Sparkles className="h-5 w-5" />
                 )}
                 {wantStudentSelfDraw
-                  ? "Mở bốc thăm cho đội"
-                  : "Bốc thăm đội ngay"}
+                  ? "Open team draw"
+                  : "Draw teams now"}
               </Button>
             ) : null}
             {isStudentLive ? (
@@ -399,7 +399,7 @@ export function TeamLotteryDialog({
                 {closeDrawMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : null}
-                Khóa bốc thăm
+                Lock draw
               </Button>
             ) : null}
             <Button
@@ -410,7 +410,7 @@ export function TeamLotteryDialog({
                 else onOpenChange(false);
               }}
             >
-              {phase === "done" ? "Đóng & cập nhật" : "Hủy"}
+              {phase === "done" ? "Close & update" : "Cancel"}
             </Button>
           </div>
         </DialogFooter>

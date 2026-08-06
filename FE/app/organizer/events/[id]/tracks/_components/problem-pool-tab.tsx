@@ -60,7 +60,7 @@ export function TracksProblemPoolTab({
       queryClient.invalidateQueries({ queryKey: ["problemPool", eventId] });
       queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
       setLabel("");
-      enqueueSnackbar("Đã thêm đề vào pool", { variant: "success" });
+      enqueueSnackbar("Added problem to pool", { variant: "success" });
     },
     onError: (error) => {
       enqueueSnackbar(getApiMessage(error, "Failed to add pool item"), {
@@ -74,7 +74,7 @@ export function TracksProblemPoolTab({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["problemPool", eventId] });
       queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
-      enqueueSnackbar("Đã xóa khỏi pool", { variant: "info" });
+      enqueueSnackbar("Removed from pool", { variant: "info" });
     },
     onError: (error) => {
       enqueueSnackbar(getApiMessage(error, "Failed to remove pool item"), {
@@ -86,7 +86,7 @@ export function TracksProblemPoolTab({
   const handleUpload = async (file: File) => {
     const trimmed = label.trim();
     if (!trimmed) {
-      enqueueSnackbar("Nhập tên/chủ đề đề trước khi upload", {
+      enqueueSnackbar("Enter problem name/topic before uploading", {
         variant: "warning",
       });
       return;
@@ -123,16 +123,16 @@ export function TracksProblemPoolTab({
       )}
     >
       <div className="mb-6">
-        <h2 className="text-lg font-semibold">Pool đề bí mật</h2>
+        <h2 className="text-lg font-semibold">Secret Problem Pool</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload các đề/chủ đề bí mật trước Day 1. Dùng 「Random Track」 trên tab
-          Tracks &amp; Rounds để bốc thăm gán vào từng bảng.
+          Upload secret problems/topics before Day 1. Use "Random Track" on the
+          Tracks &amp; Rounds tab to draw and assign to each track.
           {minPoolNeeded > 0 ? (
             <>
               {" "}
-              Round lớn nhất cần ít nhất{" "}
-              <strong className="text-foreground">{minPoolNeeded}</strong> đề
-              chưa gán.
+              The largest round needs at least{" "}
+              <strong className="text-foreground">{minPoolNeeded}</strong> unassigned
+              problems.
             </>
           ) : null}
           {capacityHint ? (
@@ -148,7 +148,7 @@ export function TracksProblemPoolTab({
 
       <div className="mb-6 grid gap-4 rounded-2xl border border-dashed border-border p-4 md:grid-cols-[1fr_auto] md:items-end">
         <div className="space-y-2">
-          <Label htmlFor="pool-label">Tên / chủ đề (ẩn với SV cho đến bốc thăm)</Label>
+          <Label htmlFor="pool-label">Name / Topic (hidden from students until draw)</Label>
           <Input
             id="pool-label"
             placeholder="VD: Smart Factory, Smart Campus..."
@@ -179,14 +179,14 @@ export function TracksProblemPoolTab({
             ) : (
               <Upload className="h-4 w-4" />
             )}
-            Upload đề vào pool
+            Upload problem to pool
           </Button>
         </div>
       </div>
 
       <div className="mb-3 flex items-center gap-2 text-sm">
-        <span className="font-medium">{items.length} đề trong pool</span>
-        <Badge variant="outline">{unassigned} chưa gán</Badge>
+        <span className="font-medium">{items.length} problems in pool</span>
+        <Badge variant="outline">{unassigned} unassigned</Badge>
       </div>
 
       {poolQuery.isLoading ? (
@@ -195,16 +195,16 @@ export function TracksProblemPoolTab({
         </div>
       ) : items.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          Chưa có đề nào. Upload ít nhất bằng số track trong round.
+          No problems yet. Upload at least as many as the tracks in the round.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">Chủ đề</th>
+                <th className="px-4 py-3">Topic</th>
                 <th className="px-4 py-3">File</th>
-                <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -223,9 +223,9 @@ export function TracksProblemPoolTab({
                   </td>
                   <td className="px-4 py-3">
                     {item.assignedRoundId != null ? (
-                      <Badge variant="success">Đã gán track</Badge>
+                      <Badge variant="success">Track assigned</Badge>
                     ) : (
-                      <Badge variant="warning">Chưa gán</Badge>
+                      <Badge variant="warning">Unassigned</Badge>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">

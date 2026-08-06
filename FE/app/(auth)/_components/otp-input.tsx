@@ -103,12 +103,12 @@ export function OtpInput({ value, onChange, length = 6 }: OtpInputProps) {
           {showOtp ? (
             <>
               <EyeOff className="size-4" />
-              Ẩn mã OTP
+              Hide OTP
             </>
           ) : (
             <>
               <Eye className="size-4" />
-              Hiện mã OTP
+              Show OTP
             </>
           )}
         </Button>

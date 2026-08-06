@@ -148,7 +148,7 @@ export default function TeamInvitationPage() {
           ) : (
             <p className="flex items-center gap-2 text-muted-foreground">
               <Users className="size-4 text-orange-500" />
-              Track sẽ được gán khi BTC mở vòng thi
+              Track will be assigned when the round opens
             </p>
           )}
         </div>
