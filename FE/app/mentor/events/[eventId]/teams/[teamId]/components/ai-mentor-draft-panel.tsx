@@ -9,6 +9,9 @@ interface Props {
   draft: MentorAiDraftResult | null;
   isLoading?: boolean;
   disabled?: boolean;
+  teamName?: string;
+  roundName?: string;
+  trackName?: string | null;
   onGenerate?: () => void;
   onUseDraft?: (text: string) => void;
   onDismiss?: () => void;
@@ -26,6 +29,9 @@ export function AiMentorDraftPanel({
   draft,
   isLoading,
   disabled,
+  teamName,
+  roundName,
+  trackName,
   onGenerate,
   onUseDraft,
   onDismiss,
@@ -46,8 +52,8 @@ export function AiMentorDraftPanel({
             <h3 className="text-lg font-semibold">AI Mentoring Assist</h3>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Quick overview + draft feedback so you can decide fast, then edit
-            before submitting.
+            Nhấn Draft with AI để xem gợi ý. Chỉ khi bấm Đồng ý thì mới copy
+            vào ô feedback.
           </p>
         </div>
         <Button
@@ -83,22 +89,27 @@ export function AiMentorDraftPanel({
 
       {draft && (
         <div className="space-y-4">
+          <div className="rounded-2xl border border-border bg-muted/20 p-4 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Dựa trên
+            </p>
+            <ul className="mt-2 space-y-1 text-muted-foreground">
+              {teamName && <li>Đội: {teamName}</li>}
+              {roundName && <li>Vòng: {roundName}</li>}
+              {trackName && <li>Track: {trackName}</li>}
+              {sourceLabel && <li>Nguồn đọc: {sourceLabel}</li>}
+              {draft.contextSummary && (
+                <li>Bằng chứng: {draft.contextSummary}</li>
+              )}
+            </ul>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            {sourceLabel && (
-              <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 font-bold uppercase tracking-wider text-orange-500">
-                {sourceLabel}
-              </span>
-            )}
             <span
               className={`rounded-full border px-2.5 py-1 font-bold uppercase tracking-wider ${readinessClass(draft.readiness)}`}
             >
               {draft.readiness.replace(/_/g, " ")}
             </span>
-            {draft.contextSummary && (
-              <span className="rounded-full border border-border bg-muted/40 px-2.5 py-1 font-medium text-muted-foreground">
-                Evidence: {draft.contextSummary}
-              </span>
-            )}
           </div>
 
           <div className="rounded-2xl border border-border bg-muted/20 p-4">
@@ -168,7 +179,7 @@ export function AiMentorDraftPanel({
             {onDismiss && (
               <Button type="button" variant="outline" onClick={onDismiss}>
                 <X className="h-4 w-4" />
-                Dismiss
+                Không dùng
               </Button>
             )}
             {onUseDraft && (
@@ -179,7 +190,7 @@ export function AiMentorDraftPanel({
                 onClick={() => onUseDraft(draft.draftFeedback)}
               >
                 <Check className="h-4 w-4" />
-                Use draft in editor
+                Đồng ý — dùng draft
               </Button>
             )}
           </div>

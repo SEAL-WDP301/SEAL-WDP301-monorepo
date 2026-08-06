@@ -9,9 +9,12 @@ export const workspaceApi = {
   },
 
   drawMyTeamTrack: async (eventId: number) => {
+    // Must send {} — axios + Content-Type JSON stringifies `null` as the
+    // literal "null", which Nest body parsing rejects with:
+    // Unexpected token 'n', "null" is not valid JSON
     const response = await axiosClient.post(
       `/student/teams/my-team/draw-track`,
-      null,
+      {},
       { params: { eventId } },
     );
     return response.data?.data as {

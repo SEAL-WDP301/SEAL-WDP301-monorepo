@@ -161,6 +161,8 @@ export function TeamLotteryDialog({
       revealEventTracks(eventId, { roundId, studentSelfDraw }),
     onSuccess: (data, studentSelfDraw) => {
       setLastError(null);
+      // Refresh parent immediately — assignments / draw-open flag already saved.
+      onComplete();
       if (data.mode === "student_draw_open" || studentSelfDraw) {
         setDrawOpen(true);
         setWantStudentSelfDraw(true);
@@ -226,7 +228,6 @@ export function TeamLotteryDialog({
 
   const handleClose = () => {
     onOpenChange(false);
-    if (phase === "done") onComplete();
   };
 
   const pendingCount =

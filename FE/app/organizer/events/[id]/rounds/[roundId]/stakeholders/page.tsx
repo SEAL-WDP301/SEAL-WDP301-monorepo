@@ -448,7 +448,7 @@ export default function EventStakeholdersPage() {
                   <tr>
                     <th className="px-6 py-4 font-semibold">User</th>
                     <th className="px-6 py-4 font-semibold">Job Title & Org</th>
-                    <th className="px-6 py-4 font-semibold">Assigned Rounds</th>
+                    <th className="px-6 py-4 font-semibold">This round</th>
                     <th className="px-6 py-4 font-semibold text-right">Action</th>
                   </tr>
                 </thead>
@@ -468,7 +468,14 @@ export default function EventStakeholdersPage() {
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap items-center gap-2">
                           <span>
-                            <span className="font-semibold text-blue-500">{user.judgeAssignments.length}</span> assignments
+                            <span className="font-semibold text-blue-500">
+                              {
+                                (user.judgeAssignments || []).filter(
+                                  (ja: any) => ja.roundId === Number(roundId),
+                                ).length
+                              }
+                            </span>{" "}
+                            assignments
                           </span>
                           {user.mentorAssignments?.some((ma: any) =>
                             ma.team?.teamRounds?.some((tr: any) => tr.roundId === Number(roundId)),
@@ -598,14 +605,21 @@ export default function EventStakeholdersPage() {
               </div>
             )}
 
-            {/* Judge Assignments */}
-            {drawerUser?.judgeAssignments?.length > 0 && (
+            {/* Judge Assignments — only this round */}
+            {drawerUser?.judgeAssignments?.filter(
+              (ja: any) => ja.roundId === Number(roundId),
+            ).length > 0 && (
               <div>
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
                   <LayoutDashboard className="h-4 w-4 text-blue-500" /> Judge Assignments
+                  <span className="text-xs font-normal text-muted-foreground">
+                    (this round)
+                  </span>
                 </h3>
                 <div className="space-y-2">
-                  {drawerUser.judgeAssignments.map((ja: any) => (
+                  {drawerUser.judgeAssignments
+                    .filter((ja: any) => ja.roundId === Number(roundId))
+                    .map((ja: any) => (
                     <div key={ja.id} className="flex items-center justify-between bg-blue-500/10 p-3 rounded-lg border border-blue-500/20">
                       <div>
                         <p className="font-medium">Round: {ja.round?.name}</p>

@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { enqueueSnackbar } from "notistack";
 import {
+  Check,
   ChevronDown,
   Edit2,
   GitMerge,
@@ -21,6 +22,7 @@ import {
   Shuffle,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -157,6 +159,28 @@ function mapTrack(track: OrganizerTrack): OrganizerTrackInput {
 
 function canModifyRoundTracks(round: OrganizerRound) {
   return (round.status || "not_started") === "not_started";
+}
+
+/** Block adding tracks once the event is live or any round has left Not Started. */
+function getAddTrackDisableReason(
+  event: OrganizerEvent | undefined,
+  round: OrganizerRound,
+): string | null {
+  if (!event) return "Event is not loaded.";
+  if (event.status === "closed") return "Closed events cannot add tracks.";
+  if (event.status === "ongoing") {
+    return "Cannot add tracks while the event is ongoing.";
+  }
+  const opened = (event.rounds || []).find(
+    (r) => (r.status || "not_started") !== "not_started",
+  );
+  if (opened) {
+    return `Cannot add tracks after a round has opened ("${opened.name}").`;
+  }
+  if (!canModifyRoundTracks(round)) {
+    return "Tracks can only be added while this round is Not Started.";
+  }
+  return null;
 }
 
 function LotteryHeaderButton({
@@ -1219,33 +1243,44 @@ export default function EventRoundsPage() {
                                   </select>
                                 ) : null}
                                 {requirePerTrackProblems ? (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    className="gap-2 bg-orange-600 hover:bg-orange-700"
-                                    disabled={
-                                      !canModifyRoundTracks(round) ||
-                                      roundTrackMutation.isPending ||
+                                  (() => {
+                                    const structureBlock =
+                                      getAddTrackDisableReason(event, round);
+                                    const maxTeamsBlock =
                                       !canAddTrackForMaxTeams(
                                         event.maxTeams,
                                         sortedTracks.length,
                                       )
-                                    }
-                                    title={
-                                      !canAddTrackForMaxTeams(
-                                        event.maxTeams,
-                                        sortedTracks.length,
-                                      )
-                                        ? `Max ${event.maxTeams} teams → max ${event.maxTeams} tracks in this round.`
-                                        : !canModifyRoundTracks(round)
-                                          ? "Tracks can only be added while this round is Not Started."
-                                          : undefined
-                                    }
-                                    onClick={() => openCreateTrack(round.id)}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                    Add Track
-                                  </Button>
+                                        ? `Max ${event.maxTeams} đội → tối đa ${event.maxTeams} bảng trong round này.`
+                                        : null;
+                                    const addTrackReason =
+                                      structureBlock || maxTeamsBlock;
+                                    return (
+                                      <span
+                                        title={addTrackReason ?? undefined}
+                                        className={cn(
+                                          "inline-flex",
+                                          addTrackReason && "cursor-not-allowed",
+                                        )}
+                                      >
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="gap-2 bg-orange-600 hover:bg-orange-700"
+                                          disabled={
+                                            Boolean(addTrackReason) ||
+                                            roundTrackMutation.isPending
+                                          }
+                                          onClick={() =>
+                                            openCreateTrack(round.id)
+                                          }
+                                        >
+                                          <Plus className="h-4 w-4" />
+                                          Add Track
+                                        </Button>
+                                      </span>
+                                    );
+                                  })()
                                 ) : null}
                               </div>
                             </div>
@@ -1500,8 +1535,9 @@ export default function EventRoundsPage() {
         previewItems={poolPreviewItems}
         unassignedPoolCount={unassignedPoolCount}
         onComplete={() => {
-          eventQuery.refetch();
+          queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
           queryClient.invalidateQueries({ queryKey: ["problemPool", eventId] });
+          void eventQuery.refetch();
         }}
       />
 
@@ -1517,9 +1553,12 @@ export default function EventRoundsPage() {
         trackSlots={teamLotteryRound?.trackSlots ?? []}
         studentTrackDrawOpen={Boolean(event.studentTrackDrawOpen)}
         onComplete={() => {
-          eventQuery.refetch();
           queryClient.invalidateQueries({ queryKey: ["organizerEvent", eventId] });
           queryClient.invalidateQueries({ queryKey: ["organizerTeams", eventId] });
+          queryClient.invalidateQueries({
+            queryKey: ["lotteryTeamsPreview", eventId],
+          });
+          void eventQuery.refetch();
         }}
       />
 
@@ -1952,6 +1991,12 @@ function ProblemTrackRow({
 
         {fileUrl ? (
           <>
+            <span
+              title="Đã có đề — bảng này đã được gán / upload file đề bài."
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+            >
+              <Check className="h-4 w-4" aria-label="Has problem file" />
+            </span>
             <ProblemStatementViewer
               compact
               fileUrl={fileUrl}
@@ -1970,11 +2015,7 @@ function ProblemTrackRow({
               >
                 <Trash2 className="h-4 w-4 text-red-500" />
               </Button>
-            ) : (
-              <span className="rounded border border-border px-2 py-1 text-[10px] italic text-muted-foreground">
-                Locked
-              </span>
-            )}
+            ) : null}
           </>
         ) : canUpload ? (
           <label
@@ -2004,11 +2045,11 @@ function ProblemTrackRow({
           <span
             title={
               emptyHint ??
-              "Problem file can only be uploaded when round status is Not Started"
+              "Chưa có đề — bảng này chưa được gán / upload file đề bài."
             }
-            className="text-xs italic text-muted-foreground"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-red-500"
           >
-            {emptyHint ?? "No file (Locked)"}
+            <X className="h-4 w-4" aria-label="Missing problem file" />
           </span>
         )}
       </div>

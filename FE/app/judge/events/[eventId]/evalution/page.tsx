@@ -243,13 +243,28 @@ export default function EvaluationPage() {
       if (!selectedSubmissionId) {
         throw new Error("No submission selected");
       }
-      const data = await judgeApi.suggestScores(selectedSubmissionId);
+      return judgeApi.suggestScores(selectedSubmissionId);
+    },
+    onSuccess: (data) => {
+      setAiSuggestion(data);
+      enqueueSnackbar("AI suggestions ready — review before applying", {
+        variant: "info",
+      });
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Failed to generate AI suggestions";
+      enqueueSnackbar(message, { variant: "error" });
+    },
+  });
+
+  const applyAiMutation = useMutation({
+    mutationFn: async (data: AiSuggestScoresResult) => {
       await judgeApi.applyAiSuggestion(data.auditId);
       return data;
     },
     onSuccess: (data) => {
-      setAiSuggestion(data);
-
       const nextScores: Record<number, number> = { ...scores };
       const nextComments: Record<number, string> = { ...comments };
       for (const item of data.suggestions) {
@@ -270,6 +285,7 @@ export default function EvaluationPage() {
         }
       }
 
+      setAiSuggestion(null);
       enqueueSnackbar(
         `AI suggestions applied (${data.source === "github_link" ? "GitHub" : "File"}). Review and save when ready.`,
         { variant: "success" },
@@ -278,7 +294,21 @@ export default function EvaluationPage() {
     onError: (error: unknown) => {
       const message =
         (error as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || "Failed to generate AI suggestions";
+          ?.message || "Failed to apply AI suggestions";
+      enqueueSnackbar(message, { variant: "error" });
+    },
+  });
+
+  const discardAiMutation = useMutation({
+    mutationFn: async (auditId: number) => judgeApi.discardAiSuggestion(auditId),
+    onSuccess: () => {
+      setAiSuggestion(null);
+      enqueueSnackbar("AI suggestions discarded", { variant: "info" });
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || "Failed to discard AI suggestions";
       enqueueSnackbar(message, { variant: "error" });
     },
   });
@@ -441,11 +471,27 @@ export default function EvaluationPage() {
 
                 {submissionDetail && (
                   <AiSuggestPanel
+                    detail={submissionDetail}
                     rubrics={submissionDetail.rubrics}
                     suggestion={aiSuggestion}
                     isSuggesting={suggestMutation.isPending}
-                    disabled={scoringLocked || saveMutation.isPending}
+                    isApplying={applyAiMutation.isPending}
+                    disabled={
+                      scoringLocked ||
+                      saveMutation.isPending ||
+                      discardAiMutation.isPending
+                    }
                     onSuggest={() => suggestMutation.mutate()}
+                    onAccept={() => {
+                      if (aiSuggestion) applyAiMutation.mutate(aiSuggestion);
+                    }}
+                    onReject={() => {
+                      if (aiSuggestion) {
+                        discardAiMutation.mutate(aiSuggestion.auditId);
+                      } else {
+                        setAiSuggestion(null);
+                      }
+                    }}
                   />
                 )}
 

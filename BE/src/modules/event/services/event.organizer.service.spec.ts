@@ -4,6 +4,7 @@ import { PrismaService } from "../../../database/prisma/prisma.service";
 import { CreateEventDto } from "../dto/create-event.dto";
 import { RoundAutomationSchedulerService } from "../../round/services/round-automation-scheduler.service";
 import { TeamGithubService } from "../../team/services/team-github.service";
+import { GithubWebhookService } from "../../github/services/github.webhook.service";
 import { EventOrganizerService } from "./event.organizer.service";
 import { TrackAssignmentService } from "./track-assignment.service";
 
@@ -16,6 +17,7 @@ describe("EventOrganizerService team member limits", () => {
     {} as TeamGithubService,
     {} as RoundAutomationSchedulerService,
     {} as TrackAssignmentService,
+    { freezeEventRepos: jest.fn() } as unknown as GithubWebhookService,
   );
 
   const dto = {
@@ -155,6 +157,7 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
     {} as TeamGithubService,
     {} as RoundAutomationSchedulerService,
     {} as TrackAssignmentService,
+    { freezeEventRepos: jest.fn() } as unknown as GithubWebhookService,
   );
 
   const round = {
@@ -273,6 +276,7 @@ describe("EventOrganizerService.removeTrackFromRound", () => {
     {} as TeamGithubService,
     {} as RoundAutomationSchedulerService,
     {} as TrackAssignmentService,
+    { freezeEventRepos: jest.fn() } as unknown as GithubWebhookService,
   );
 
   beforeEach(() => {
