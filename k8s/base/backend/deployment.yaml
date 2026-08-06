@@ -30,7 +30,7 @@ spec:
                     operator: DoesNotExist
       containers:
         - name: backend
-          image: ghcr.io/seal-wdp301/be:affb2b6c6bda9258a6f3ff6c70612c1a912527d5
+          image: ghcr.io/seal-wdp301/be:dc4e12a26ad9365fdc159b20a9f7ecd4bd088179
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
