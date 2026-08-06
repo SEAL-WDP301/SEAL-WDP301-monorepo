@@ -17,6 +17,7 @@ import { AdminRealtimeSseService } from "./services/admin-realtime-sse.service";
 import { NotificationModule } from "../notification/notification.module";
 
 import { RoundModule } from "../round/round.module";
+import { GithubModule } from "../github/github.module";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { RoundModule } from "../round/round.module";
     TeamModule,
     NotificationModule,
     forwardRef(() => RoundModule),
+    forwardRef(() => GithubModule),
   ],
   controllers: [
     EventOrganizerController,

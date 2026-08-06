@@ -143,6 +143,51 @@ export class GithubService {
     }
   }
 
+  /**
+   * Toggle repo visibility. Used on round close → public (judges can open links)
+   * and optionally unfreeze → private again.
+   */
+  async updateRepoVisibility(
+    org: string,
+    repoName: string,
+    isPrivate: boolean,
+  ): Promise<void> {
+    const token = this.configService.get<string>("github.token");
+    if (!token) {
+      throw new ServiceUnavailableException(
+        "GitHub integration is not configured (missing GITHUB_TOKEN)",
+      );
+    }
+
+    const response = await fetch(
+      `https://api.github.com/repos/${org}/${repoName}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ private: isPrivate }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 500);
+      this.logger.error(
+        `Failed to set ${org}/${repoName} private=${isPrivate} (${response.status}): ${body}`,
+      );
+      throw new ServiceUnavailableException(
+        `Failed to update repository visibility (${response.status})`,
+      );
+    }
+
+    this.logger.log(
+      `GitHub repo ${org}/${repoName} is now ${isPrivate ? "private" : "public"}`,
+    );
+  }
+
   async removeCollaborator(
     org: string,
     repoName: string,

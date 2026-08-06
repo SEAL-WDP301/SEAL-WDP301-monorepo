@@ -493,6 +493,16 @@ export default function MentorTeamDashboard() {
                       : null
                   }
                   isLoading={aiDraftMutation.isPending}
+                  teamName={team.name}
+                  roundName={
+                    activeSubmission.round
+                      ? `Round ${activeSubmission.round.roundNumber ?? ""}: ${activeSubmission.round.name}`.replace(
+                          "Round :",
+                          "Round",
+                        )
+                      : undefined
+                  }
+                  trackName={team.track?.name}
                   onGenerate={() => aiDraftMutation.mutate(activeSubmission.id)}
                   onUseDraft={(text) => {
                     setEditingFeedbackId(null);

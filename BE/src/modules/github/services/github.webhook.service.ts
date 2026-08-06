@@ -432,28 +432,51 @@ export class GithubWebhookService {
     const org = this.githubService.resolveOrgName(team.event.githubOrgUrl);
     if (!org) throw new NotFoundException('GitHub Organization is not configured');
 
-    // Remove write access by setting permission to 'pull' (read-only) for all members
-    const allUsers = [...team.members.map(m => m.user), team.leader];
-    
+    // 1) Students lose write access (pull = read-only)
+    const allUsers = [...team.members.map((m) => m.user), team.leader];
+
     const freezePromises = allUsers.map(async (user) => {
       const githubUsername = user?.studentProfile?.githubUsername;
       if (githubUsername) {
         try {
-          await this.githubService.addCollaborator(org, team.githubRepoName!, githubUsername, 'pull');
+          await this.githubService.addCollaborator(
+            org,
+            team.githubRepoName!,
+            githubUsername,
+            "pull",
+          );
         } catch (error: any) {
-          this.logger.error(`Failed to freeze repo for user ${githubUsername}: ${error.message}`);
+          this.logger.error(
+            `Failed to freeze repo for user ${githubUsername}: ${error.message}`,
+          );
         }
       }
     });
 
     await Promise.all(freezePromises);
-    
+
+    // 2) Make repo public so judges can open/clone without being collaborators
+    try {
+      await this.githubService.updateRepoVisibility(
+        org,
+        team.githubRepoName!,
+        false,
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to make repo public for team ${teamId}: ${error?.message || error}`,
+      );
+    }
+
     await this.prisma.team.update({
       where: { id: team.id },
-      data: { isFrozen: true } as any
+      data: { isFrozen: true } as any,
     });
-    
-    return { success: true, message: `Repository ${team.githubRepoName} is now frozen (Read-only)` };
+
+    return {
+      success: true,
+      message: `Repository ${team.githubRepoName} is now public and frozen (students read-only)`,
+    };
   }
 
   async freezeEventRepos(eventId: number) {
@@ -480,18 +503,43 @@ export class GithubWebhookService {
     const freezePromises = [];
 
     for (const team of teams) {
-      const memberUsers = team.members.map(m => m.user).filter(u => u.id !== team.leaderId);
+      // Public so judges can open the link without an invite
+      freezePromises.push(
+        this.githubQueue.add(
+          "set-visibility",
+          {
+            type: "set-visibility" as const,
+            org,
+            repoName: team.githubRepoName!,
+            isPrivate: false,
+            teamId: team.id,
+            eventId,
+          },
+          { attempts: 5, backoff: { type: "exponential", delay: 2000 } },
+        ),
+      );
+
+      const memberUsers = team.members
+        .map((m) => m.user)
+        .filter((u) => u.id !== team.leaderId);
       const allUsers = [team.leader, ...memberUsers];
-      
+
       for (const user of allUsers) {
         const githubUsername = user?.studentProfile?.githubUsername;
         if (githubUsername) {
           freezePromises.push(
             this.githubQueue.add(
               "set-permission",
-              { org, repoName: team.githubRepoName!, username: githubUsername, permission: "pull", eventId },
-              { attempts: 5, backoff: { type: "exponential", delay: 2000 } }
-            )
+              {
+                type: "set-permission" as const,
+                org,
+                repoName: team.githubRepoName!,
+                username: githubUsername,
+                permission: "pull",
+                eventId,
+              },
+              { attempts: 5, backoff: { type: "exponential", delay: 2000 } },
+            ),
           );
         }
       }
@@ -499,12 +547,21 @@ export class GithubWebhookService {
 
     await Promise.all(freezePromises);
 
-    await this.prisma.round.updateMany({
-      where: { eventId },
-      data: { isRepoFrozen: true } as any
-    });
-    
-    return { success: true, message: `Successfully queued freeze jobs for ${teams.length} repositories` };
+    await this.prisma.$transaction([
+      this.prisma.round.updateMany({
+        where: { eventId },
+        data: { isRepoFrozen: true } as any,
+      }),
+      this.prisma.team.updateMany({
+        where: { id: { in: teams.map((t) => t.id) } },
+        data: { isFrozen: true } as any,
+      }),
+    ]);
+
+    return {
+      success: true,
+      message: `Queued freeze (public + students read-only) for ${teams.length} repositories`,
+    };
   }
 
   async unfreezeEventRepos(eventId: number) {
@@ -531,18 +588,43 @@ export class GithubWebhookService {
     const unfreezePromises = [];
 
     for (const team of teams) {
-      const memberUsers = team.members.map(m => m.user).filter(u => u.id !== team.leaderId);
+      // Private again while students regain write access
+      unfreezePromises.push(
+        this.githubQueue.add(
+          "set-visibility",
+          {
+            type: "set-visibility" as const,
+            org,
+            repoName: team.githubRepoName!,
+            isPrivate: true,
+            teamId: team.id,
+            eventId,
+          },
+          { attempts: 5, backoff: { type: "exponential", delay: 2000 } },
+        ),
+      );
+
+      const memberUsers = team.members
+        .map((m) => m.user)
+        .filter((u) => u.id !== team.leaderId);
       const allUsers = [team.leader, ...memberUsers];
-      
+
       for (const user of allUsers) {
         const githubUsername = user?.studentProfile?.githubUsername;
         if (githubUsername) {
           unfreezePromises.push(
             this.githubQueue.add(
               "set-permission",
-              { org, repoName: team.githubRepoName!, username: githubUsername, permission: "push", eventId },
-              { attempts: 5, backoff: { type: "exponential", delay: 2000 } }
-            )
+              {
+                type: "set-permission" as const,
+                org,
+                repoName: team.githubRepoName!,
+                username: githubUsername,
+                permission: "push",
+                eventId,
+              },
+              { attempts: 5, backoff: { type: "exponential", delay: 2000 } },
+            ),
           );
         }
       }
@@ -550,12 +632,21 @@ export class GithubWebhookService {
 
     await Promise.all(unfreezePromises);
 
-    await this.prisma.round.updateMany({
-      where: { eventId },
-      data: { isRepoFrozen: false } as any
-    });
+    await this.prisma.$transaction([
+      this.prisma.round.updateMany({
+        where: { eventId },
+        data: { isRepoFrozen: false } as any,
+      }),
+      this.prisma.team.updateMany({
+        where: { id: { in: teams.map((t) => t.id) } },
+        data: { isFrozen: false } as any,
+      }),
+    ]);
 
-    return { success: true, message: `Successfully queued unfreeze jobs for ${teams.length} repositories` };
+    return {
+      success: true,
+      message: `Queued unfreeze (private + students push) for ${teams.length} repositories`,
+    };
   }
 
   async getTeamCollaboratorStatus(teamId: number) {

@@ -95,6 +95,8 @@ export function ProblemLotteryDialog({
       setAssignments(data.assignments);
       setPlacedCount(0);
       setPhase("spinning");
+      // Refresh parent immediately — data is already persisted on the server.
+      onComplete();
       setTimeout(() => setPhase("reveal"), 1400);
     },
     onError: (error) => {
@@ -117,7 +119,6 @@ export function ProblemLotteryDialog({
 
   const handleClose = () => {
     onOpenChange(false);
-    if (phase === "done") onComplete();
   };
 
   const canRun = trackCount > 0 && unassignedPoolCount >= trackCount;

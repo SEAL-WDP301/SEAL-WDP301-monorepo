@@ -207,7 +207,7 @@ export class EventOrganizerController {
   @Post(":id/rounds/:roundId/tracks")
   @ApiOperation({
     summary:
-      "Create a track scoped to this round only (works while this round is not_started, regardless of other rounds).",
+      "Create a track scoped to this round. Blocked when event is ongoing/closed or any round has left Not Started.",
   })
   async createRoundTrack(
     @Param("id", ParseIntPipe) eventId: number,

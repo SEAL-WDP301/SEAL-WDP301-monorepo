@@ -4,12 +4,15 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from "@nestjs/common";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { CreateEventDto, CreatePrizeDto } from "../dto/create-event.dto";
 import { UpdateEventDto } from "../dto/update-event.dto";
 import { EventStatus, Prisma, RoundStatus, TeamStatus } from "@prisma/client";
 import { TeamGithubService } from "../../team/services/team-github.service";
+import { GithubWebhookService } from "../../github/services/github.webhook.service";
 
 import { RoundAutomationSchedulerService } from "../../round/services/round-automation-scheduler.service";
 import { calculatePrizePoolTotals } from "../utils/prize-value.utils";
@@ -30,6 +33,8 @@ export class EventOrganizerService {
     private readonly teamGithubService: TeamGithubService,
     private readonly roundAutomationSchedulerService: RoundAutomationSchedulerService,
     private readonly trackAssignmentService: TrackAssignmentService,
+    @Inject(forwardRef(() => GithubWebhookService))
+    private readonly githubWebhookService: GithubWebhookService,
   ) {}
 
   private validateTeamMemberLimits(
@@ -547,6 +552,16 @@ export class EventOrganizerService {
       });
     }
 
+    // Manual close: same as auto-freeze at deadline — public repos + students read-only
+    if (status === RoundStatus.closed) {
+      this.githubWebhookService.freezeEventRepos(eventId).catch((err) => {
+        this.logger.error(
+          `Failed to freeze/publicize GitHub repos after closing round ${roundId}`,
+          err,
+        );
+      });
+    }
+
     return { ...updatedRound, trackAssignment };
   }
 
@@ -626,10 +641,27 @@ export class EventOrganizerService {
     roundId: number,
     dto: { name: string; description?: string },
   ) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      include: { rounds: { select: { id: true, name: true, status: true } } },
+    });
     if (!event) throw new NotFoundException("Event not found");
     if (event.status === EventStatus.closed) {
       throw new BadRequestException("Closed events cannot be edited.");
+    }
+    if (event.status === EventStatus.ongoing) {
+      throw new BadRequestException(
+        "Cannot add tracks while the event is ongoing.",
+      );
+    }
+
+    const openedRound = event.rounds.find(
+      (r) => r.status !== RoundStatus.not_started,
+    );
+    if (openedRound) {
+      throw new BadRequestException(
+        `Cannot add tracks after a round has opened ("${openedRound.name}").`,
+      );
     }
 
     const round = await this.prisma.round.findFirst({

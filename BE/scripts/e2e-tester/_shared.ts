@@ -5,7 +5,25 @@ import * as path from "path";
 
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
-export const prisma = new PrismaClient();
+/** Keep e2e scripts at 1 connection — DO Postgres slots are tiny and Nest already holds a pool. */
+function e2eDatabaseUrl(): string | undefined {
+  const base = process.env.DATABASE_URL;
+  if (!base) return undefined;
+  try {
+    const u = new URL(base);
+    u.searchParams.set("connection_limit", "1");
+    u.searchParams.set("pool_timeout", "30");
+    return u.toString();
+  } catch {
+    return base;
+  }
+}
+
+export const prisma = new PrismaClient({
+  datasources: {
+    db: { url: e2eDatabaseUrl() },
+  },
+});
 export const API = process.env.API_BASE || "http://localhost:3000/api";
 export const PASS = "Admin@123";
 export const STUDENT_PASS = "Student@123";
@@ -670,9 +688,17 @@ export async function revealTracks() {
   log(`OK revealed tracks for ${untracked} team(s) (roundId=${round1.id})`);
 }
 
-export async function assignStakeholders() {
+/**
+ * Assign mentor + judges for a single round (default Round 1).
+ * Do NOT assign every round at once — that makes Round 1 stakeholders UI
+ * show Round 2 judge rows and confuses the demo.
+ */
+export async function assignStakeholders(opts?: { roundNumber?: number }) {
   const eventId = getTargetEventId();
-  log(`=== [05] Assign mentor & judges (event ${eventId}) ===`);
+  const roundNumber = opts?.roundNumber ?? 1;
+  log(
+    `=== [05] Assign mentor & judges for Round ${roundNumber} (event ${eventId}) ===`,
+  );
   const event = await loadEvent(eventId);
   const orgToken = await organizerToken();
   const mentorJudge = await prisma.user.findUnique({
@@ -701,47 +727,50 @@ export async function assignStakeholders() {
     log("Mentor assignment already exists");
   }
 
-  for (const round of event.rounds) {
-    const requireTrackScope =
-      round.isTrackSpecific || Boolean(event.deferredTrackAssignment);
-    let trackIds: number[] | undefined;
-    if (requireTrackScope) {
-      trackIds = event.tracks.map((t) => t.id);
-      if (!trackIds.length) {
-        fail(
-          `Round "${round.name}": add catalog tracks to the event first.`,
-        );
-      }
-    }
+  const round = event.rounds.find((r) => r.roundNumber === roundNumber);
+  if (!round) fail(`Round ${roundNumber} not found on event ${eventId}`);
 
-    for (const judge of [mentorJudge, judgeOnly]) {
-      const existing = await prisma.judgeAssignment.findMany({
-        where: { judgeId: judge.id, roundId: round.id },
-      });
-      if (requireTrackScope) {
-        const covered = new Set(
-          existing.map((a) => a.trackId).filter((id): id is number => id != null),
-        );
-        const missing = trackIds!.filter((id) => !covered.has(id));
-        if (missing.length === 0 && existing.length > 0) {
-          log(`Judge ${judge.email} already on all tracks for ${round.name}`);
-          continue;
-        }
-      } else if (existing.some((a) => a.trackId == null)) {
-        log(`Judge ${judge.email} already on ${round.name}`);
+  const requireTrackScope =
+    round.isTrackSpecific || Boolean(event.deferredTrackAssignment);
+  let trackIds: number[] | undefined;
+  if (requireTrackScope) {
+    // Prefer tracks scoped into THIS round, not the whole event catalog.
+    const scoped = (round.trackProblems ?? [])
+      .map((tp) => tp.trackId)
+      .filter((id): id is number => id != null);
+    trackIds = scoped.length > 0 ? [...new Set(scoped)] : event.tracks.map((t) => t.id);
+    if (!trackIds.length) {
+      fail(`Round "${round.name}": add tracks to this round first.`);
+    }
+  }
+
+  for (const judge of [mentorJudge, judgeOnly]) {
+    const existing = await prisma.judgeAssignment.findMany({
+      where: { judgeId: judge.id, roundId: round.id },
+    });
+    if (requireTrackScope) {
+      const covered = new Set(
+        existing.map((a) => a.trackId).filter((id): id is number => id != null),
+      );
+      const missing = trackIds!.filter((id) => !covered.has(id));
+      if (missing.length === 0 && existing.length > 0) {
+        log(`Judge ${judge.email} already on all tracks for ${round.name}`);
         continue;
       }
-
-      await api("POST", `/organizer/assignments/events/${eventId}/judges`, {
-        token: orgToken,
-        body: {
-          stakeholderIds: [judge.id],
-          roundId: round.id,
-          ...(trackIds?.length ? { trackIds } : {}),
-        },
-      });
-      log(`OK judge ${judge.email} → ${round.name}`);
+    } else if (existing.some((a) => a.trackId == null)) {
+      log(`Judge ${judge.email} already on ${round.name}`);
+      continue;
     }
+
+    await api("POST", `/organizer/assignments/events/${eventId}/judges`, {
+      token: orgToken,
+      body: {
+        stakeholderIds: [judge.id],
+        roundId: round.id,
+        ...(trackIds?.length ? { trackIds } : {}),
+      },
+    });
+    log(`OK judge ${judge.email} → ${round.name} only`);
   }
 }
 
