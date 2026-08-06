@@ -1,9 +1,9 @@
 "use client";
 
-// Thành phần hiển thị mốc thời gian (TimelineItem) được tối ưu hóa responsive và màu sắc
+// TimelineItem component optimized for responsive layout and colors
 function TimelineItem({ date, title, desc }: { date: string; title: string; desc: string }) {
     return (
-        /* ĐÃ SỬA: Chuyển bg và border sang biến hệ thống, đổi padding linh hoạt cho mobile */
+        /* FIXED: Switched bg and border to system variables, adjusted padding for mobile flexibility */
         <div className="border rounded-[24px] p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 transition-all bg-background border-border/60 dark:bg-[#120F0E] dark:border-white/[0.02] hover:border-[#FF6B2C]/30 dark:hover:border-[#FF6B2C]/20 duration-200">
             <div className="font-mono text-sm font-black text-[#FF6B2C] sm:w-52 shrink-0">{date}</div>
             <div className="flex-1 min-w-0">

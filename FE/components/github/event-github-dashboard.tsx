@@ -205,7 +205,7 @@ function TeamCompareBars({
   if (!rows.length) {
     return (
       <p className="text-sm text-muted-foreground py-6 text-center">
-        Chưa có dữ liệu để so sánh.
+        No data to compare.
       </p>
     );
   }
@@ -274,7 +274,7 @@ function MultiLineChart({
   if (!days.length) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
-        Chưa có activity theo ngày — Sync team để có số liệu chart.
+        No daily activity — Sync teams for chart data.
       </p>
     );
   }
@@ -394,7 +394,7 @@ function NetCumulativeChart({
   if (!days?.length) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
-        Chưa có cumulative net lines.
+        No cumulative net lines.
       </p>
     );
   }
@@ -459,7 +459,7 @@ function TeamRaceChart({
   if (!race?.length) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
-        Chưa đủ team có activity để vẽ race chart.
+        Not enough active teams for race chart.
       </p>
     );
   }
@@ -559,7 +559,7 @@ function HourBars({
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Commit theo giờ (UTC) — xem team code tập trung lúc nào.
+        Commits by hour (UTC) — see when teams code most.
       </p>
       <div className="flex items-end gap-0.5 sm:gap-1 h-36">
         {hours.map((h) => {
@@ -624,7 +624,7 @@ export function EventGithubDashboard({
     return (
       <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
-        Đang tải dashboard tất cả repo…
+        Loading dashboard for all repos…
       </div>
     );
   }
@@ -634,10 +634,10 @@ export function EventGithubDashboard({
       <div className="py-10 text-center space-y-3">
         <p className="text-sm text-rose-600">
           {(error as any)?.response?.data?.message ||
-            "Không tải được global GitHub dashboard."}
+            "Failed to load global GitHub dashboard."}
         </p>
         <Button variant="outline" onClick={() => refetch()}>
-          Thử lại
+          Retry
         </Button>
       </div>
     );
@@ -694,16 +694,16 @@ export function EventGithubDashboard({
                 {data.eventName || "Supply Chain SEAL 2026"}
               </h3>
               <p className="text-sm text-white/75 leading-relaxed">
-                Live GitHub control tower — theo dõi mọi repo team trên đường đua
+                Live GitHub control tower — track all team repos on the race track
                 {data.chartWindow?.dayCount
-                  ? ` · ${data.chartWindow.dayCount} ngày thi`
+                  ? ` · ${data.chartWindow.dayCount} competition days`
                   : ""}
                 {data.chartWindow?.startDate && data.chartWindow?.endDate
                   ? ` (${data.chartWindow.startDate.slice(5)} → ${data.chartWindow.endDate.slice(5)})`
                   : ""}
                 {data.tokenConfigured
                   ? " · GitHub link OK"
-                  : " · cần GITHUB_TOKEN để Sync"}
+                  : " · need GITHUB_TOKEN to Sync"}
               </p>
             </div>
             <div className="flex flex-col items-end gap-2">
@@ -804,12 +804,12 @@ export function EventGithubDashboard({
         </div>
 
         <Panel
-          title="Top files đã commit (added / modified / removed)"
+          title="Top committed files (added / modified / removed)"
           icon={<Package className="h-4 w-4 text-orange-500" />}
         >
           {(data.topFiles || []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-6 text-center">
-              Chưa có file-level data trong commits.
+              No file-level data in commits.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -857,7 +857,7 @@ export function EventGithubDashboard({
               Fleet repos · {data.teams.length} teams
             </h4>
             <p className="text-xs text-muted-foreground">
-              Sparkline ngày thi · bấm hàng → chi tiết
+              Competition days sparkline · click row → details
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -884,7 +884,7 @@ export function EventGithubDashboard({
                       colSpan={11}
                       className="px-4 py-12 text-center text-muted-foreground"
                     >
-                      Event chưa có team nào.
+                      No teams in the event yet.
                     </td>
                   </tr>
                 ) : (
@@ -972,7 +972,7 @@ export function EventGithubDashboard({
                             </p>
                           </>
                         ) : (
-                          "Chưa có commit"
+                          "No commits yet"
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -1014,7 +1014,7 @@ export function EventGithubDashboard({
                 className="inline-flex items-center gap-1.5 shrink-0 text-xs font-medium text-orange-600 hover:text-orange-500 hover:underline"
               >
                 <FaGithub className="h-3.5 w-3.5" />
-                Mở org GitHub
+                Open GitHub org
                 <ExternalLink className="h-3 w-3" />
               </a>
             ) : null
@@ -1024,7 +1024,7 @@ export function EventGithubDashboard({
             <div className="rounded-xl border border-dashed border-orange-500/30 bg-orange-500/5 py-10 text-center">
               <FaGithub className="mx-auto h-8 w-8 text-orange-500/50 mb-3" />
               <p className="text-sm text-muted-foreground">
-                Chưa có commit trên đường đua. Sync từng team hoặc đợi webhook.
+                No commits on the race track yet. Sync each team or wait for webhook.
               </p>
             </div>
           ) : (
@@ -1044,7 +1044,7 @@ export function EventGithubDashboard({
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 hover:underline"
                       >
-                        Xem trên GitHub
+                        View on GitHub
                         <ExternalLink className="h-3 w-3" />
                       </a>
                     ) : null}
@@ -1061,7 +1061,7 @@ export function EventGithubDashboard({
                           })
                         }
                       >
-                        Mở dashboard team
+                        Open team dashboard
                       </button>
                     ) : null}
                   </div>

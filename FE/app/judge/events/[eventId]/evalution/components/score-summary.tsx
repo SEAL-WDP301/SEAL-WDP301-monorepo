@@ -5,7 +5,6 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import {
   computeLocalWeightedScore,
-  criterionContribution,
   type JudgeRubric,
   type JudgeScoringStatus,
 } from "@/lib/api/judge.api";
@@ -33,9 +32,6 @@ export function ScoreSummary({
   const completedCriteria = rubrics.filter(
     (rubric) => scores[rubric.id] !== undefined,
   ).length;
-  const progress = rubrics.length
-    ? Math.round((completedCriteria / rubrics.length) * 100)
-    : 0;
 
   return (
     <GlassCard className="h-fit w-full p-8 sticky top-4">
@@ -54,40 +50,28 @@ export function ScoreSummary({
         Status: {scoringStatus?.replace("_", " ") ?? "pending"}
       </div>
 
-      <div className="mt-5 rounded-xl border border-border bg-background/40 p-4">
-        <div className="flex items-center justify-between text-sm">
-          <span className="font-medium">Criteria completed</span>
-          <span className="text-orange-400">
-            {completedCriteria}/{rubrics.length}
-          </span>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/5">
-          <div
-            className="h-full rounded-full bg-orange-500 transition-[width]"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-
-      <div className="mt-6 space-y-4">
+      <div className="mt-4 space-y-3">
         {rubrics.map((item) => {
           const score = scores[item.id] ?? 0;
           const weight = Number(item.weight);
-          const contribution = criterionContribution(score, weight);
 
           return (
-            <div key={item.id}>
-              <div className="mb-1 flex justify-between text-sm">
-                <span>
-                  {item.name}{" "}
-                  <span className="text-muted-foreground">({weight}%)</span>
+            <div key={item.id} className="rounded-xl border border-border bg-background/30 px-3 py-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-foreground/80 leading-tight">
+                  {item.name}
+                  <span className="ml-1 text-muted-foreground">({weight}%)</span>
                 </span>
-                <span>{contribution.toFixed(2)}</span>
+                <div className="text-right shrink-0 ml-2">
+                  <span className="text-sm font-bold text-orange-400">
+                    {score.toFixed(1)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">/10</span>
+                </div>
               </div>
-
-              <div className="h-2 overflow-hidden rounded-full bg-white/5">
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/5">
                 <div
-                  className="h-full bg-orange-500"
+                  className="h-full bg-orange-500 transition-[width]"
                   style={{
                     width: `${Math.min(100, (score / 10) * 100)}%`,
                   }}

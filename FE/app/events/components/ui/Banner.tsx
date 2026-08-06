@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Banner() {
     const handleBackToHome = () => {
-        // Điều hướng bằng JavaScript an toàn cho Next.js Client Component
+        // Safe JavaScript navigation for Next.js Client Component
         if (typeof window !== "undefined") {
             window.location.href = "/";
         }
@@ -13,13 +13,13 @@ export default function Banner() {
     return (
         <section className="relative overflow-hidden border-b rounded-none w-full left-0 translate-x-0 md:w-screen md:max-w-[100vw] md:left-1/2 md:-translate-x-1/2 bg-muted/40 border-zinc-200/50 dark:bg-[#120F0E] dark:border-white/[0.03] mb-12 shadow-sm dark:shadow-2xl py-10 sm:py-24 lg:py-28 px-4 sm:px-12 lg:px-20 transition-colors duration-300">
 
-            {/* ĐÃ XÓA: Khối div HIỆU ỨNG LƯỚI Ô CARO ở vị trí này để làm sạch nền */}
+            {/* REMOVED: Checkerboard grid effect div here to clean up the background */}
 
-            {/* Đốm sáng cam tỏa mịn ở trung tâm nền (Giữ lại để nền không bị phẳng lì, tạo chiều sâu nhẹ) */}
+            {/* Soft orange ambient glow at the center of the background (Retained to prevent flat background, adds subtle depth) */}
             <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[35rem] w-[70rem] bg-[#FF6B2C]/5 dark:bg-[#FF6B2C]/10 blur-[160px] animate-seal-pulse rounded-full pointer-events-none transition-colors" />
 
-            {/* BACKGROUND GRAPHICS: Đa giác 2 cánh */}
-            {/* Cánh trái: Đa giác Cyan */}
+            {/* BACKGROUND GRAPHICS: Two-wing polygon shapes */}
+            {/* Left wing: Cyan polygon */}
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[350px] h-[300px] opacity-[0.12] dark:opacity-20 pointer-events-none hidden md:block transition-opacity">
                 <svg viewBox="0 0 100 100" className="w-full h-full text-[#06b6d4] stroke-current stroke-[0.3] fill-none">
                     <polygon points="10,50 30,20 70,30 90,60 50,80" />
@@ -29,7 +29,7 @@ export default function Banner() {
                 </svg>
             </div>
 
-            {/* Cánh phải: Đa giác Cam */}
+            {/* Right wing: Orange polygon */}
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[350px] h-[300px] opacity-[0.12] dark:opacity-15 pointer-events-none hidden md:block transition-opacity">
                 <svg viewBox="0 0 100 100" className="w-full h-full text-[#FF6B2C] stroke-current stroke-[0.3] fill-none">
                     <polygon points="90,50 70,80 30,70 10,40 50,20" />
@@ -42,9 +42,9 @@ export default function Banner() {
             {/* CONTENT CONTAINER */}
             <div className="relative z-10 mx-auto max-w-[1440px] w-full flex flex-col items-start">
 
-                {/* ROW HEADER TRÊN */}
+                {/* TOP HEADER ROW */}
                 <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
-                    {/* NÚT BACK TO HOME */}
+                    {/* BACK TO HOME BUTTON */}
                     <div className="flex items-center">
                         <Button
                             onClick={handleBackToHome}
@@ -57,7 +57,7 @@ export default function Banner() {
                         </Button>
                     </div>
 
-                    {/* Cặp Badges bên phải */}
+                    {/* Right-side badge pair */}
                     <div className="flex flex-wrap items-center gap-2 md:gap-3">
                         <div className="inline-flex items-center gap-2 rounded-full border border-[#FF6B2C]/20 bg-[#FF6B2C]/5 px-3 py-1 md:px-3.5 md:py-1 text-[10px] md:text-xs">
                             <span className="h-1.5 w-1.5 rounded-full bg-[#FF6B2C] animate-pulse" />
@@ -69,19 +69,19 @@ export default function Banner() {
                     </div>
                 </div>
 
-                {/* TIÊU ĐỀ KHỔNG LỒ 2 DÒNG */}
+                {/* LARGE 2-LINE HEADLINE */}
                 <h1 className="text-3xl sm:text-5xl lg:text-[76px] xl:text-[84px] font-black text-foreground dark:text-white tracking-tighter leading-[1.1] flex flex-col gap-1 md:gap-2 transition-colors">
                     <span>Build the future,</span>
                     <span className="text-[#FF6B2C]">in 48 hours.</span>
                 </h1>
 
-                {/* PHẦN TIỂU ĐỀ PHÂN LAYER */}
+                {/* LAYERED SUBTITLE SECTION */}
                 <div className="mt-6 md:mt-8 space-y-2 md:space-y-3 max-w-4xl">
                     <p className="text-base sm:text-2xl font-extrabold text-foreground/90 dark:text-[#F4F2F1] leading-snug transition-colors">
                         SEAL Spring is the kickoff season of the 2026 league.
                     </p>
                     <p className="text-xs sm:text-lg text-muted-foreground dark:text-[#A39690] font-bold leading-relaxed transition-colors">
-                        Eight tracks, sixty-two mentors, 140Mđ in prizes - and one weekend you&apos;ll never forget.
+                        Eight tracks, sixty-two mentors, 140M VND in prizes - and one weekend you&apos;ll never forget.
                     </p>
                 </div>
 

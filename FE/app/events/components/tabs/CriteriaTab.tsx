@@ -32,8 +32,8 @@ export default function CriteriaTab() {
     return (
         <div className="space-y-10 animate-fadeIn font-sans w-full">
 
-            {/* 1. Khối tiêu đề chính của Criteria */}
-            {/* ĐÃ SỬA: Chuyển sang dùng bg-card/ border-border, tự động thích ứng light/dark */}
+            {/* 1. Main header block for Criteria */}
+            {/* FIXED: Switched to bg-card / border-border for automatic light/dark adaptation */}
             <section className="border rounded-[32px] p-6 sm:p-10 shadow-xl relative overflow-hidden bg-card border-border/60 dark:bg-[#1A1512] dark:border-white/[0.04] transition-colors duration-300">
                 <div className="absolute -inset-x-20 -top-20 h-44 bg-[#FF6B2C]/10 blur-[100px] pointer-events-none" />
                 <div className="relative">
@@ -47,10 +47,10 @@ export default function CriteriaTab() {
                 </div>
             </section>
 
-            {/* 2. Danh sách các tiêu chí đánh giá */}
+            {/* 2. Evaluation criteria list */}
             <div className="space-y-4 w-full">
                 {criteriaData.map((item, idx) => (
-                    /* ĐÃ SỬA: Tối ưu màu nền hộp tiêu chí tương phản nhạy bén */
+                    /* FIXED: Optimized criteria card background color for sharp contrast */
                     <div
                         key={idx}
                         className="border rounded-2xl p-5 sm:p-6 flex gap-4 sm:gap-6 items-start hover:border-[#FF6B2C]/40 bg-card border-border/80 dark:bg-[#1A1512] dark:border-white/8 transition-all duration-200"
@@ -68,7 +68,7 @@ export default function CriteriaTab() {
 
             {/* 3. Rounds + Categories */}
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                {/* Khối Competition Rounds */}
+                {/* Competition Rounds block */}
                 <div className="border rounded-[32px] p-6 sm:p-8 bg-card border-border/80 dark:bg-[#1A1512] dark:border-white/8 transition-colors duration-300">
                     <h3 className="text-lg sm:text-xl font-black text-foreground mb-6 tracking-wide">Competition rounds</h3>
                     <ol className="space-y-4 font-bold text-sm sm:text-base">
@@ -81,7 +81,7 @@ export default function CriteriaTab() {
                     </ol>
                 </div>
 
-                {/* Khối Categories */}
+                {/* Categories block */}
                 <div className="border rounded-[32px] p-6 sm:p-8 bg-card border-border/80 dark:bg-[#1A1512] dark:border-white/8 transition-colors duration-300">
                     <h3 className="text-lg sm:text-xl font-black text-foreground mb-6 tracking-wide">Categories</h3>
                     <div className="flex flex-wrap gap-2">
@@ -116,7 +116,7 @@ export default function CriteriaTab() {
                 </ul>
             </section>
 
-            {/* 5. Khối Judges & Mentors */}
+            {/* 5. Judges & Mentors block */}
             <section className="border rounded-[32px] p-6 sm:p-10 shadow-xl bg-card border-border/60 dark:bg-[#1A1512] dark:border-white/[0.04] transition-colors duration-300">
                 <h2 className="text-2xl sm:text-4xl font-black text-foreground tracking-tight mb-8 flex items-center gap-3">
                     <span className="h-6 w-1.5 bg-[#FF6B2C] rounded-full" /> Judges & Mentors
@@ -126,7 +126,7 @@ export default function CriteriaTab() {
                     {mentorsData.map(([initials, name, role, company]) => (
                         <div
                             key={name}
-                            /* ĐÃ SỬA: Đổi màu hộp mentor từ bg-[#120F0E] sang lớp nền tương phản dịu mắt ở Light Mode */
+                            /* FIXED: Changed mentor card background from bg-[#120F0E] to a softer contrast background in Light Mode */
                             className="border rounded-[24px] p-4 sm:p-5 flex items-center gap-4 sm:gap-5 hover:border-[#FF6B2C]/30 transition-all duration-200 shadow-sm bg-background border-border/50 dark:bg-[#120F0E] dark:border-white/[0.02]"
                         >
                             <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-[#E25A20] font-black text-sm sm:text-base text-white flex items-center justify-center shrink-0 shadow-lg shadow-[#E25A20]/10">

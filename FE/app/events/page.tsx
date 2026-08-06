@@ -19,27 +19,27 @@ export default function EventPage() {
     ] as const;
 
     return (
-        /* Thiết lập nền thích ứng mượt mà theo hệ thống theme */
+        /* Smooth background that adapts to the theme system */
         <div className="relative min-h-screen w-full text-foreground bg-background transition-colors duration-300 antialiased tracking-tight">
 
-            {/* KHU VỰC HEADER */}
+            {/* HEADER AREA */}
             <div className="z-50 mx-auto max-w-[1400px] w-full px-4 sm:px-6 lg:px-8 sticky top-0">
                 <Header />
             </div>
 
-            {/* KHU VỰC BANNER */}
+            {/* BANNER AREA */}
             <div className="w-full mt-4">
                 <Banner />
             </div>
 
-            {/* GRID NỘI DUNG CHÍNH */}
+            {/* MAIN CONTENT GRID */}
             <main className="container mx-auto max-w-[1400px] w-full px-4 sm:px-6 lg:px-8 mt-6 md:mt-12">
                 <div className="grid gap-6 md:gap-12 grid-cols-1 lg:grid-cols-[1fr_420px] items-start w-full">
 
-                    {/* Cột trái: Tab Bar & Chi tiết nội dung */}
+                    {/* Left column: Tab Bar & Content details */}
                     <div className="space-y-6 md:space-y-10 w-full min-w-0">
 
-                        {/* Thanh Tab Navigation */}
+                        {/* Tab Navigation Bar */}
                         <div className="flex items-center border-b border-border/60 overflow-x-auto whitespace-nowrap scrollbar-none sticky top-16 md:top-20 bg-background/95 backdrop-blur-md z-20 py-3 md:pb-4 gap-2 md:gap-4 w-full transition-colors duration-300">
                             {tabs.map((tab) => {
                                 const isActive = activeTab === tab.id;
@@ -48,9 +48,9 @@ export default function EventPage() {
                                     <Button
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
-                                        /* ĐÃ SỬA: Chuyển variant về ghost và tự gán class động dựa theo biến isActive 
-                                           - Khi active ở Light Mode: Nền cam nhạt bg-[#FF6B2C]/10, chữ cam thương hiệu text-[#FF6B2C].
-                                           - Khi active ở Dark Mode: Chuyển sang nền trắng tinh khôi, chữ đen dứt khoát.
+                                        /* FIXED: Switched variant to ghost and dynamically assigns classes based on isActive
+                                           - When active in Light Mode: Light orange bg-[#FF6B2C]/10, brand orange text text-[#FF6B2C].
+                                           - When active in Dark Mode: Switches to crisp white background, bold black text.
                                         */
                                         variant="ghost"
                                         className={`font-black duration-200 text-sm md:text-base flex-shrink-0 px-5 py-2.5 rounded-full transition-all border outline-none
@@ -65,13 +65,13 @@ export default function EventPage() {
                             })}
                         </div>
 
-                        {/* Nội dung động của các Tab */}
+                        {/* Dynamic tab content */}
                         <div className="w-full min-w-0">
                             <TabsContent activeTab={activeTab} />
                         </div>
                     </div>
 
-                    {/* Cột phải: Sidebar (Countdown + Thông số) */}
+                    {/* Right column: Sidebar (Countdown + Stats) */}
                     <aside className="w-full self-start sticky top-24">
                         <Sidebar />
                     </aside>

@@ -246,7 +246,7 @@ function CommitsTimelineChart({
   if (!days.length) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
-        Chưa đủ dữ liệu commit theo ngày.
+        Not enough commits data by day.
       </p>
     );
   }
@@ -342,7 +342,7 @@ function LinesChart({
   if (!days.length) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
-        Chưa có số line (Sync team để enrich +/-).
+        No line counts (Sync team to enrich +/-).
       </p>
     );
   }
@@ -461,7 +461,7 @@ function NetLinesChart({
   if (!days?.length) {
     return (
       <p className="text-sm text-muted-foreground py-8 text-center">
-        Chưa có net lines theo ngày.
+        No net lines by day.
       </p>
     );
   }
@@ -529,7 +529,7 @@ function HourBars({
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
-        Phân bố commit theo giờ (UTC) — xem team code tập trung lúc nào.
+        Commit distribution by hour (UTC) — see when teams code most.
       </p>
       <div className="flex items-end gap-1 h-28">
         {hours.map((h) => (
@@ -618,16 +618,16 @@ export function TeamGithubAnalyticsDialog({
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            Đang tải toàn bộ hoạt động GitHub của team…
+            Loading all GitHub activity for the team…
           </div>
         ) : isError ? (
           <div className="py-10 text-center space-y-3">
             <p className="text-sm text-rose-600">
               {(error as any)?.response?.data?.message ||
-                "Không tải được dữ liệu repo team."}
+                "Failed to load team repo data."}
             </p>
             <Button variant="outline" onClick={() => refetch()}>
-              Thử lại
+              Retry
             </Button>
           </div>
         ) : data ? (
@@ -650,7 +650,7 @@ export function TeamGithubAnalyticsDialog({
                   ) : (
                     <RefreshCw className="h-4 w-4" />
                   )}
-                  Sync team này
+                  Sync this team
                 </Button>
                 <Button
                   variant="outline"
@@ -672,13 +672,13 @@ export function TeamGithubAnalyticsDialog({
                     className="inline-flex items-center"
                   >
                     <ExternalLink className="h-4 w-4 mr-1" />
-                    Mở GitHub
+                    Open GitHub
                   </a>
                 </Button>
               </div>
             </div>
             <p className="text-xs text-muted-foreground -mt-3">
-              Sync chỉ gọi GitHub API cho team này — không sync cả event, tránh hết quota.
+              Sync only calls GitHub API for this team — doesn't sync whole event to avoid quota limit.
             </p>
 
             <GithubSummaryBar
@@ -730,7 +730,7 @@ export function TeamGithubAnalyticsDialog({
             {data.members && data.members.length > 0 && (
               <div className="rounded-xl border p-4">
                 <h4 className="font-semibold mb-3 flex items-center gap-2">
-                  <Users className="h-4 w-4" /> Thành viên team
+                  <Users className="h-4 w-4" /> Team members
                 </h4>
                 <div className="grid sm:grid-cols-2 gap-2">
                   {data.members.map((m) => (
@@ -755,7 +755,7 @@ export function TeamGithubAnalyticsDialog({
                             @{m.githubUsername}
                           </a>
                         ) : (
-                          <span className="text-rose-600">chưa link</span>
+                          <span className="text-rose-600">not linked</span>
                         )}
                       </p>
                     </div>
@@ -767,7 +767,7 @@ export function TeamGithubAnalyticsDialog({
             {(data.collaboratorStatus?.length || 0) > 0 && (
               <div className="rounded-xl border p-4">
                 <h4 className="font-semibold mb-3">
-                  Collaborator status trên GitHub
+                  Collaborator status on GitHub
                 </h4>
                 <div className="space-y-2">
                   {data.collaboratorStatus!.map((c) => (
@@ -799,7 +799,7 @@ export function TeamGithubAnalyticsDialog({
             {data.authorMemberMap && (
               <div className="rounded-xl border p-4 space-y-3">
                 <h4 className="font-semibold">
-                  Map author GitHub ↔ thành viên SEAL
+                  Map GitHub author ↔ SEAL member
                 </h4>
                 <div className="space-y-2">
                   {data.authorMemberMap.authors.map((a) => (
@@ -820,7 +820,7 @@ export function TeamGithubAnalyticsDialog({
                           </span>
                         ) : (
                           <span className="text-amber-700">
-                            chưa khớp profile SEAL
+                            unmatched with SEAL profile
                           </span>
                         )}
                       </span>
@@ -829,7 +829,7 @@ export function TeamGithubAnalyticsDialog({
                 </div>
                 {(data.authorMemberMap.unmatchedMembers?.length || 0) > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Chưa có commit (hoặc chưa link GitHub):{" "}
+                    No commits (or GitHub not linked):{" "}
                     {data.authorMemberMap.unmatchedMembers
                       .map((m) => m.name)
                       .join(", ")}
@@ -840,7 +840,7 @@ export function TeamGithubAnalyticsDialog({
 
             <div className="grid lg:grid-cols-2 gap-4">
               <div className="rounded-xl border p-4">
-                <h4 className="font-semibold mb-2">Commits theo ngày</h4>
+                <h4 className="font-semibold mb-2">Commits by day</h4>
                 <CommitsTimelineChart
                   days={data.analytics?.commitsByDay || []}
                 />
@@ -854,16 +854,16 @@ export function TeamGithubAnalyticsDialog({
                 <NetLinesChart days={data.analytics?.netLinesByDay || []} />
               </div>
               <div className="rounded-xl border p-4">
-                <h4 className="font-semibold mb-2">Commit theo giờ (UTC)</h4>
+                <h4 className="font-semibold mb-2">Commits by hour (UTC)</h4>
                 <HourBars hours={data.analytics?.commitsByHour || []} />
               </div>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-4">
               <div className="rounded-xl border p-4 space-y-3">
-                <h4 className="font-semibold">Đóng góp theo author</h4>
+                <h4 className="font-semibold">Contributions by author</h4>
                 {authors.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Chưa có author.</p>
+                  <p className="text-sm text-muted-foreground">No authors yet.</p>
                 ) : (
                   authors.map((a) => (
                     <BarRow
@@ -878,11 +878,11 @@ export function TeamGithubAnalyticsDialog({
               </div>
 
               <div className="rounded-xl border p-4 space-y-3">
-                <h4 className="font-semibold">Ngôn ngữ trong repo</h4>
+                <h4 className="font-semibold">Languages in repo</h4>
                 {langs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    Chưa lấy được languages (repo private cần GITHUB_TOKEN, hoặc
-                    Sync lại).
+                    Cannot get languages (private repo needs GITHUB_TOKEN, or
+                    Sync again).
                   </p>
                 ) : (
                   langs.map((l) => (
@@ -901,12 +901,12 @@ export function TeamGithubAnalyticsDialog({
 
             <div className="rounded-xl border p-4 space-y-3">
               <h4 className="font-semibold flex items-center gap-2">
-                <FileCode2 className="h-4 w-4" /> File được đụng nhiều nhất
+                <FileCode2 className="h-4 w-4" /> Most touched files
               </h4>
               {topFiles.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Chưa có chi tiết file — bấm &quot;Sync team này&quot; để enrich
-                  +/- và danh sách file từ GitHub API.
+                  No file details — click &quot;Sync this team&quot; to enrich
+                  +/- and file list from GitHub API.
                 </p>
               ) : (
                 topFiles.map((f) => (
@@ -929,7 +929,7 @@ export function TeamGithubAnalyticsDialog({
                     Pull requests ({data.activity.pullRequests.length})
                   </h4>
                   {data.activity.pullRequests.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Chưa có PR.</p>
+                    <p className="text-sm text-muted-foreground">No PRs.</p>
                   ) : (
                     <div className="space-y-2 max-h-56 overflow-y-auto">
                       {data.activity.pullRequests.map((pr) => (
@@ -970,7 +970,7 @@ export function TeamGithubAnalyticsDialog({
                   </h4>
                   {data.activity.workflowRuns.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
-                      Chưa có workflow run (hoặc Actions tắt / token thiếu quyền).
+                      No workflow runs (or Actions disabled / token lacks permission).
                     </p>
                   ) : (
                     <div className="space-y-2 max-h-56 overflow-y-auto">
@@ -1007,7 +1007,7 @@ export function TeamGithubAnalyticsDialog({
                     Branches ({data.activity.branches.length})
                   </h4>
                   {data.activity.branches.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Chưa lấy được branch.</p>
+                    <p className="text-sm text-muted-foreground">Cannot get branches.</p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {data.activity.branches.map((b) => (
@@ -1072,7 +1072,7 @@ export function TeamGithubAnalyticsDialog({
                     Open issues ({data.activity.openIssues.length})
                   </h4>
                   {data.activity.openIssues.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Không có open issue.</p>
+                    <p className="text-sm text-muted-foreground">No open issues.</p>
                   ) : (
                     <div className="space-y-2 max-h-56 overflow-y-auto">
                       {data.activity.openIssues.map((i) => (
@@ -1103,11 +1103,11 @@ export function TeamGithubAnalyticsDialog({
             <div className="rounded-xl border p-4">
               <h4 className="font-semibold mb-4 flex items-center gap-2">
                 <GitCommitHorizontal className="h-4 w-4" />
-                Toàn bộ commit / việc team đã làm ({data.commits?.length || 0})
+                All commits / team work ({data.commits?.length || 0})
               </h4>
               {(data.commits?.length || 0) === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Team chưa có commit trên hệ thống — bấm Sync team này.
+                  Team has no commits on system — click Sync this team.
                 </p>
               ) : (
                 <div className="relative border-l-2 border-border/60 ml-2 pl-5 space-y-5 max-h-[480px] overflow-y-auto pr-1">

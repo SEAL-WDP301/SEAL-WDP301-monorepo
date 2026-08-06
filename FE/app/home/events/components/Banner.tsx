@@ -4,17 +4,17 @@ import { Button } from "@/components/ui/button";
 
 export default function Banner() {
     const handleBackToHome = () => {
-        // Điều hướng bằng JavaScript an toàn cho Next.js Client Component
+        // Safe JavaScript navigation for Next.js Client Component
         if (typeof window !== "undefined") {
             window.location.href = "/";
         }
     };
 
     return (
-        // Sử dụng breakout class để làm banner tràn viền vô cực 2 bên màn hình
+        // Using breakout class to make banner infinite full width on both sides
         <section className="relative overflow-hidden border-b border-white/[0.03] rounded-none w-screen max-w-[100vw] left-1/2 -translate-x-1/2 bg-[#120F0E] mb-12 shadow-2xl py-16 sm:py-24 lg:py-28 px-6 sm:px-12 lg:px-20">
 
-            {/* HIỆU ỨNG LƯỚI Ô CARO CHUYÊN NGHIỆP */}
+            {/* PROFESSIONAL CHECKERBOARD GRID EFFECT */}
             <div
                 className="absolute inset-0 opacity-[0.25] pointer-events-none"
                 style={{
@@ -28,11 +28,11 @@ export default function Banner() {
                 }}
             />
 
-            {/* Đốm sáng cam tỏa mịn ở trung tâm nền */}
+            {/* Soft orange ambient glow at the center of the background */}
             <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[35rem] w-[70rem] bg-[#FF6B2C]/10 blur-[160px] animate-seal-pulse rounded-full pointer-events-none" />
 
-            {/* BACKGROUND GRAPHICS: Đa giác 2 cánh (Chỉ hiện trên Desktop) */}
-            {/* Cánh trái: Đa giác Cyan */}
+            {/* BACKGROUND GRAPHICS: Two-wing polygon (Only visible on Desktop) */}
+            {/* Left wing: Cyan polygon */}
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[350px] h-[300px] opacity-20 pointer-events-none hidden md:block">
                 <svg viewBox="0 0 100 100" className="w-full h-full text-[#06b6d4] stroke-current stroke-[0.3] fill-none">
                     <polygon points="10,50 30,20 70,30 90,60 50,80" />
@@ -42,7 +42,7 @@ export default function Banner() {
                 </svg>
             </div>
 
-            {/* Cánh phải: Đa giác Cam */}
+            {/* Right wing: Orange polygon */}
             <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[350px] h-[300px] opacity-15 pointer-events-none hidden md:block">
                 <svg viewBox="0 0 100 100" className="w-full h-full text-[#FF6B2C] stroke-current stroke-[0.3] fill-none">
                     <polygon points="90,50 70,80 30,70 10,40 50,20" />
@@ -55,10 +55,10 @@ export default function Banner() {
             {/* CONTENT CONTAINER */}
             <div className="relative z-10 mx-auto max-w-[1440px] w-full flex flex-col items-start">
 
-                {/* ROW HEADER TRÊN */}
+                {/* TOP HEADER ROW */}
                 <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
 
-                    {/* NÚT BACK TO HOME */}
+                    {/* BACK TO HOME BUTTON */}
                     <div className="flex items-center">
                         <Button
                             onClick={handleBackToHome}
@@ -71,7 +71,7 @@ export default function Banner() {
                         </Button>
                     </div>
 
-                    {/* Cặp Badges bên phải (Tự động xuống hàng mượt mà nếu thiếu không gian trên mobile) */}
+                    {/* Right side Badges pair (Automatically wraps smoothly if lack of space on mobile) */}
                     <div className="flex flex-wrap items-center gap-2 md:gap-3">
                         <div className="inline-flex items-center gap-2 rounded-full border border-[#FF6B2C]/20 bg-[#FF6B2C]/5 px-3 py-1 md:px-3.5 md:py-1 text-[10px] md:text-xs">
                             <span className="h-1.5 w-1.5 rounded-full bg-[#FF6B2C] animate-pulse" />
@@ -83,21 +83,21 @@ export default function Banner() {
                     </div>
                 </div>
 
-                {/* TIÊU ĐỀ KHỔNG LỒ 2 DÒNG */}
-                {/* ĐÃ SỬA: text-3xl trên mobile, tự động phóng to lên text-5xl -> text-[76px] trên màn hình máy tính */}
+                {/* GIANT 2-LINE TITLE */}
+                {/* FIXED: text-3xl on mobile, automatically scales up to text-5xl -> text-[76px] on desktop screen */}
                 <h1 className="text-3xl sm:text-5xl lg:text-[76px] xl:text-[84px] font-black text-white tracking-tighter leading-[1.1] flex flex-col gap-1 md:gap-2">
                     <span>Build the future,</span>
                     <span className="text-[#FF6B2C]">in 48 hours.</span>
                 </h1>
 
-                {/* PHẦN TIỂU ĐỀ PHÂN LAYER */}
-                {/* ĐÃ SỬA: Hạ cỡ chữ text-base/text-sm trên mobile để giao diện thanh thoát và không chật chội */}
+                {/* LAYERED SUBTITLE SECTION */}
+                {/* FIXED: Lowered font size text-base/text-sm on mobile for an elegant and non-cramped interface */}
                 <div className="mt-6 md:mt-8 space-y-2 md:space-y-3 max-w-4xl">
                     <p className="text-base sm:text-2xl font-extrabold text-[#F4F2F1] leading-snug">
                         SEAL Spring is the kickoff season of the 2026 league.
                     </p>
                     <p className="text-xs sm:text-lg text-[#A39690] font-bold leading-relaxed">
-                        Eight tracks, sixty-two mentors, 140Mđ in prizes - and one weekend you&apos;ll never forget.
+                        Eight tracks, sixty-two mentors, 140M VND in prizes - and one weekend you&apos;ll never forget.
                     </p>
                 </div>
 

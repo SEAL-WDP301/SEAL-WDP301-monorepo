@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Plus, Trash2, X } from "lucide-react";
+import { AlertCircle, Info, Plus, Trash2, X } from "lucide-react";
 import { enqueueSnackbar } from "notistack";
 import { z } from "zod";
 import { axiosClient } from "@/lib/axios";
 import { useAuthStore } from "@/lib/stores/auth.store";
 import {
   ensureRequiredEmailSlots,
+  getRequiredEmailGuidance,
   normalizeTeamMemberEmail,
   validateTeamMemberEmails,
 } from "@/lib/team-registration-validation";
@@ -143,21 +144,24 @@ export function EventRegisterDialog({
 
   useEffect(() => {
     if (!open || !studentInfo?.teamInfo?.team) return;
-    setTeamName(studentInfo.teamInfo.team.name);
-    setSelectedTrack(studentInfo.teamInfo.team.trackId ?? null);
-    if (studentInfo.teamInfo.team.members) {
-      const otherMembers = studentInfo.teamInfo.team.members
-        .filter((m: TeamMember) => m.role === "member")
-        .map((m: TeamMember) => m.user?.email)
-        .filter(Boolean);
-      setMemberEmails(
-        ensureRequiredEmailSlots(
-          otherMembers,
-          event?.minMembersPerTeam ?? 1,
-          event?.maxMembersPerTeam ?? 4,
-        ),
-      );
-    }
+    const frame = requestAnimationFrame(() => {
+      setTeamName(studentInfo.teamInfo.team.name);
+      setSelectedTrack(studentInfo.teamInfo.team.trackId ?? null);
+      if (studentInfo.teamInfo.team.members) {
+        const otherMembers = studentInfo.teamInfo.team.members
+          .filter((m: TeamMember) => m.role === "member")
+          .map((m: TeamMember) => m.user?.email)
+          .filter(Boolean);
+        setMemberEmails(
+          ensureRequiredEmailSlots(
+            otherMembers,
+            event?.minMembersPerTeam ?? 1,
+            event?.maxMembersPerTeam ?? 4,
+          ),
+        );
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [open, studentInfo, event?.minMembersPerTeam, event?.maxMembersPerTeam]);
 
   const registrationBlockReason = getRegistrationBlockReason(event, isEditing);
@@ -178,6 +182,17 @@ export function EventRegisterDialog({
     [memberEmails, currentUserEmail, requiredEmailSlots],
   );
   const hasEmailErrors = emailErrors.some(Boolean);
+  const isTeamNameEmpty = teamName.trim().length === 0;
+  const missingTrack = !deferred && !selectedTrack;
+  const submitDisabledReason = registrationBlockReason
+    ? registrationBlockReason
+    : isTeamNameEmpty
+      ? "Enter a team name to submit."
+      : missingTrack
+        ? "Select a competition track to submit."
+        : hasEmailErrors
+          ? "Fix the member email errors to submit."
+          : null;
 
   useEffect(() => {
     if (!open) return;
@@ -205,8 +220,8 @@ export function EventRegisterDialog({
     onSuccess: () => {
       enqueueSnackbar(
         isEditing
-          ? "Team updated successfully!"
-          : "Team registered successfully!",
+          ? "Team updated successfully."
+          : "Team registered successfully.",
         { variant: "success" },
       );
       queryClient.invalidateQueries({
@@ -236,14 +251,11 @@ export function EventRegisterDialog({
       enqueueSnackbar(blockReason, { variant: "warning" });
       return;
     }
-
-    const teamNameResult = z.string().min(2, "Team name must be at least 2 characters").max(50, "Team name is too long").safeParse(teamName.trim());
-    if (!teamNameResult.success) {
-      enqueueSnackbar(teamNameResult.error.issues[0]?.message || "Invalid team name", { variant: "warning" });
+    if (isTeamNameEmpty) {
+      enqueueSnackbar("Please enter a team name.", { variant: "warning" });
       return;
     }
-
-    if (!deferred && !selectedTrack) {
+    if (missingTrack) {
       enqueueSnackbar("Please select a track", { variant: "warning" });
       return;
     }
@@ -315,208 +327,279 @@ export function EventRegisterDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-card border-border p-0 sm:p-0"
+        className="max-h-[92dvh] overflow-y-auto rounded-2xl border-border bg-popover p-0 shadow-2xl shadow-black/30 sm:max-w-[680px] sm:p-0"
       >
-        <div className="relative overflow-hidden rounded-xl">
-          <div className="absolute top-0 right-0 h-32 w-32 rounded-full bg-orange-500/10 blur-[80px]" />
+        <div className="relative overflow-hidden rounded-3xl">
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="auto"
             aria-label="Close"
             onClick={() => onOpenChange(false)}
-            className="absolute top-3 right-3 z-50"
+            className="absolute right-3 top-3 z-50 h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <div className="relative z-10 p-6 sm:p-8">
-            <DialogHeader className="mb-6 space-y-2 pr-8 text-left">
-              <DialogTitle className="text-2xl font-black text-foreground sm:text-3xl">
+          <div className="p-4 sm:p-6">
+            <DialogHeader className="mb-4 space-y-0.5 pr-10 text-left">
+              <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
                 Team Registration
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-sm text-foreground/70">
                 {event ? (
                   <>
-                    Register your team for <strong>{event.name}</strong>
+                    For{" "}
+                    <strong className="font-semibold text-foreground">
+                      {event.name}
+                    </strong>
                   </>
                 ) : (
-                  "Register your team for this event."
+                  "Register your team for this event"
                 )}
               </DialogDescription>
             </DialogHeader>
 
             {isLoading || !event ? (
-              <div className="flex justify-center py-16">
-                <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-orange-500" />
+              <div
+                className="flex justify-center py-16"
+                role="status"
+                aria-label="Loading registration form"
+              >
+                <div
+                  className="h-10 w-10 animate-spin rounded-full border-b-2 border-orange-500"
+                  aria-hidden="true"
+                />
               </div>
             ) : (
               <>
-                {event.maxTeams != null && (
-                  <div className="mb-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm">
-                    <p className="font-semibold text-foreground">
-                      Team capacity: {event.registeredTeams ?? 0}/
-                      {event.maxTeams}
+                <div className="mb-4 flex gap-2">
+                  <div className="flex-1 rounded-xl border border-border bg-background/70 px-3 py-2.5">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Team Slots
                     </p>
-                    <p className="mt-1 text-muted-foreground">
-                      {event.isTeamRegistrationFull
-                        ? isEditing
-                          ? "The event is full, but you can still update your existing team and invite members."
-                          : "The event is full and no new teams can be created."
-                        : `${event.remainingTeamSlots ?? event.maxTeams} team slots remaining.`}
+                    <p className="text-base font-bold tabular-nums text-foreground">
+                      {event.maxTeams != null
+                        ? `${event.registeredTeams ?? 0} / ${event.maxTeams}`
+                        : `${event.registeredTeams ?? 0} registered`}
                     </p>
                   </div>
-                )}
-
-                <div className="mb-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm">
-                  <p className="font-semibold text-foreground">Team size</p>
-                  <p className="mt-1 text-muted-foreground">
-                    Each team must have {minMembersPerTeam}-{maxMembersPerTeam}{" "}
-                    members, including the leader.
-                  </p>
+                  <div className="flex-1 rounded-xl border border-border bg-background/70 px-3 py-2.5">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Team Size
+                    </p>
+                    <p className="text-base font-bold tabular-nums text-foreground">
+                      {minMembersPerTeam}–{maxMembersPerTeam} members
+                    </p>
+                  </div>
                 </div>
 
                 {registrationBlockReason && (
-                  <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-sm text-red-200">
-                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+                  <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-200">
+                    <AlertCircle
+                      className="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+                      aria-hidden="true"
+                    />
                     <div>
-                      <p className="font-semibold text-red-100">
+                      <p className="text-xs font-semibold text-red-100">
                         Registration unavailable
                       </p>
-                      <p className="mt-1 text-red-100/80">
+                      <p className="text-xs text-red-100/80">
                         {registrationBlockReason}
                       </p>
                     </div>
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   {deferred ? (
-                    <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm">
-                      <p className="font-semibold text-foreground">
-                        Tracks stay hidden for now
-                      </p>
-                      <p className="mt-1 text-muted-foreground">
-                        Register your team without choosing a track. When the
-                        organizer opens a round, your team is assigned a track
-                        at random and receives that track&apos;s problem file.
+                    <div className="flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/10 p-3 text-xs leading-relaxed text-primary">
+                      <Info
+                        className="mt-0.5 h-4 w-4 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <p>
+                        Tracks are assigned evenly when the organizer opens
+                        round one. You do not pick one now.
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      <label className="text-sm font-semibold text-foreground">
-                        Select Competition Track *
-                      </label>
-                      <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <p
+                        id="competition-track-label"
+                        className="text-sm font-semibold text-foreground"
+                      >
+                        Competition Track *
+                      </p>
+                      <div
+                        role="radiogroup"
+                        aria-labelledby="competition-track-label"
+                        className="grid gap-2 sm:grid-cols-2"
+                      >
                         {event.tracks?.map((track) => (
-                          <div
+                          <button
+                            type="button"
                             key={track.id}
+                            role="radio"
+                            aria-checked={selectedTrack === track.id}
+                            disabled={isRegistrationBlocked}
                             onClick={() => {
                               if (!isRegistrationBlocked) {
                                 setSelectedTrack(track.id);
                               }
                             }}
-                            className={`rounded-xl border p-4 transition-all ${
+                            className={`rounded-xl border px-3 py-2.5 text-left transition-[border-color,background-color,box-shadow,opacity] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${
                               isRegistrationBlocked
                                 ? "cursor-not-allowed opacity-50"
                                 : "cursor-pointer"
                             } ${
                               selectedTrack === track.id
-                                ? "border-orange-500 bg-orange-500/10 ring-1 ring-orange-500"
-                                : "border-border bg-muted/50 hover:border-orange-500/50"
+                                ? "border-primary bg-primary/10 ring-1 ring-primary"
+                                : "border-border bg-background/70 hover:border-primary/50"
                             }`}
                           >
-                            <div className="mb-1 font-semibold text-foreground">
+                            <div className="text-sm font-semibold text-foreground">
                               {track.name}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Event team policy: {minMembersPerTeam}-
-                              {maxMembersPerTeam} members
+                              {minMembersPerTeam}–{maxMembersPerTeam} members/team
                             </div>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-semibold text-foreground">
-                      Team Name *
+                  <div className="space-y-1.5">
+                    <label
+                      htmlFor="team-name"
+                      className="text-sm font-semibold text-foreground"
+                    >
+                      Team Name <span className="text-red-400">*</span>
                     </label>
                     <input
+                      id="team-name"
+                      name="teamName"
                       type="text"
                       required
+                      autoComplete="organization"
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       disabled={isRegistrationBlocked}
-                      placeholder="Enter your awesome team name"
-                      className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+                      placeholder="Enter your team name…"
+                      aria-invalid={isTeamNameEmpty}
+                      aria-describedby="team-name-help"
+                      className={`h-10 w-full rounded-xl border bg-background/70 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isTeamNameEmpty
+                          ? "border-red-500 focus:ring-red-500/40"
+                          : "border-border focus:border-primary/60 focus:ring-primary/35"
+                      }`}
                     />
+                    <p
+                      id="team-name-help"
+                      aria-live="polite"
+                      className={`text-xs ${
+                        isTeamNameEmpty
+                          ? "text-red-400"
+                          : "text-foreground/70"
+                      }`}
+                    >
+                      {isTeamNameEmpty
+                        ? "Team name is required."
+                        : "This name will appear on the event team list."}
+                    </p>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-semibold text-foreground">
-                        Invite Members
-                      </label>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          Invite Members
+                        </p>
+                        <p className="text-xs text-foreground/60">
+                          You're the leader. {getRequiredEmailGuidance(requiredEmailSlots)}
+                        </p>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
-                        size="sm"
+                        size="auto"
                         onClick={addEmailField}
-                        className="h-8"
+                        className="h-8 touch-manipulation rounded-xl border-border px-3 text-xs hover:border-primary/40 hover:bg-primary/10"
                         disabled={
                           isRegistrationBlocked ||
                           (!deferred && !selectedTrack) ||
                           memberEmails.length >= maxAdditionalMembers
                         }
                       >
-                        <Plus className="mr-1 h-4 w-4" /> Add Member
+                        <Plus
+                          className="mr-1 h-3.5 w-3.5"
+                          aria-hidden="true"
+                        />
+                        Add Member
                       </Button>
                     </div>
 
-                    <p className="text-xs text-muted-foreground">
-                      You are automatically included as Team Leader. The first{" "}
-                      {requiredEmailSlots} email field
-                      {requiredEmailSlots === 1 ? " is" : "s are"} required.
-                      Invitees may register for SEAL after receiving the email.
-                    </p>
-
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {memberEmails.map((email, index) => (
                         <div
                           key={index}
-                          className="flex flex-wrap items-center gap-3"
+                          className="space-y-1"
                         >
-                          <input
-                            type="email"
-                            value={email}
-                            onChange={(e) =>
-                              updateEmail(index, e.target.value)
-                            }
-                            disabled={isRegistrationBlocked}
-                            placeholder={`Member ${index + 1} Email`}
-                            aria-invalid={Boolean(emailErrors[index])}
-                            className={`flex-1 rounded-xl border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
-                              emailErrors[index]
-                                ? "border-red-500 focus:ring-red-500/40"
-                                : "border-border focus:ring-orange-500/50"
-                            }`}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeEmailField(index)}
-                            disabled={
-                              isRegistrationBlocked ||
-                              index < requiredEmailSlots
-                            }
-                            className="rounded-xl text-red-400 hover:bg-red-400/10 hover:text-red-500"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="grid grid-cols-[minmax(0,1fr)_2.5rem] items-center gap-2">
+                            <div className="min-w-0">
+                              <label
+                                htmlFor={`member-email-${index}`}
+                                className="mb-1 block text-xs font-medium text-foreground/80"
+                              >
+                                Member {index + 1}{" "}
+                                <span className="text-foreground/50">
+                                  {index < requiredEmailSlots ? "*" : "(optional)"}
+                                </span>
+                              </label>
+                              <input
+                                id={`member-email-${index}`}
+                                name={`memberEmails.${index}`}
+                                type="email"
+                                inputMode="email"
+                                autoComplete="off"
+                                spellCheck={false}
+                                required={index < requiredEmailSlots}
+                                value={email}
+                                onChange={(e) =>
+                                  updateEmail(index, e.target.value)
+                                }
+                                disabled={isRegistrationBlocked}
+                                placeholder="name@example.com"
+                                aria-invalid={Boolean(emailErrors[index])}
+                                aria-describedby={`member-email-${index}-help`}
+                                className={`h-10 w-full rounded-xl border bg-background/70 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                                  emailErrors[index]
+                                    ? "border-red-500 focus:ring-red-500/40"
+                                    : "border-border focus:border-primary/60 focus:ring-primary/35"
+                                }`}
+                              />
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="auto"
+                              aria-label={`Remove member ${index + 1} email`}
+                              onClick={() => removeEmailField(index)}
+                              disabled={
+                                isRegistrationBlocked ||
+                                index < requiredEmailSlots
+                              }
+                              className="mt-5 h-10 w-10 touch-manipulation rounded-xl border border-border text-red-400 hover:border-red-400/40 hover:bg-red-400/10 hover:text-red-300 focus-visible:ring-red-400/50"
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </div>
                           {emailErrors[index] && (
-                            <p className="basis-full pl-1 text-xs text-red-500">
+                            <p
+                              id={`member-email-${index}-help`}
+                              aria-live="polite"
+                              className="pl-1 text-xs text-red-400"
+                            >
                               {emailErrors[index]}
                             </p>
                           )}
@@ -525,23 +608,32 @@ export function EventRegisterDialog({
                     </div>
                   </div>
 
-                  <div className="pt-2">
+                  <div>
                     <Button
                       type="submit"
-                      size="lg"
-                      className="w-full bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-xl shadow-orange-500/20 hover:from-orange-600 hover:to-rose-600"
+                      size="auto"
+                      className="h-11 w-full rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/15 hover:bg-[#FF7B42] focus-visible:ring-primary/40 disabled:shadow-none"
+                      title={submitDisabledReason ?? undefined}
                       disabled={
                         isRegistrationBlocked ||
                         registerMutation.isPending ||
-                        hasEmailErrors
+                        Boolean(submitDisabledReason)
                       }
                     >
                       {registrationBlockReason
                         ? "Registration Closed"
                         : registerMutation.isPending
-                          ? "Registering..."
+                          ? "Registering…"
                           : "Submit Registration"}
                     </Button>
+                    {submitDisabledReason && !registerMutation.isPending && (
+                      <p
+                        className="mt-1.5 text-center text-xs text-foreground/70"
+                        aria-live="polite"
+                      >
+                        {submitDisabledReason}
+                      </p>
+                    )}
                   </div>
                 </form>
               </>

@@ -185,9 +185,9 @@ export function RegisterForm({
         </div>
 
         <AuthFooterLink
-          label="Đã có tài khoản?"
+          label="Already have an account?"
           href="/login"
-          action="Đăng nhập"
+          action="Sign in"
         />
       </div>
     </AuthCard>

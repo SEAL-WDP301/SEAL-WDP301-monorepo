@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { enqueueSnackbar } from "notistack";
 import { Check, Loader2, Sparkles, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -86,6 +88,9 @@ export function AiSuggestRubricsModal({
 }: Props) {
   const queryClient = useQueryClient();
   const startedRef = useRef(false);
+  const [selectedCriteriaIndexes, setSelectedCriteriaIndexes] = useState<
+    number[]
+  >([]);
 
   const roundExisting = useMemo(
     () => existingRubrics.filter((r) => r.roundId === round.id),
@@ -111,21 +116,21 @@ export function AiSuggestRubricsModal({
       }
 
       await bulkCreateOrganizerRubrics(event.id, {
-        rubrics: data.criteria.map((c) => ({
-          name: c.name,
-          description: c.description,
+        rubrics: criteriaToApply.map((criterion) => ({
+          name: criterion.name,
+          description: criterion.description,
           maxScore: 10,
-          weight: c.weight,
+          weight: criterion.weight,
           roundId: round.id,
           trackId: null,
         })),
       });
 
-      return data;
+      return criteriaToApply;
     },
-    onSuccess: (data) => {
+    onSuccess: (criteria) => {
       enqueueSnackbar(
-        `Applied ${data.criteria.length} AI-suggested criteria to this round`,
+        `Applied ${criteria.length} selected AI-suggested criteria to this round`,
         { variant: "success" },
       );
       queryClient.invalidateQueries({
@@ -171,8 +176,11 @@ export function AiSuggestRubricsModal({
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
         <DialogHeader className="border-b border-border px-6 py-4">
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-orange-500" />
-            AI Suggest Rubrics
+            <Sparkles
+              aria-hidden="true"
+              className="h-5 w-5 text-orange-500"
+            />
+            Review AI Suggestions
           </DialogTitle>
           <DialogDescription>
             AI đọc tên sự kiện, track và đề bài để gợi ý rubric. Xem trước rồi

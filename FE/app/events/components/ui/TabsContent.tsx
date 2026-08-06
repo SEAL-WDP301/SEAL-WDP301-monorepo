@@ -10,7 +10,7 @@ interface TabsContentProps {
 }
 
 export default function TabsContent({ activeTab }: TabsContentProps) {
-    // Hàm helper trả về Component tương ứng với Tab đang được chọn
+    // Helper function that returns the Component corresponding to the active Tab
     const renderContent = () => {
         switch (activeTab) {
             case "overview":
@@ -27,10 +27,10 @@ export default function TabsContent({ activeTab }: TabsContentProps) {
     };
 
     return (
-        /* ĐÃ SỬA: 
-           - Thay đổi 'px-4 md:px-0' thành 'px-0' để triệt tiêu lỗi double-padding, giúp nội dung tab thẳng hàng tắp với thanh Tab Bar.
-           - Thêm 'w-full overflow-hidden' để bao bọc an toàn cho các hiệu ứng fadeIn bên trong không làm nứt layout.
-           - Điều chỉnh khoảng cách 'mt-2 md:mt-4' nhẹ nhàng để đẩy nội dung sát lại thanh điều hướng, tạo cảm giác liền mạch.
+        /* FIXED:
+           - Changed 'px-4 md:px-0' to 'px-0' to eliminate double-padding issues, aligning tab content with the Tab Bar.
+           - Added 'w-full overflow-hidden' to safely contain inner fadeIn effects without breaking the layout.
+           - Adjusted spacing 'mt-2 md:mt-4' to bring content closer to the navigation bar for a seamless feel.
         */
         <div className="w-full px-0 pb-16 mt-2 md:mt-4 overflow-hidden text-foreground bg-transparent transition-colors duration-300">
             {renderContent()}

@@ -236,9 +236,9 @@ function getOpenRoundBlockReason(
     );
     if (missing.length) {
       return event.deferredTrackAssignment
-        ? `Cannot open "${round.name}" - chưa gán đề cho bảng: ${missing
+        ? `Cannot open "${round.name}" - no problem assigned to tracks: ${missing
             .map((t) => t.name)
-            .join(", ")}. Thêm đề vào Pool đề rồi chạy Bốc thăm Phase 1.`
+            .join(", ")}. Add problems to the Problem Pool and run Phase 1 Draw.`
         : `Cannot open "${round.name}" - each track needs a problem file. Missing: ${missing
             .map((t) => t.name)
             .join(", ")}.`;
@@ -355,7 +355,7 @@ export default function EventRoundsPage() {
       trackSlots: trackProblems.map((tp) => ({
         trackId: tp.trackId,
         trackName:
-          tracks.find((t) => t.id === tp.trackId)?.name ?? `Bảng ${tp.trackId}`,
+          tracks.find((t) => t.id === tp.trackId)?.name ?? `Track ${tp.trackId}`,
       })),
     };
   }, [ceremonyRound, rounds, tracks]);
@@ -839,7 +839,7 @@ export default function EventRoundsPage() {
         !targetRound.trackProblems?.some((p) => p.trackId === trackId),
     );
     if (missing.length === 0) {
-      enqueueSnackbar("Tất cả bảng đã có trong vòng này.", { variant: "info" });
+      enqueueSnackbar("All tracks are already in this round.", { variant: "info" });
       return;
     }
     const key = `sync-${targetRound.id}`;
@@ -849,7 +849,7 @@ export default function EventRoundsPage() {
         await updateRoundProblemFile(eventId, targetRound.id, null, trackId);
       }
       enqueueSnackbar(
-        `Đã đồng bộ ${missing.length} bảng từ vòng trước.`,
+        `Synced ${missing.length} tracks from previous round.`,
         { variant: "success" },
       );
       eventQuery.refetch();
@@ -901,7 +901,7 @@ export default function EventRoundsPage() {
 
   const workspaceTabs = [
     { id: "rounds", label: "Tracks & Rounds", icon: GitMerge },
-    { id: "pool", label: "Pool đề", icon: Layers },
+    { id: "pool", label: "Problem Pool", icon: Layers },
   ] as const;
 
   const panelShellClass = (embedded: boolean) =>
@@ -1021,9 +1021,9 @@ export default function EventRoundsPage() {
                     : 1;
                   const problemFilesLabel =
                     sortedTracks.length === 0 && tracksPendingSync.length > 0
-                      ? `Chưa đồng bộ · ${tracksPendingSync.length} bảng`
+                      ? `Not synced · ${tracksPendingSync.length} tracks`
                       : totalFiles === 0
-                        ? "Chưa có bảng"
+                        ? "No tracks"
                         : `${uploadedCount}/${totalFiles}`;
 
                   return (
@@ -1181,8 +1181,7 @@ export default function EventRoundsPage() {
                                 </p>
                                 {!isDeferred && requirePerTrackProblems ? (
                                   <p className="text-xs text-muted-foreground">
-                                    Upload file đề trực tiếp cho từng track (round
-                                    chưa mở mới sửa được).
+                                    Upload problem files directly for each track (can only be edited if round is not started).
                                   </p>
                                 ) : null}
                               </div>
@@ -1211,8 +1210,7 @@ export default function EventRoundsPage() {
                                     ) : (
                                       <GitMerge className="h-4 w-4" />
                                     )}
-                                    Đồng bộ {tracksPendingSync.length} bảng từ R
-                                    {previousRound!.roundNumber}
+                                    Sync {tracksPendingSync.length} tracks from Round {previousRound!.roundNumber}
                                   </Button>
                                 ) : null}
                                 {isRoundScopedTracks &&
@@ -1315,9 +1313,9 @@ export default function EventRoundsPage() {
                                         }
                                         emptyHint={
                                           isDeferred && !effectiveUrl
-                                            ? "Chưa có đề"
-                                            : isRoundNotStarted
-                                              ? "Chưa upload — chọn file bên phải"
+                                            ? "No problem"
+                                            : !problem?.problemFileUrl
+                                              ? "Not uploaded — select file on right"
                                               : undefined
                                         }
                                         busy={uploadingKey === key}
@@ -1355,7 +1353,7 @@ export default function EventRoundsPage() {
                                       >
                                         <span className="font-medium">{track.name}</span>
                                         <span className="text-xs text-muted-foreground">
-                                          Chưa gán vào vòng này
+                                          Not assigned to this round
                                         </span>
                                       </li>
                                     ))}
@@ -1374,12 +1372,10 @@ export default function EventRoundsPage() {
                                   canUpload={isRoundNotStarted && !requirePerTrackProblems}
                                   emptyHint={
                                     !requirePerTrackProblems
-                                      ? isRoundNotStarted
-                                        ? "Upload một file đề chung cho vòng này"
-                                        : undefined
-                                      : isDeferred
-                                        ? "Round shared — dùng Pool đề nếu cần"
-                                        : "Chưa upload — chọn file bên phải"
+                                      ? "Upload a single problem file for this round"
+                                      : round.problemFileUrl
+                                      ? "Round shared — use Problem Pool if needed"
+                                      : "Not uploaded — select file on right"
                                   }
                                   busy={uploadingKey === String(round.id)}
                                   onUpload={(file) =>
@@ -1462,7 +1458,7 @@ export default function EventRoundsPage() {
               }}
             >
               <Shuffle className="h-4 w-4" />
-              Bốc thăm đội (Phase 2)
+              Team Draw (Phase 2)
               {event.studentTrackDrawOpen ? " · SV đang bốc" : ""}
             </LotteryHeaderButton>
           </div>
@@ -1756,8 +1752,7 @@ function RoundDialog({
             <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 text-sm md:col-span-2">
               <strong className="text-foreground">Luồng B — thi theo track</strong>
               <p className="mt-1 text-muted-foreground">
-                Mọi vòng đều theo bảng: đội bốc được track nào thì thi track đó
-                tới hết (chung kết vẫn theo bảng). Mỗi vòng upload đề riêng và
+                All rounds follow tracks: teams stay in their drawn tracks until the end (finals included). Each round has separate problem uploads and scoreboard.
                 cấu hình tiêu chí chấm riêng.
               </p>
             </div>
@@ -1777,7 +1772,7 @@ function RoundDialog({
             <span>
               <strong>Track-specific round</strong>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Bật: mỗi track một đề. Tắt: một file đề chung cho cả vòng.
+                Enable: separate problem per track. Disable: one shared problem file for the round.
               </span>
             </span>
           </label>
@@ -1813,7 +1808,7 @@ function RoundDialog({
                 }
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Tùy cuộc thi — ví dụ top 2/bảng, top 3, top 4…
+                Depends on the competition — e.g. top 2/track, top 3, top 4…
               </p>
             </Field>
           )}

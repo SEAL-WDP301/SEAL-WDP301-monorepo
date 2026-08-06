@@ -183,12 +183,12 @@ export default function EventMessagesPage() {
                 if (!latestMsg) {
                   return (
                     <div className="text-[11px] text-muted-foreground/60 italic mb-2 line-clamp-1">
-                      Chưa có tin nhắn nào
+                      No messages yet
                     </div>
                   );
                 }
                 const isOwnMsg = user?.id && Number(latestMsg.senderId || latestMsg.sender?.id) === Number(user.id);
-                const senderPrefix = isOwnMsg ? 'Bạn' : (latestMsg.sender?.name || 'Thành viên');
+                const senderPrefix = isOwnMsg ? 'You' : (latestMsg.sender?.name || 'Member');
                 return (
                   <div className="text-[11px] text-muted-foreground mb-2 line-clamp-1 pr-4" title={latestMsg.content}>
                     <span className="font-medium text-foreground/80">{senderPrefix}:</span>{" "}

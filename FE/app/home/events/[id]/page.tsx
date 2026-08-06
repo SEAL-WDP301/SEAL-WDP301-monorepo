@@ -88,7 +88,7 @@ type EventDetail = {
     description?: string;
     quantity: number;
     amount: number;
-    placement?: 1 | 2 | 3 | null;
+    placement?: number | null;
     currency: string;
   }[];
   prizePoolTotals?: Array<{ currency: string; amount: number }>;
@@ -1263,7 +1263,7 @@ export default function EventDetailPage() {
           <Button
             size="lg"
             disabled
-            title="Bạn đang có lời mời vào nhóm chờ xử lý. Vui lòng hủy hoặc từ chối lời mời trước khi đăng ký event."
+            title="You have pending team invitations. Please cancel or decline them before registering for the event."
             className="w-full sm:w-auto px-8 bg-orange-500/50 cursor-not-allowed"
           >
             Register Now
@@ -1633,11 +1633,11 @@ export default function EventDetailPage() {
               {isDeferred ? (
                 <div className="rounded-2xl border border-border bg-card p-6">
                   <p className="font-semibold text-foreground">
-                    Track được bốc thăm một lần trước ngày thi
+                    Tracks are drawn once before the competition day
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    BTC gán track ngẫu nhiên cho từng đội (Day 1). Sau khi gán,
-                    track giữ nguyên suốt cuộc thi — kể cả vòng chung kết.
+                    The organizing committee assigns a random track to each team (Day 1). Once assigned,
+                    the track remains the same throughout the competition — including the final round.
                   </p>
                 </div>
               ) : (

@@ -93,7 +93,7 @@ export function LotteryBoardAnimation({
   className,
 }: Props) {
   const SourceIcon = mode === "problem" ? FileText : Users;
-  const sourceTitle = mode === "problem" ? "Pool đề" : "Đội chờ bốc";
+  const sourceTitle = mode === "problem" ? "Problem Pool" : "Waiting Teams";
   const isReady = phase === "ready";
   const isSpinning = phase === "spinning";
   const isAnimating = isSpinning || phase === "reveal" || phase === "done";
@@ -150,10 +150,10 @@ export function LotteryBoardAnimation({
             </div>
             <span className="text-xs text-muted-foreground">
               {isReady
-                ? `${leftPreview.length} mục`
+                ? `${leftPreview.length} items`
                 : isSpinning
-                  ? "Đang trộn..."
-                  : `${leftPreview.length} còn lại`}
+                  ? "Shuffling..."
+                  : `${leftPreview.length} left`}
             </span>
           </div>
           <div className="flex min-h-[200px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
@@ -167,10 +167,10 @@ export function LotteryBoardAnimation({
                 >
                   {isReady
                     ? mode === "team"
-                      ? "Không có đội chưa có bảng."
-                      : "Chưa có đề trong pool."
-                    : placedCount > 0
-                      ? "Đã bốc hết!"
+                      ? "No teams without tracks."
+                      : "No problems in pool."
+                    : phase === "done"
+                      ? "All drawn!"
                       : "—"}
                 </motion.p>
               ) : (
@@ -220,7 +220,7 @@ export function LotteryBoardAnimation({
         <div className="flex min-h-0 flex-col gap-2 overflow-y-auto pr-1">
           {tracks.length === 0 ? (
             <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Chưa có bảng trong round này.
+              No tracks in this round.
             </div>
           ) : (
             tracks.map((track, trackIndex) => {
@@ -300,8 +300,8 @@ export function LotteryBoardAnimation({
                         )}
                       >
                         {isReady || isSpinning
-                          ? "Sẵn sàng nhận..."
-                          : "Chờ bốc..."}
+                          ? "Ready to receive..."
+                          : "Waiting for draw..."}
                       </p>
                     )}
                   </div>
