@@ -1,6 +1,8 @@
 name: CI/CD Pipeline - SEAL Hackathon Platform
 
 on:
+  # Manual re-deploy when a production push run is stuck queued / cancelled
+  workflow_dispatch:
   push:
     branches:
       - production
@@ -15,6 +17,12 @@ on:
       - 'BE/**'
       - 'FE/**'
       - '.github/workflows/ci-cd.yml'
+
+# One active run per ref: a new merge cancels older queued/in-progress runs
+# so zombie queues do not block the latest production tip.
+concurrency:
+  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -77,7 +85,7 @@ jobs:
   build-backend:
     name: Build & Push Backend Docker Image
     needs: [test-backend]
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -118,7 +126,7 @@ jobs:
   build-frontend:
     name: Build & Push Frontend Docker Image
     needs: [test-frontend]
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -162,7 +170,9 @@ jobs:
     name: Update K8s Manifests & Trigger GitOps Rollout
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
+    if: >-
+      github.ref == 'refs/heads/production' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: write
 
