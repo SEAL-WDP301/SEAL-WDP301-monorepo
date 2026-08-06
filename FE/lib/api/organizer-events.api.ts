@@ -65,7 +65,7 @@ export interface OrganizerPrizeInput {
   description?: string;
   quantity?: number;
   amount?: number;
-  placement?: 1 | 2 | 3 | null;
+  placement?: number | null;
   currency?: string;
 }
 

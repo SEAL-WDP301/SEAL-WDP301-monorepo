@@ -66,10 +66,10 @@ export class EventOrganizerService {
         });
       }
       if (prize.placement == null) continue;
-      if (![1, 2, 3].includes(prize.placement)) {
+      if (!Number.isInteger(prize.placement) || prize.placement < 1) {
         throw new BadRequestException({
           errorCode: "INVALID_PRIZE_PLACEMENT",
-          message: "Prize placement must be 1, 2, 3, or null",
+          message: "Prize placement must be a positive integer or null",
         });
       }
       if (primaryPrizes.has(prize.placement)) {
@@ -81,31 +81,28 @@ export class EventOrganizerService {
       primaryPrizes.set(prize.placement, prize);
     }
 
-    const rankedPrizes = [1, 2, 3]
-      .map((placement) => primaryPrizes.get(placement))
-      .filter((prize): prize is CreatePrizeDto => Boolean(prize));
+    const rankedPrizes = Array.from(primaryPrizes.entries())
+      .sort(([firstPlacement], [secondPlacement]) =>
+        firstPlacement - secondPlacement,
+      )
+      .map(([, prize]) => prize);
     const currencies = new Set(
       rankedPrizes.map((prize) => prize.currency ?? "VND"),
     );
     if (currencies.size > 1) {
       throw new BadRequestException({
         errorCode: "MIXED_PRIMARY_PRIZE_CURRENCIES",
-        message: "First, second, and third prizes must use the same currency",
+        message: "Ranked prizes must use the same currency",
       });
     }
 
-    const comparisons: Array<[number, number]> = [
-      [1, 2],
-      [2, 3],
-    ];
-    for (const [higherPlacement, lowerPlacement] of comparisons) {
-      const higher = primaryPrizes.get(higherPlacement);
-      const lower = primaryPrizes.get(lowerPlacement);
-      if (higher && lower && (higher.amount ?? 0) <= (lower.amount ?? 0)) {
+    for (let index = 1; index < rankedPrizes.length; index += 1) {
+      const higher = rankedPrizes[index - 1];
+      const lower = rankedPrizes[index];
+      if ((higher.amount ?? 0) < (lower.amount ?? 0)) {
         throw new BadRequestException({
           errorCode: "INVALID_PRIZE_ORDER",
-          message:
-            "Prize amounts must follow: first prize > second prize > third prize",
+          message: "Prize amounts must not increase as placement increases",
         });
       }
     }

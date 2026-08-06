@@ -46,11 +46,35 @@ import {
   ListChecks,
   Image as ImageIcon,
   UploadCloud,
+  GripVertical,
+  Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { enqueueSnackbar } from "notistack";
-import { useState, useMemo, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   createGoogleCalendarMeeting,
   createOrganizerEvent,
@@ -74,6 +98,10 @@ import { shouldSyncGoogleCalendarMeeting } from "@/lib/events/calendar-meeting";
 import {
   calculatePrizePoolTotals,
   formatPrizeAmount,
+  getNextPrizePlacement,
+  getPrizeAmountOrderViolations,
+  normalizePrizeOrder,
+  reorderRankedPrizes,
 } from "@/lib/events/prizes";
 import {
   createDefaultEventSchedule,
@@ -295,7 +323,10 @@ const createEventSchema = (isEdit: boolean) =>
               .min(0, "Prize amount cannot be negative")
               .default(0),
             placement: z
-              .union([z.literal(1), z.literal(2), z.literal(3), z.null()])
+              .number()
+              .int("Placement must be an integer")
+              .min(1, "Placement must be at least 1")
+              .nullable()
               .optional()
               .default(null),
             currency: z
@@ -753,34 +784,27 @@ const createEventSchema = (isEdit: boolean) =>
         primaryPrizes.set(prize.placement, { ...prize, index });
       });
 
-      const rankedPrizes = [1, 2, 3]
-        .map((placement) => primaryPrizes.get(placement))
-        .filter((prize) => Boolean(prize));
-      if (new Set(rankedPrizes.map((prize) => prize?.currency)).size > 1) {
+      const rankedPrizes = Array.from(primaryPrizes.entries())
+        .sort(([firstPlacement], [secondPlacement]) =>
+          firstPlacement - secondPlacement,
+        )
+        .map(([, prize]) => prize);
+      if (new Set(rankedPrizes.map((prize) => prize.currency)).size > 1) {
         rankedPrizes.forEach((prize) => {
-          if (!prize) return;
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "First, second, and third prizes must use one currency",
+            message: "Ranked prizes must use one currency",
             path: ["prizes", prize.index, "currency"],
           });
         });
       }
 
-      ([
-        [1, 2],
-        [2, 3],
-      ] as const).forEach(([higherPlacement, lowerPlacement]) => {
-        const higher = primaryPrizes.get(higherPlacement);
-        const lower = primaryPrizes.get(lowerPlacement);
-        if (higher && lower && higher.amount <= lower.amount) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message:
-              "Prize amounts must follow: first prize > second prize > third prize",
-            path: ["prizes", lower.index, "amount"],
-          });
-        }
+      getPrizeAmountOrderViolations(data.prizes).forEach(({ lowerIndex }) => {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Amounts must decrease or stay equal from top to bottom",
+          path: ["prizes", lowerIndex, "amount"],
+        });
       });
 
       data.rounds.forEach((round, idx) => {
@@ -890,6 +914,75 @@ interface EventFormProps {
   initialData?: OrganizerEvent;
 }
 
+interface SortablePrizeCardProps {
+  children: ReactNode;
+  id: string;
+  isSpecial: boolean;
+  position: number;
+}
+
+const prizeScreenReaderInstructions = {
+  draggable:
+    "Press Space to pick up a prize. Use the arrow keys to move it. Press Space again to drop it, or Escape to cancel.",
+};
+
+function SortablePrizeCard({
+  children,
+  id,
+  isSpecial,
+  position,
+}: SortablePrizeCardProps) {
+  const shouldReduceMotion = useReducedMotion();
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id, disabled: isSpecial });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: shouldReduceMotion ? undefined : transition,
+      }}
+      className={cn(
+        "rounded-xl border border-border/60 bg-background/40 p-3 transition-[border-color,box-shadow,background-color]",
+        isDragging &&
+          "border-amber-500/60 bg-amber-500/5 shadow-lg shadow-amber-950/10",
+      )}
+    >
+      <div className="flex items-start gap-2">
+        {isSpecial ? (
+          <div
+            className="mt-4 flex size-11 shrink-0 items-center justify-center text-amber-600/70"
+            title="Special prize"
+          >
+            <Sparkles className="size-4" aria-hidden="true" />
+            <span className="sr-only">Special prize</span>
+          </div>
+        ) : (
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            className="mt-4 flex size-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-amber-500/10 hover:text-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50 active:cursor-grabbing"
+            aria-label={`Move prize at position ${position}`}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="size-4" aria-hidden="true" />
+          </button>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function EventForm({ initialData }: EventFormProps) {
   const router = useRouter();
   const isEdit = !!initialData;
@@ -976,48 +1069,52 @@ export default function EventForm({ initialData }: EventFormProps) {
         : createPreset.endDate,
     githubOrgUrl:
       initialData?.githubOrgUrl || "https://github.com/DEMO-SEAL-HackaThon-ORG",
-    prizes: initialData?.prizes?.map((prize) => ({
-      id: prize.id,
-      name: prize.name,
-      description: prize.description || "",
-      quantity: prize.quantity ?? 1,
-      amount: prize.amount ?? 0,
-      placement: prize.placement ?? null,
-      currency: prize.currency || "VND",
-    })) || [
-      {
-        name: "Champion (First Prize)",
-        description: "Gold Trophy",
-        quantity: 1,
-        amount: 10_000_000,
-        placement: 1,
-        currency: "VND",
-      },
-      {
-        name: "Second Prize (Runner-up)",
-        description: "Silver Trophy",
-        quantity: 1,
-        amount: 5_000_000,
-        placement: 2,
-        currency: "VND",
-      },
-      {
-        name: "Third Prize",
-        description: "Bronze Trophy",
-        quantity: 1,
-        amount: 2_500_000,
-        placement: 3,
-        currency: "VND",
-      },
-      {
-        name: "Honorable Mention",
-        description: "Certificate",
-        quantity: 1,
-        amount: 1_000_000,
-        placement: null,
-        currency: "VND",
-      },
-    ],
+    prizes: initialData?.prizes
+      ? normalizePrizeOrder(
+          initialData.prizes.map((prize) => ({
+            id: prize.id,
+            name: prize.name,
+            description: prize.description || "",
+            quantity: prize.quantity ?? 1,
+            amount: prize.amount ?? 0,
+            placement: prize.placement ?? null,
+            currency: prize.currency || "VND",
+          })),
+        )
+      : [
+          {
+            name: "Champion (First Prize)",
+            description: "Gold Trophy",
+            quantity: 1,
+            amount: 10_000_000,
+            placement: 1,
+            currency: "VND",
+          },
+          {
+            name: "Second Prize (Runner-up)",
+            description: "Silver Trophy",
+            quantity: 1,
+            amount: 5_000_000,
+            placement: 2,
+            currency: "VND",
+          },
+          {
+            name: "Third Prize",
+            description: "Bronze Trophy",
+            quantity: 1,
+            amount: 2_500_000,
+            placement: 3,
+            currency: "VND",
+          },
+          {
+            name: "Honorable Mention",
+            description: "Certificate",
+            quantity: 1,
+            amount: 1_000_000,
+            placement: null,
+            currency: "VND",
+          },
+        ],
     tracks: isEdit
       ? (initialData?.tracks || []).map((track) => ({
           ...track,
@@ -1105,6 +1202,14 @@ export default function EventForm({ initialData }: EventFormProps) {
     defaultValues,
     mode: "onChange",
   });
+  const prizeDragSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const watchedStatus = useWatch({ control: form.control, name: "status" });
   const watchedCreateGoogleMeet = useWatch({
@@ -1245,12 +1350,75 @@ export default function EventForm({ initialData }: EventFormProps) {
 
   const {
     fields: prizeFields,
-    append: appendPrize,
-    remove: removePrize,
+    replace: replacePrizes,
   } = useFieldArray({
     control: form.control,
     name: "prizes",
   });
+
+  const replaceAndValidatePrizes = (prizes: EventFormValues["prizes"]) => {
+    replacePrizes(normalizePrizeOrder(prizes));
+    void form.trigger("prizes");
+  };
+
+  const handleAddPrize = () => {
+    const prizes = form.getValues("prizes");
+    replaceAndValidatePrizes([
+      ...prizes,
+      {
+        name: "",
+        description: "",
+        quantity: 1,
+        amount: 0,
+        placement: getNextPrizePlacement(prizes),
+        currency: "VND",
+      },
+    ]);
+  };
+
+  const handleAddSpecialPrize = () => {
+    replaceAndValidatePrizes([
+      ...form.getValues("prizes"),
+      {
+        name: "",
+        description: "",
+        quantity: 1,
+        amount: 0,
+        placement: null,
+        currency: "VND",
+      },
+    ]);
+  };
+
+  const handleRemovePrize = (index: number) => {
+    replaceAndValidatePrizes(
+      form.getValues("prizes").filter((_, prizeIndex) => prizeIndex !== index),
+    );
+  };
+
+  const rankedPrizeFields = prizeFields.filter(
+    (_, index) => watchedPrizes?.[index]?.placement != null,
+  );
+
+  const handlePrizeDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+
+    const fromIndex = rankedPrizeFields.findIndex(
+      (field) => field.id === active.id,
+    );
+    const toIndex = rankedPrizeFields.findIndex(
+      (field) => field.id === over.id,
+    );
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    replaceAndValidatePrizes(
+      reorderRankedPrizes(
+        form.getValues("prizes"),
+        fromIndex,
+        toIndex,
+      ),
+    );
+  };
 
   const {
     fields: ruleGroupFields,
@@ -2139,38 +2307,56 @@ export default function EventForm({ initialData }: EventFormProps) {
                         Prizes & Awards
                       </h3>
                       <p className="text-muted-foreground mt-1">
-                        Configure the winning rewards for the participants.
+                        Drag ranked prizes to set their order. Amounts must
+                        decrease from top to bottom.
                       </p>
                     </div>
                   </div>
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      appendPrize({
-                        name: "",
-                        description: "",
-                        quantity: 1,
-                        amount: 0,
-                        placement: null,
-                        currency: "VND",
-                      })
-                    }
-                    variant="outline"
-                    className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 rounded-xl"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Prize
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleAddSpecialPrize}
+                      variant="ghost"
+                      className="text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600"
+                    >
+                      <Sparkles className="mr-2 size-4" />
+                      Add Special
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleAddPrize}
+                      variant="outline"
+                      className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 rounded-xl"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Prize
+                    </Button>
+                  </div>
                 </div>
 
                 {prizeFields.length > 0 ? (
-                  <div className="space-y-2">
-                    {prizeFields.map((field, index) => (
-                      <div
-                        key={field.id}
-                        className="rounded-xl border border-border/60 bg-background/40 p-3"
-                      >
-                        <div className="flex items-start gap-2">
+                  <DndContext
+                    accessibility={{
+                      screenReaderInstructions: prizeScreenReaderInstructions,
+                    }}
+                    collisionDetection={closestCenter}
+                    sensors={prizeDragSensors}
+                    onDragEnd={handlePrizeDragEnd}
+                  >
+                    <SortableContext
+                      items={prizeFields.map((field) => field.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-2">
+                        {prizeFields.map((field, index) => (
+                          <SortablePrizeCard
+                            key={field.id}
+                            id={field.id}
+                            isSpecial={
+                              watchedPrizes?.[index]?.placement == null
+                            }
+                            position={index + 1}
+                          >
                           <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-12">
                             <FormField
                               control={control}
@@ -2193,57 +2379,11 @@ export default function EventForm({ initialData }: EventFormProps) {
                             />
                             <FormField
                               control={control}
-                              name={`prizes.${index}.placement`}
-                              render={({ field }) => (
-                                <FormItem className="space-y-1 lg:col-span-2">
-                                  <FormLabel className="text-[11px] text-muted-foreground">
-                                    Placement
-                                  </FormLabel>
-                                  <Select
-                                    value={
-                                      field.value == null
-                                        ? "special"
-                                        : String(field.value)
-                                    }
-                                    onValueChange={(value) =>
-                                      field.onChange(
-                                        value === "special"
-                                          ? null
-                                          : Number(value),
-                                      )
-                                    }
-                                  >
-                                    <FormControl>
-                                      <SelectTrigger className="h-9 bg-background/50">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      <SelectItem value="1">
-                                        First Prize
-                                      </SelectItem>
-                                      <SelectItem value="2">
-                                        Second Prize
-                                      </SelectItem>
-                                      <SelectItem value="3">
-                                        Third Prize
-                                      </SelectItem>
-                                      <SelectItem value="special">
-                                        Special Prize
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={control}
                               name={`prizes.${index}.amount`}
                               render={({ field }) => (
-                                <FormItem className="space-y-1 lg:col-span-2">
+                                <FormItem className="space-y-1 lg:col-span-3">
                                   <FormLabel className="text-[11px] text-muted-foreground">
-                                    Amount per prize
+                                    Amount
                                   </FormLabel>
                                   <FormControl>
                                     <Input
@@ -2288,7 +2428,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                               control={control}
                               name={`prizes.${index}.quantity`}
                               render={({ field }) => (
-                                <FormItem className="space-y-1 lg:col-span-2">
+                                <FormItem className="space-y-1 lg:col-span-3">
                                   <FormLabel className="text-[11px] text-muted-foreground">
                                     Quantity
                                   </FormLabel>
@@ -2331,15 +2471,16 @@ export default function EventForm({ initialData }: EventFormProps) {
                             variant="ghost"
                             size="icon-sm"
                             className="mt-5 shrink-0 text-red-500 hover:bg-red-500/10 hover:text-red-500"
-                            onClick={() => removePrize(index)}
+                            onClick={() => handleRemovePrize(index)}
                             aria-label={`Remove prize ${index + 1}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                        </div>
+                          </SortablePrizeCard>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 ) : (
                   <div className="rounded-2xl border border-dashed border-border/50 p-8 text-center text-sm text-muted-foreground">
                     No prizes yet. Click Add Prize to start.
