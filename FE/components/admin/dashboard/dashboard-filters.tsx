@@ -14,12 +14,13 @@ function FilterSelect({
   onChange: (value: string) => void;
   className?: string;
 }) {
+  const selectedLabel = options.find((option) => option.value === value)?.label;
   return (
     <label className="space-y-1.5 text-xs font-medium text-muted-foreground">
       {label}
       <Select value={value} onValueChange={(nextValue) => nextValue && onChange(nextValue)}>
         <SelectTrigger className={className ?? "h-9 w-full min-w-36 bg-background/40"}>
-          <SelectValue />
+          <SelectValue>{selectedLabel ?? value}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
@@ -27,6 +28,28 @@ function FilterSelect({
       </Select>
     </label>
   );
+}
+
+type EventOption = {
+  value: string;
+  label: string;
+  season?: string;
+  year?: number;
+};
+
+export function selectDashboardEvent(
+  filters: Filters,
+  eventId: string,
+  eventOptions: EventOption[],
+): Filters {
+  const event = eventOptions.find((option) => option.value === eventId);
+  if (!event) return { ...filters, eventId };
+  return {
+    ...filters,
+    eventId,
+    season: event.season?.toLowerCase() as Season ?? filters.season,
+    year: event.year || filters.year,
+  };
 }
 
 export function DashboardFilters({
@@ -37,7 +60,7 @@ export function DashboardFilters({
   onRefresh: () => void;
   refreshing: boolean;
   lastUpdated: string;
-  eventOptions?: { value: string; label: string }[];
+  eventOptions?: EventOption[];
   seasonOptions?: string[];
   yearOptions?: number[];
 }) {
@@ -49,15 +72,15 @@ export function DashboardFilters({
           { value: "7d", label: "Last 7 days" }, { value: "30d", label: "Last 30 days" },
           { value: "90d", label: "Last 90 days" }, { value: "year", label: "This year" },
         ]} />
-        <FilterSelect label="Event" value={filters.eventId} onChange={(eventId) => onChange({ ...filters, eventId })} options={[{ value: "all", label: "All Events" }, ...eventOptions]} />
-        <FilterSelect label="Season" value={filters.season} onChange={(season) => onChange({ ...filters, season: season as Season })} options={[
+        <FilterSelect label="Event" value={filters.eventId} onChange={(eventId) => onChange(selectDashboardEvent(filters, eventId, eventOptions))} options={[{ value: "all", label: "All Events" }, ...eventOptions]} />
+        <FilterSelect label="Season" value={filters.season} onChange={(season) => onChange({ ...filters, eventId: "all", season: season as Season })} options={[
           { value: "all", label: "All Seasons" }, { value: "spring", label: "Spring" },
           ...seasonOptions.filter((season) => !["all", "spring"].includes(season.toLowerCase())).map((season) => ({ value: season.toLowerCase(), label: season })),
         ]} />
-        <FilterSelect label="Year" value={String(filters.year)} onChange={(year) => onChange({ ...filters, year: Number(year) })} options={(yearOptions.length ? yearOptions : [currentYear]).map((year) => ({ value: String(year), label: String(year) }))} />
+        <FilterSelect label="Year" value={String(filters.year)} onChange={(year) => onChange({ ...filters, eventId: "all", year: Number(year) })} options={(yearOptions.length ? yearOptions : [currentYear]).map((year) => ({ value: String(year), label: String(year) }))} />
         <div className="flex items-center justify-between gap-4 sm:col-span-2 xl:col-span-1 xl:block">
           <Button variant="outline" className="h-9" onClick={onRefresh} disabled={refreshing}>
-            <RefreshCw className={refreshing ? "animate-spin" : ""} /> Refresh
+            <RefreshCw className={refreshing ? "animate-spin" : ""} /> {refreshing ? "Refreshing..." : "Refresh"}
           </Button>
           <p className="text-[11px] text-muted-foreground xl:mt-2 xl:text-right">Updated {lastUpdated}</p>
         </div>

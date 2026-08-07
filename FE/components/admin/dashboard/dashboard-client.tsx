@@ -53,6 +53,7 @@ export function DashboardClient() {
   });
   const data: AdminDashboardData | undefined = dashboardQuery.data;
   const filterOptions = filterOptionsQuery.data ?? { events: [], seasons: [], years: [] };
+  const selectedEvent = filterOptions.events.find((event) => event.value === filters.eventId);
   const loading = dashboardQuery.isPending;
   const refreshing = dashboardQuery.isFetching && !dashboardQuery.isPending;
   const failed = filterOptionsQuery.isError || dashboardQuery.isError;
@@ -74,14 +75,14 @@ export function DashboardClient() {
     <div className="space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-orange-400">System overview</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Organizer Dashboard</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Monitor events, participation, and submissions across SEAL.</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{selectedEvent?.label ?? "Organizer Dashboard"}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{selectedEvent ? `Event metrics for ${selectedEvent.season ?? "the selected season"} ${selectedEvent.year || filters.year}.` : "Monitor events, participation, and submissions across SEAL."}</p>
       </div>
       <DashboardFilters filters={filters} onChange={changeFilters} onRefresh={() => void dashboardQuery.refetch()} refreshing={refreshing} lastUpdated={lastUpdated} eventOptions={filterOptions.events} seasonOptions={filterOptions.seasons} yearOptions={filterOptions.years} />
       {failed ? <DashboardErrorState onRetry={() => { void filterOptionsQuery.refetch(); void dashboardQuery.refetch(); }} /> : (
         <>
           <section aria-label="Key performance indicators" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {loading || !data ? Array.from({ length: 5 }, (_, index) => <MetricCardSkeleton key={index} />) : data.overview.metrics.map((metric, index) => <MetricCard key={metric.id} metric={metric} wide={index >= 4} />)}
+            {loading || !data ? Array.from({ length: 4 }, (_, index) => <MetricCardSkeleton key={index} />) : data.overview.metrics.map((metric) => <MetricCard key={metric.id} metric={metric} />)}
           </section>
           {data && <>
             <section className="grid gap-6 xl:grid-cols-3"><div className="xl:col-span-2"><EventsByMonthChart data={data.eventsByMonth} /></div><EventStatusChart data={data.eventStatus} /></section>

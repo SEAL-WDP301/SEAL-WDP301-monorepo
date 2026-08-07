@@ -5,7 +5,7 @@ import { OrganizerDashboardQueryDto } from "./organizer-dashboard-query.dto";
 
 export class ParticipantsByEventQueryDto extends OmitType(
   OrganizerDashboardQueryDto,
-  ["from", "to", "eventId", "groupBy", "limit"] as const,
+  ["from", "to", "groupBy", "limit"] as const,
 ) {
   @IsOptional()
   @Type(() => Number)
