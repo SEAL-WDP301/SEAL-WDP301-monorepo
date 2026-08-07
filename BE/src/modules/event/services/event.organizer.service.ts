@@ -763,9 +763,6 @@ export class EventOrganizerService {
     });
   }
 
-  /** Unscope a track from a round (delete its RoundTrackProblem row). Does
-   * NOT delete the Track itself — the track stays in the event catalog and
-   * in any other round it's scoped to. */
   async removeTrackFromRound(eventId: number, roundId: number, trackId: number) {
     const round = await this.prisma.round.findFirst({
       where: { id: roundId, eventId },
@@ -790,7 +787,27 @@ export class EventOrganizerService {
       where: { roundId_trackId: { roundId, trackId } },
     });
 
-    return { success: true };
+    // Check if the track is still used in any other round or by any teams
+    let purgedTrack = false;
+    const remainingUsages = await this.prisma.roundTrackProblem.count({
+      where: { trackId },
+    });
+    const teamCount = await this.prisma.team.count({
+      where: { trackId },
+    });
+
+    if (remainingUsages === 0 && teamCount === 0) {
+      try {
+        await this.prisma.track.delete({
+          where: { id: trackId },
+        });
+        purgedTrack = true;
+      } catch (err) {
+        // Safe fallback if FK prevents deletion
+      }
+    }
+
+    return { success: true, purgedTrack };
   }
 
   async updateRoundDeadline(
