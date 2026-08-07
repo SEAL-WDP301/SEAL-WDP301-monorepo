@@ -44,7 +44,12 @@ export class E2eTesterService {
     }
 
     const scriptPath = path.resolve(process.cwd(), targetScript.file);
-    const tsNodeRegister = path.resolve(process.cwd(), 'node_modules/ts-node/register/transpile-only.js');
+    let tsNodeRegister: string;
+    try {
+      tsNodeRegister = require.resolve('ts-node/register/transpile-only');
+    } catch {
+      tsNodeRegister = path.resolve(process.cwd(), 'node_modules/ts-node/register/transpile-only.js');
+    }
 
     return new Promise((resolve) => {
       const env = { ...process.env };
