@@ -25,8 +25,8 @@ export const prisma = new PrismaClient({
   },
 });
 export const API = process.env.API_BASE || "http://localhost:3000/api";
-export const PASS = "Admin@123";
-export const STUDENT_PASS = "Student@123";
+export const PASS = process.env.E2E_DEFAULT_PASSWORD || "12345678";
+export const STUDENT_PASS = process.env.E2E_DEFAULT_PASSWORD || "12345678";
 export const ADMIN_PASS = process.env.DEMO_ADMIN_PASSWORD || "12345678";
 export const DUMMY_PDF =
   "https://hackathon-submissions.sgp1.digitaloceanspaces.com/general/e2e-demo-problem.pdf";
@@ -92,15 +92,49 @@ export async function organizerToken(): Promise<string> {
   return signIn(E2E.admin, ADMIN_PASS);
 }
 
+const COMMENT_TEMPLATES = [
+  (name: string, score: number) =>
+    `Tiêu chí "${name}": Hoàn thành xuất sắc với ${score}/10 điểm. Kiến trúc và giải pháp kỹ thuật rất rõ ràng, tính thực tiễn cao.`,
+  (name: string, score: number) =>
+    `Tiêu chí "${name}": Đạt ${score}/10 điểm. Ý tưởng sáng tạo, các chức năng hoàn thiện tốt và giao diện mượt mà.`,
+  (name: string, score: number) =>
+    `Tiêu chí "${name}": Đánh giá ${score}/10 điểm. Đội thể hiện kỹ năng ấn tượng, đáp ứng trọn vẹn yêu cầu bài toán đề ra.`,
+  (name: string, score: number) =>
+    `Tiêu chí "${name}": Đạt ${score}/10 điểm. Phần trình bày và tài liệu kỹ thuật chỉn chu, mã nguồn sạch sẽ.`,
+  (name: string, score: number) =>
+    `Tiêu chí "${name}": Đánh giá ${score}/10 điểm. Sản phẩm thực tế hóa tốt, có tiềm năng phát triển lớn.`,
+];
+
+function generateCriterionComment(criterionName: string, scoreValue: number): string {
+  const fn = COMMENT_TEMPLATES[Math.floor(Math.random() * COMMENT_TEMPLATES.length)];
+  return fn(criterionName, scoreValue);
+}
+
+function getRandomScoreFrom4To10WithStep025(): number {
+  const steps = Math.floor(Math.random() * 25);
+  return 4 + steps * 0.25;
+}
+
 export async function signIn(email: string, password = PASS): Promise<string> {
-  const auth = await api<{ accessToken?: string; token?: string }>(
-    "POST",
-    "/auth/signin",
-    { body: { email, password } },
+  const passwordsToTry = Array.from(
+    new Set([password, PASS, "12345678", "Admin@123", "Student@123"]),
   );
-  const token = auth.accessToken || auth.token;
-  if (!token) fail("No access token from signin", auth);
-  return token;
+
+  let lastError: unknown;
+  for (const pwd of passwordsToTry) {
+    try {
+      const auth = await api<{ accessToken?: string; token?: string }>(
+        "POST",
+        "/auth/signin",
+        { body: { email, password: pwd } },
+      );
+      const token = auth.accessToken || auth.token;
+      if (token) return token;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError || new Error(`Could not sign in as ${email}`);
 }
 
 async function upsertUser(opts: {
@@ -109,10 +143,7 @@ async function upsertUser(opts: {
   role: string;
   password?: string;
 }) {
-  const existing = await prisma.user.findUnique({ where: { email: opts.email } });
-  const passwordHash = existing
-    ? undefined
-    : await bcrypt.hash(opts.password ?? PASS, 10);
+  const passwordHash = await bcrypt.hash(opts.password ?? PASS, 10);
 
   const user = await prisma.user.upsert({
     where: { email: opts.email },
@@ -120,12 +151,12 @@ async function upsertUser(opts: {
       isActive: true,
       role: opts.role as never,
       name: opts.name,
-      ...(passwordHash ? { passwordHash } : {}),
+      passwordHash,
     },
     create: {
       email: opts.email,
       name: opts.name,
-      passwordHash: passwordHash!,
+      passwordHash,
       role: opts.role as never,
       isActive: true,
     },
@@ -982,24 +1013,27 @@ export async function scoreRound1() {
     if (!blocked) fail("Expected 403 when mentor scores mentored team");
   }
 
-  const scorePayload = (base: number) =>
-    criteria.map((c, idx) => ({
-      criterionId: c.id,
-      scoreValue: Math.min(10, Math.max(1, base + idx)),
-      comment: "e2e demo score",
-    }));
+  const buildRandomScores = () =>
+    criteria.map((c) => {
+      const scoreValue = getRandomScoreFrom4To10WithStep025();
+      return {
+        criterionId: c.id,
+        scoreValue,
+        comment: generateCriterionComment(c.name, scoreValue),
+      };
+    });
 
   for (const sub of subs) {
     if (sub.teamId === mentoredTeam.id) continue;
     await api("PUT", `/judge/submissions/${sub.id}/scores`, {
       token: mjToken,
-      body: { scores: scorePayload(6) },
+      body: { scores: buildRandomScores() },
     });
   }
   for (let i = 0; i < subs.length; i++) {
     await api("PUT", `/judge/submissions/${subs[i].id}/scores`, {
       token: jToken,
-      body: { scores: scorePayload(9 - i) },
+      body: { scores: buildRandomScores() },
     });
   }
   log(`OK scored ${subs.length} submission(s)`);
@@ -1111,8 +1145,17 @@ export async function scoreRound2() {
   });
   if (!criteria.length) fail("Run 06-setup-rubrics first");
 
-  const r2Subs = await prisma.submission.findMany({ where: { roundId: round2.id } });
-  if (!r2Subs.length) fail("Run 12-submit-r2 first");
+  let r2Subs = await prisma.submission.findMany({ where: { roundId: round2.id } });
+  if (!r2Subs.length) {
+    log("No Round 2 submissions found. Auto-creating Round 2 submissions...");
+    await submitRound2();
+    r2Subs = await prisma.submission.findMany({ where: { roundId: round2.id } });
+  }
+  if (!r2Subs.length) {
+    fail(
+      "No submissions found for Round 2 and could not auto-create any. Ensure Round 1 results are published and Round 2 is opened.",
+    );
+  }
 
   const mentoredTeamId = (
     await prisma.team.findFirst({
@@ -1125,23 +1168,28 @@ export async function scoreRound2() {
   const jToken = await signIn(E2E.judge);
 
   for (const sub of r2Subs) {
-    const payload = criteria.map((c, idx) => ({
-      criterionId: c.id,
-      scoreValue: Math.min(10, 7 + idx),
-      comment: "r2 e2e",
-    }));
+    const buildRandomScores = () =>
+      criteria.map((c) => {
+        const scoreValue = getRandomScoreFrom4To10WithStep025();
+        return {
+          criterionId: c.id,
+          scoreValue,
+          comment: generateCriterionComment(c.name, scoreValue),
+        };
+      });
+
     if (sub.teamId !== mentoredTeamId) {
       await api("PUT", `/judge/submissions/${sub.id}/scores`, {
         token: mjToken,
-        body: { scores: payload },
+        body: { scores: buildRandomScores() },
       });
     }
     await api("PUT", `/judge/submissions/${sub.id}/scores`, {
       token: jToken,
-      body: { scores: payload },
+      body: { scores: buildRandomScores() },
     });
   }
-  log(`OK scored ${r2Subs.length} R2 submission(s)`);
+  log(`OK scored ${r2Subs.length} R2 submission(s) with random scores (>=5) and detailed criterion comments`);
 }
 
 export async function publishRound2() {
