@@ -300,6 +300,41 @@ export function AiSuggestRubricsModal({
 
           {suggestion && (
             <section aria-labelledby="suggested-rubrics-heading">
+              <div className="mb-4 rounded-xl border border-border bg-muted/20 p-4">
+                <dl className="grid gap-3 text-sm sm:grid-cols-[auto_1fr] sm:gap-x-4 sm:gap-y-2">
+                  <dt className="font-medium text-muted-foreground">Event</dt>
+                  <dd className="font-medium text-foreground">
+                    {suggestion.basedOn.eventName}
+                  </dd>
+                  <dt className="font-medium text-muted-foreground">Round</dt>
+                  <dd className="font-medium text-foreground">
+                    {suggestion.basedOn.roundName}
+                  </dd>
+                  <dt className="font-medium text-muted-foreground">
+                    {suggestion.basedOn.tracks.length === 1 ? "Track" : "Tracks"}
+                  </dt>
+                  <dd className="flex flex-wrap gap-2">
+                    {suggestion.basedOn.tracks.length > 0 ? (
+                      suggestion.basedOn.tracks.map((track) => (
+                        <span
+                          key={track.name}
+                          className="rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-medium text-orange-700 dark:text-orange-300"
+                          title={track.description || undefined}
+                        >
+                          {track.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-foreground">
+                        {round.isTrackSpecific
+                          ? "No tracks assigned"
+                          : "All Tracks (Shared Round)"}
+                      </span>
+                    )}
+                  </dd>
+                </dl>
+              </div>
+
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2

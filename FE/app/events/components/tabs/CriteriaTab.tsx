@@ -102,7 +102,7 @@ export default function CriteriaTab() {
                 <h2 className="text-xl sm:text-2xl font-black text-foreground tracking-tight mb-5">Rules</h2>
                 <ul className="space-y-3.5 text-sm sm:text-base font-bold">
                     {[
-                        "Teams of 3–5 students. At least one FPTU student required.",
+                        "Teams of 2–5 students. At least one FPTU student required.",
                         "All code must be written during the 48-hour build window.",
                         "Use of open-source libraries and AI tooling is encouraged.",
                         "Submissions include source code, demo video, and live pitch.",

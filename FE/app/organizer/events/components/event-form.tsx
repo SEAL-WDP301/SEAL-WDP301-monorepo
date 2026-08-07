@@ -105,7 +105,10 @@ import {
   reorderRankedPrizes,
 } from "@/lib/events/prizes";
 import {
+  DEFAULT_EVENT_DURATION_DAYS,
+  addDaysToLocalDateTimeValue,
   createDefaultEventSchedule,
+  createDefaultRoundDeadlines,
   getEventSeason,
 } from "@/lib/events/event-defaults";
 
@@ -284,13 +287,13 @@ const createEventSchema = (isEdit: boolean) =>
       minMembersPerTeam: z.coerce
         .number()
         .int("Minimum members must be an integer")
-        .min(1, "Minimum members must be at least 1")
-        .max(20, "Minimum members cannot exceed 20"),
+        .min(2, "Minimum members must be at least 2")
+        .max(5, "Minimum members cannot exceed 5"),
       maxMembersPerTeam: z.coerce
         .number()
         .int("Maximum members must be an integer")
-        .min(1, "Maximum members must be at least 1")
-        .max(20, "Maximum members cannot exceed 20"),
+        .min(2, "Maximum members must be at least 2")
+        .max(5, "Maximum members cannot exceed 5"),
       status: z.enum(["draft", "active", "ongoing", "closed"]).optional(),
       registrationDeadline: z.string().optional(),
       startDate: z.string().optional(),
@@ -409,11 +412,20 @@ const createEventSchema = (isEdit: boolean) =>
         .default([
           {
             roundNumber: 1,
-            name: "",
-            submissionType: "file",
+            name: "Qualification Round",
+            submissionType: "github_link",
             submissionDeadline: "",
             maxFileSizeMb: 20,
-            isTrackSpecific: false,
+            isTrackSpecific: true,
+            advanceCount: 2,
+          },
+          {
+            roundNumber: 2,
+            name: "Final Round",
+            submissionType: "github_link",
+            submissionDeadline: "",
+            maxFileSizeMb: 20,
+            isTrackSpecific: true,
           },
         ]),
       location: z
@@ -435,7 +447,7 @@ const createEventSchema = (isEdit: boolean) =>
           note: z.string().optional(),
         })
         .default(defaultLocation),
-      createGoogleMeet: z.boolean().default(false),
+      createGoogleMeet: z.boolean().default(true),
       calendarMeetingStart: z.string().optional(),
       calendarMeetingEnd: z.string().optional(),
       calendarAttendeeEmails: z.string().optional(),
@@ -657,6 +669,17 @@ const createEventSchema = (isEdit: boolean) =>
         }
         const meetingStart = data.calendarMeetingStart || data.startDate;
         const meetingEnd = data.calendarMeetingEnd || data.endDate;
+        if (
+          meetingStart &&
+          data.startDate &&
+          new Date(meetingStart) < new Date(data.startDate)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Meeting start time must not be before event start time",
+            path: ["calendarMeetingStart"],
+          });
+        }
         if (
           meetingStart &&
           meetingEnd &&
@@ -1056,7 +1079,7 @@ export default function EventForm({ initialData }: EventFormProps) {
     deferredTrackAssignment: isEdit
       ? (initialData?.deferredTrackAssignment ?? false)
       : true,
-    minMembersPerTeam: initialData?.minMembersPerTeam ?? 3,
+    minMembersPerTeam: initialData?.minMembersPerTeam ?? 2,
     maxMembersPerTeam: initialData?.maxMembersPerTeam ?? 5,
     status: initialData?.status || "draft",
     registrationDeadline: initialData?.registrationDeadline
@@ -1143,9 +1166,18 @@ export default function EventForm({ initialData }: EventFormProps) {
       : [
           {
             roundNumber: 1,
-            name: "Prototype & GitHub Submission",
+            name: "Qualification Round",
             submissionType: "github_link",
-            submissionDeadline: createPreset.roundDeadline,
+            submissionDeadline: createPreset.firstRoundDeadline,
+            maxFileSizeMb: 20,
+            isTrackSpecific: true,
+            advanceCount: 2,
+          },
+          {
+            roundNumber: 2,
+            name: "Final Round",
+            submissionType: "github_link",
+            submissionDeadline: createPreset.finalRoundDeadline,
             maxFileSizeMb: 20,
             isTrackSpecific: true,
           },
@@ -1155,22 +1187,27 @@ export default function EventForm({ initialData }: EventFormProps) {
       ...initialLocation,
       mapUrl: getEventMapUrl(initialLocation) || defaultLocation.mapUrl,
     },
-    createGoogleMeet:
-      initialLocation.createGoogleMeetOnOngoing || hasExistingCalendarMeeting,
+    createGoogleMeet: isEdit
+      ? initialLocation.createGoogleMeetOnOngoing || hasExistingCalendarMeeting
+      : true,
     calendarMeetingStart: initialData?.calendarMeeting?.startDate
       ? toDateTimeLocalValue(initialData.calendarMeeting.startDate)
       : initialLocation.meetingStartDate
         ? toDateTimeLocalValue(initialLocation.meetingStartDate)
         : hasExistingCalendarMeeting && initialData?.startDate
           ? toDateTimeLocalValue(initialData.startDate)
-          : "",
+          : isEdit
+            ? ""
+            : createPreset.startDate,
     calendarMeetingEnd: initialData?.calendarMeeting?.endDate
       ? toDateTimeLocalValue(initialData.calendarMeeting.endDate)
       : initialLocation.meetingEndDate
         ? toDateTimeLocalValue(initialLocation.meetingEndDate)
         : hasExistingCalendarMeeting && initialData?.endDate
           ? toDateTimeLocalValue(initialData.endDate)
-          : "",
+          : isEdit
+            ? ""
+            : createPreset.endDate,
     calendarAttendeeEmails: "",
     sendCalendarInvitations: true,
     notifyParticipants: true,
@@ -1215,9 +1252,17 @@ export default function EventForm({ initialData }: EventFormProps) {
     control: form.control,
     name: "createGoogleMeet",
   });
+  const watchedEventStartDate = useWatch({
+    control: form.control,
+    name: "startDate",
+  });
   const watchedEventEndDate = useWatch({
     control: form.control,
     name: "endDate",
+  });
+  const watchedMeetingStart = useWatch({
+    control: form.control,
+    name: "calendarMeetingStart",
   });
   const watchedPrizes = useWatch({
     control: form.control,
@@ -1337,6 +1382,56 @@ export default function EventForm({ initialData }: EventFormProps) {
     control: form.control,
     name: "rounds",
   });
+
+  const syncDefaultRoundDeadlines = (startDate: string, endDate: string) => {
+    if (isEdit || !startDate || !endDate) return;
+    const deadlines = createDefaultRoundDeadlines(startDate, endDate);
+
+    if (!form.getFieldState("rounds.0.submissionDeadline").isDirty) {
+      form.setValue(
+        "rounds.0.submissionDeadline",
+        deadlines.firstRoundDeadline,
+        { shouldValidate: true },
+      );
+    }
+    if (!form.getFieldState("rounds.1.submissionDeadline").isDirty) {
+      form.setValue(
+        "rounds.1.submissionDeadline",
+        deadlines.finalRoundDeadline,
+        { shouldValidate: true },
+      );
+    }
+  };
+
+  const handleEventStartDateChange = (startDate: string) => {
+    if (isEdit || !startDate) return;
+
+    let endDate = form.getValues("endDate") || "";
+    if (!form.getFieldState("endDate").isDirty) {
+      endDate = addDaysToLocalDateTimeValue(
+        startDate,
+        DEFAULT_EVENT_DURATION_DAYS,
+      );
+      form.setValue("endDate", endDate, { shouldValidate: true });
+    }
+    if (!form.getFieldState("calendarMeetingStart").isDirty) {
+      form.setValue("calendarMeetingStart", startDate, {
+        shouldValidate: true,
+      });
+    }
+    if (endDate && !form.getFieldState("calendarMeetingEnd").isDirty) {
+      form.setValue("calendarMeetingEnd", endDate, { shouldValidate: true });
+    }
+    syncDefaultRoundDeadlines(startDate, endDate);
+  };
+
+  const handleEventEndDateChange = (endDate: string) => {
+    if (isEdit || !endDate) return;
+    if (!form.getFieldState("calendarMeetingEnd").isDirty) {
+      form.setValue("calendarMeetingEnd", endDate, { shouldValidate: true });
+    }
+    syncDefaultRoundDeadlines(form.getValues("startDate") || "", endDate);
+  };
 
   const {
     fields: contactFields,
@@ -2033,8 +2128,8 @@ export default function EventForm({ initialData }: EventFormProps) {
                         <FormControl>
                           <Input
                             type="number"
-                            min={1}
-                            max={20}
+                            min={2}
+                            max={5}
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
                           />
@@ -2056,8 +2151,8 @@ export default function EventForm({ initialData }: EventFormProps) {
                         <FormControl>
                           <Input
                             type="number"
-                            min={1}
-                            max={20}
+                            min={2}
+                            max={5}
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
                           />
@@ -2102,6 +2197,10 @@ export default function EventForm({ initialData }: EventFormProps) {
                             type="datetime-local"
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
+                            onChange={(event) => {
+                              field.onChange(event);
+                              handleEventStartDateChange(event.target.value);
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
@@ -2124,6 +2223,10 @@ export default function EventForm({ initialData }: EventFormProps) {
                             type="datetime-local"
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
+                            onChange={(event) => {
+                              field.onChange(event);
+                              handleEventEndDateChange(event.target.value);
+                            }}
                           />
                         </FormControl>
                         <FormMessage />
@@ -2928,7 +3031,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                 render={({ field }) => (
                                   <FormItem>
                                     <FormLabel className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                                      Top N advance *
+                                      Top per Track *
                                     </FormLabel>
                                     <FormControl>
                                       <Input
@@ -2947,7 +3050,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                       />
                                     </FormControl>
                                     <FormDescription className="text-xs">
-                                      Optional — applied per track when track-specific mode is enabled.
+                                      Number of teams advancing from each track.
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>
@@ -3181,10 +3284,11 @@ export default function EventForm({ initialData }: EventFormProps) {
                                     name="calendarMeetingStart"
                                     render={({ field }) => (
                                       <FormItem>
-                                        <FormLabel>Meeting start</FormLabel>
+                                        <FormLabel>Meeting Starts At</FormLabel>
                                         <FormControl>
                                           <Input
                                             type="datetime-local"
+                                            min={watchedEventStartDate || undefined}
                                             max={watchedEventEndDate || undefined}
                                             {...field}
                                             value={field.value ?? ""}
@@ -3199,10 +3303,15 @@ export default function EventForm({ initialData }: EventFormProps) {
                                     name="calendarMeetingEnd"
                                     render={({ field }) => (
                                       <FormItem>
-                                        <FormLabel>Meeting end</FormLabel>
+                                        <FormLabel>Meeting Ends At</FormLabel>
                                         <FormControl>
                                           <Input
                                             type="datetime-local"
+                                            min={
+                                              watchedMeetingStart ||
+                                              watchedEventStartDate ||
+                                              undefined
+                                            }
                                             max={watchedEventEndDate || undefined}
                                             {...field}
                                             value={field.value ?? ""}
@@ -3214,8 +3323,8 @@ export default function EventForm({ initialData }: EventFormProps) {
                                   />
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                  Leave meeting times empty to use the event
-                                  start and end times.
+                                  Meeting times default to the event start and
+                                  end times and must stay within the event.
                                 </p>
                                 <FormField
                                   control={control}

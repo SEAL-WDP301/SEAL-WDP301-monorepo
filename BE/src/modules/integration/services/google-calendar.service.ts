@@ -166,6 +166,11 @@ export class GoogleCalendarService {
         "Meeting end time must be after meeting start time",
       );
     }
+    if (meetingStartDate < event.startDate) {
+      throw new BadRequestException(
+        "Meeting start time must not be before the event start time",
+      );
+    }
     if (meetingEndDate > event.endDate) {
       throw new BadRequestException(
         "Meeting end time must not be after the event end time",

@@ -41,6 +41,12 @@ export class EventOrganizerService {
     minMembersPerTeam: number,
     maxMembersPerTeam: number,
   ) {
+    if (minMembersPerTeam < 2 || maxMembersPerTeam > 5) {
+      throw new BadRequestException({
+        errorCode: "INVALID_TEAM_MEMBER_LIMITS",
+        message: "Team size must be between 2 and 5 members",
+      });
+    }
     if (minMembersPerTeam > maxMembersPerTeam) {
       throw new BadRequestException({
         errorCode: "INVALID_TEAM_MEMBER_LIMITS",
@@ -93,8 +99,9 @@ export class EventOrganizerService {
     }
 
     const rankedPrizes = Array.from(primaryPrizes.entries())
-      .sort(([firstPlacement], [secondPlacement]) =>
-        firstPlacement - secondPlacement,
+      .sort(
+        ([firstPlacement], [secondPlacement]) =>
+          firstPlacement - secondPlacement,
       )
       .map(([, prize]) => prize);
     const currencies = new Set(
@@ -725,7 +732,9 @@ export class EventOrganizerService {
     trackId: number,
     dto: { name: string; description?: string },
   ) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
     if (!event) throw new NotFoundException("Event not found");
     if (event.status === EventStatus.closed) {
       throw new BadRequestException("Closed events cannot be edited.");
@@ -763,7 +772,11 @@ export class EventOrganizerService {
     });
   }
 
-  async removeTrackFromRound(eventId: number, roundId: number, trackId: number) {
+  async removeTrackFromRound(
+    eventId: number,
+    roundId: number,
+    trackId: number,
+  ) {
     const round = await this.prisma.round.findFirst({
       where: { id: roundId, eventId },
     });
@@ -802,7 +815,7 @@ export class EventOrganizerService {
           where: { id: trackId },
         });
         purgedTrack = true;
-      } catch (err) {
+      } catch {
         // Safe fallback if FK prevents deletion
       }
     }
@@ -995,7 +1008,9 @@ export class EventOrganizerService {
       }
     }
 
-    await this.trackAssignmentService.assertCeremonyTeamLotteryNotYetRun(eventId);
+    await this.trackAssignmentService.assertCeremonyTeamLotteryNotYetRun(
+      eventId,
+    );
 
     return this.trackAssignmentService.assignDeferredTracks(eventId, {
       roundId,

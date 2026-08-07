@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_EVENT_DURATION_DAYS,
+  addDaysToLocalDateTimeValue,
   createDefaultEventSchedule,
+  createDefaultRoundDeadlines,
   getEventSeason,
 } from "./event-defaults";
 
@@ -15,12 +18,33 @@ describe("createDefaultEventSchedule", () => {
     expect(new Date(schedule.startDate).getTime()).toBeGreaterThanOrEqual(
       new Date(schedule.registrationDeadline).getTime(),
     );
-    expect(new Date(schedule.roundDeadline).getTime()).toBeGreaterThanOrEqual(
+    expect(
+      new Date(schedule.firstRoundDeadline).getTime(),
+    ).toBeGreaterThanOrEqual(
       new Date(schedule.startDate).getTime(),
     );
     expect(new Date(schedule.endDate).getTime()).toBeGreaterThanOrEqual(
-      new Date(schedule.roundDeadline).getTime(),
+      new Date(schedule.finalRoundDeadline).getTime(),
     );
+    expect(new Date(schedule.finalRoundDeadline).getTime()).toBeGreaterThan(
+      new Date(schedule.firstRoundDeadline).getTime(),
+    );
+    expect(schedule.endDate).toBe(
+      addDaysToLocalDateTimeValue(
+        schedule.startDate,
+        DEFAULT_EVENT_DURATION_DAYS,
+      ),
+    );
+  });
+
+  it("places two round deadlines inside a four-day event", () => {
+    const startDate = "2026-08-10T08:00";
+    const endDate = "2026-08-14T08:00";
+
+    expect(createDefaultRoundDeadlines(startDate, endDate)).toEqual({
+      firstRoundDeadline: "2026-08-12T08:00",
+      finalRoundDeadline: "2026-08-14T07:00",
+    });
   });
 });
 

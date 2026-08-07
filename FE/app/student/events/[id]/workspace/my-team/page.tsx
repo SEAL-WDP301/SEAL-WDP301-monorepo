@@ -199,8 +199,8 @@ export default function TeamMembersPage() {
     return nameMatch && roleMatch;
   });
 
-  const minMembers = event?.minMembersPerTeam ?? 1;
-  const maxMembers = event?.maxMembersPerTeam ?? 4;
+  const minMembers = event?.minMembersPerTeam ?? 2;
+  const maxMembers = event?.maxMembersPerTeam ?? 5;
   const totalOccupied = activeMembers.length + pendingInvitations.length;
   const isTeamFull = totalOccupied >= maxMembers;
   const isRegistrationClosed = registrationDeadline && registrationDeadline < new Date();

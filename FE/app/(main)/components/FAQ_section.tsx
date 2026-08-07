@@ -5,11 +5,11 @@ export default function FAQSection() {
     const faqs = [
         {
             question: 'How to participate in SEAL?',
-            answer: 'Register individually through our platform, then form a team of 3-5 members before the deadline. You can team up with FPT students or create mixed teams with partner universities.'
+            answer: 'Register individually through our platform, then form a team of 2-5 members before the deadline. You can team up with FPT students or create mixed teams with partner universities.'
         },
         {
             question: 'What are the team requirements?',
-            answer: 'Teams must have 3-5 members. Teams can be: (1) All FPT University students, (2) Mixed teams between FPT and external students, or (3) Teams from partner universities.'
+            answer: 'Teams must have 2-5 members. Teams can be: (1) All FPT University students, (2) Mixed teams between FPT and external students, or (3) Teams from partner universities.'
         },
         {
             question: 'Can external students join?',

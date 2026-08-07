@@ -1656,8 +1656,8 @@ export default function EventDetailPage() {
                       <div className="mt-auto flex items-center justify-between rounded-lg border border-border/50 bg-muted/50 p-3 text-sm font-medium">
                         <span className="text-muted-foreground">Team Size:</span>
                         <span className="text-foreground">
-                          {event.minMembersPerTeam ?? 1}–
-                          {event.maxMembersPerTeam ?? 4} members
+                          {event.minMembersPerTeam ?? 2}–
+                          {event.maxMembersPerTeam ?? 5} members
                         </span>
                       </div>
                     </div>

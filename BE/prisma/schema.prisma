@@ -190,8 +190,8 @@ model Event {
   year                 Int
   status               EventStatus @default(draft)
   maxTeams             Int?        @map("max_teams")
-  minMembersPerTeam    Int         @default(1) @map("min_members_per_team")
-  maxMembersPerTeam    Int         @default(4) @map("max_members_per_team")
+  minMembersPerTeam    Int         @default(2) @map("min_members_per_team")
+  maxMembersPerTeam    Int         @default(5) @map("max_members_per_team")
   /// When true: students register without choosing a track; tracks are
   /// evenly random-assigned when the first round is opened (reveal).
   deferredTrackAssignment Boolean  @default(false) @map("deferred_track_assignment")

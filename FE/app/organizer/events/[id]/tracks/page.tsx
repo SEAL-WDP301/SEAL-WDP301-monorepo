@@ -1855,9 +1855,7 @@ function RoundDialog({
               </p>
             </div>
           ) : (
-            <Field
-              label={`Top N advance ${isTrackSpecific ? "(per track)" : "(whole round)"} *`}
-            >
+            <Field label="Top per Track *">
               <Input
                 type="number"
                 min={1}
@@ -1872,7 +1870,7 @@ function RoundDialog({
                 }
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                Depends on the competition — e.g. top 2/track, top 3, top 4…
+                Number of teams advancing from each track.
               </p>
             </Field>
           )}

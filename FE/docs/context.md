@@ -50,7 +50,7 @@ The current event management process has several limitations:
 
 ### 4.4. Team Management
 
-- Create teams of three to five members.
+- Create teams of two to five members.
 - Register each team for a specific track.
 
 ### 4.5. Authentication and User Management
