@@ -44,7 +44,7 @@ export function StudentTrackDrawCard({
       setTimeout(() => {
         setSpinning(false);
         setResultTrack(data.trackName);
-        enqueueSnackbar(`Đội bạn thuộc bảng: ${data.trackName}`, {
+        enqueueSnackbar(`Your team was assigned to: ${data.trackName}`, {
           variant: "success",
         });
         queryClient.invalidateQueries({ queryKey: ["workspace", eventId] });
@@ -53,7 +53,7 @@ export function StudentTrackDrawCard({
     },
     onError: (error) => {
       setSpinning(false);
-      enqueueSnackbar(getApiMessage(error, "Bốc thăm thất bại"), {
+      enqueueSnackbar(getApiMessage(error, "Track draw failed"), {
         variant: "error",
       });
     },
@@ -62,10 +62,10 @@ export function StudentTrackDrawCard({
   if (resultTrack) {
     return (
       <GlassCard className="rounded-[24px] border-emerald-500/40 bg-emerald-500/10 p-6">
-        <p className="text-sm text-muted-foreground">Bảng của đội bạn</p>
+        <p className="text-sm text-muted-foreground">Your team&apos;s track</p>
         <p className="mt-1 text-2xl font-bold text-emerald-600">{resultTrack}</p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Track giữ nguyên suốt cuộc thi.
+          This track remains unchanged throughout the competition.
         </p>
       </GlassCard>
     );
@@ -74,9 +74,9 @@ export function StudentTrackDrawCard({
   if (!studentTrackDrawOpen) {
     return (
       <GlassCard className="rounded-[24px] border-amber-500/30 bg-amber-500/5 p-6">
-        <p className="font-semibold text-foreground">Chờ bốc thăm track</p>
+        <p className="font-semibold text-foreground">Waiting for the track draw</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          BTC sẽ mở Phase 2 — sau đó leader bấm Sắp xếp tại đây.
+          The organizer will open Phase 2, then the team leader can draw a track here.
         </p>
       </GlassCard>
     );
@@ -85,10 +85,10 @@ export function StudentTrackDrawCard({
   if (!isLeader) {
     return (
       <GlassCard className="rounded-[24px] border-border bg-muted/20 p-6">
-        <p className="font-semibold text-foreground">Bốc thăm track</p>
+        <p className="font-semibold text-foreground">Track draw</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Chỉ <strong>team leader</strong> được bấm Sắp xếp. Hãy nhờ leader
-          bốc thăm trên thiết bị này.
+          Only the <strong>team leader</strong> can draw a track. Ask the leader
+          to complete the draw on this device.
         </p>
       </GlassCard>
     );
@@ -96,9 +96,9 @@ export function StudentTrackDrawCard({
 
   return (
     <GlassCard className="rounded-[24px] border-orange-500/40 bg-orange-500/5 p-6">
-      <p className="font-semibold text-foreground">Bốc thăm bảng (Phase 2)</p>
+      <p className="font-semibold text-foreground">Draw a track (Phase 2)</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Đại diện đội bấm Sắp xếp — hệ thống random vào một bảng còn slot.
+        The team leader starts the draw, and the system randomly assigns an available track.
       </p>
       <Button
         type="button"
@@ -112,7 +112,7 @@ export function StudentTrackDrawCard({
         ) : (
           <Shuffle className="h-5 w-5" />
         )}
-        Sắp xếp
+        Draw track
       </Button>
       {spinning ? (
         <motion.p
@@ -120,7 +120,7 @@ export function StudentTrackDrawCard({
           animate={{ opacity: 1 }}
           className="mt-3 text-xs text-orange-600"
         >
-          Đang xếp vào bảng...
+          Assigning a track...
         </motion.p>
       ) : null}
     </GlassCard>

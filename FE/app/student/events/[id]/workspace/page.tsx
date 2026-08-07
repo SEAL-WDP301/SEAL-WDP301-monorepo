@@ -243,7 +243,7 @@ export default function WorkspaceOverviewPage() {
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {visibleTrackName ? (
               <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600">
-                Bảng: {visibleTrackName}
+                Track: {visibleTrackName}
               </Badge>
             ) : null}
             {displayRound ? (

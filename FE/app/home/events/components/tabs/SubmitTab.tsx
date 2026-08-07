@@ -46,7 +46,7 @@ export default function SubmitTab() {
 
     return (
         <div className="space-y-8 animate-fadeIn font-sans">
-            {/* Khối Header của phần Submit */}
+            {/* Submission header */}
             <section className="bg-[#1A1512] border border-white/[0.04] rounded-[32px] p-8 sm:p-10 relative overflow-hidden shadow-xl">
                 <div className="absolute -inset-x-20 -top-20 h-44 bg-[#FF6B2C]/10 blur-[100px] pointer-events-none" />
                 <div className="relative">
@@ -60,19 +60,19 @@ export default function SubmitTab() {
                 </div>
             </section>
 
-            {/* Danh sách các trường dữ liệu cần chuẩn bị nộp */}
+            {/* Required submission data */}
             <div className="space-y-4">
                 {requirements.map((req) => (
                     <div
                         key={req.step}
                         className="bg-[#1A1512] border border-white/8 rounded-2xl p-6 flex flex-col md:flex-row md:items-start gap-6 hover:border-[#FF6B2C]/30 transition-all duration-200"
                     >
-                        {/* Vòng tròn số thứ tự bước */}
+                        {/* Step number */}
                         <div className="h-12 w-12 rounded-full bg-[#E25A20]/10 border-2 border-[#E25A20] font-black text-base text-[#FF6B2C] flex items-center justify-center shrink-0 shadow-md">
                             {req.step}
                         </div>
 
-                        {/* Chi tiết yêu cầu */}
+                        {/* Requirement details */}
                         <div className="flex-1 space-y-2">
                             <div className="flex flex-wrap items-center gap-3">
                                 <h4 className="font-black text-xl text-foreground tracking-wide">{req.label}</h4>

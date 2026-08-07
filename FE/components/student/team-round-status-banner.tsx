@@ -46,8 +46,7 @@ function getAwardTier(awardName: string = "") {
     lower.includes("1st") ||
     lower.includes("champion") ||
     lower.includes("grand") ||
-    lower.includes("gold") ||
-    lower.includes("nhất")
+    lower.includes("gold")
   ) {
     return {
       badgeText: "🥇 1ST PLACE WINNER",
@@ -64,8 +63,7 @@ function getAwardTier(awardName: string = "") {
     lower.includes("second") ||
     lower.includes("2nd") ||
     lower.includes("runner") ||
-    lower.includes("silver") ||
-    lower.includes("nhì")
+    lower.includes("silver")
   ) {
     return {
       badgeText: "🥈 2ND PLACE WINNER",
@@ -81,8 +79,7 @@ function getAwardTier(awardName: string = "") {
   if (
     lower.includes("third") ||
     lower.includes("3rd") ||
-    lower.includes("bronze") ||
-    lower.includes("ba")
+    lower.includes("bronze")
   ) {
     return {
       badgeText: "🥉 3RD PLACE WINNER",

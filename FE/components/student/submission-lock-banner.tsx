@@ -12,8 +12,8 @@ type Props = {
 export function SubmissionLockBanner({
   lockReason,
   teamStatus,
-  fallbackTitle = "Không thể nộp bài",
-  fallbackMessage = "Organizer phải duyệt đội trước khi bạn có thể nộp bài.",
+  fallbackTitle = "Submission unavailable",
+  fallbackMessage = "The organizer must approve your team before you can submit.",
 }: Props) {
   const showFallback = !lockReason && teamStatus !== "approved";
 
@@ -24,7 +24,7 @@ export function SubmissionLockBanner({
       <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
       <div>
         <h4 className="font-semibold text-sm">
-          {lockReason ? "Chưa thể nộp bài" : fallbackTitle}
+          {lockReason ? "Submission not available yet" : fallbackTitle}
         </h4>
         <p className="text-sm mt-1 opacity-90">
           {lockReason ?? fallbackMessage}

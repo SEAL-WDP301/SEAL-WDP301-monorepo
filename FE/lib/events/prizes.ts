@@ -33,7 +33,7 @@ function withPrizePlacement<T extends RankedPrizeAmount>(
 }
 
 export function formatPrizeAmount(amount = 0, currency = "VND") {
-  return new Intl.NumberFormat(currency === "VND" ? "vi-VN" : "en-US", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     maximumFractionDigits: 0,

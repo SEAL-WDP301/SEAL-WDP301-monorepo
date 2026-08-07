@@ -18,11 +18,11 @@ export function getVisibleStudentTrackName(opts: {
 
 export function getTrackPendingMessage(deferred?: boolean): string {
   if (deferred) {
-    return "Track và đề thi sẽ được BTC bốc thăm / công bố một lần trước khi thi. Sau khi gán, track giữ nguyên suốt cuộc thi.";
+    return "The organizer will draw or announce the track and problem statement once before the competition. The assigned track remains unchanged throughout the event.";
   }
-  return "Đề thi chưa sẵn sàng. Vui lòng chờ organizer cập nhật.";
+  return "The problem statement is not ready. Please wait for the organizer to update it.";
 }
 
 export function getTrackPendingTitle(deferred?: boolean): string {
-  return deferred ? "Chưa có track / đề thi" : "Chưa có đề / track";
+  return deferred ? "No track or problem statement assigned" : "No problem statement or track available";
 }

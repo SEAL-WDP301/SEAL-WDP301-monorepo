@@ -112,11 +112,11 @@ import {
 const defaultLocation = {
   venueName: "FPT University Ho Chi Minh City",
   room: "Innovation Hall",
-  address: "Lô E2a-7, Đường D1, Khu Công nghệ cao, TP. Thủ Đức, TP.HCM",
+  address: "Lot E2a-7, D1 Street, Saigon Hi-Tech Park, Thu Duc City, Ho Chi Minh City",
   meetingPlatform: "Google Meet",
   meetingUrl: "https://meet.google.com/",
   mapUrl: buildGoogleMapsSearchUrl(
-    "FPT University Ho Chi Minh City, Lô E2a-7, Đường D1, Khu Công nghệ cao, TP. Thủ Đức, TP.HCM",
+    "FPT University Ho Chi Minh City, Lot E2a-7, D1 Street, Saigon Hi-Tech Park, Thu Duc City, Ho Chi Minh City",
   ),
   note: "Teams will receive detailed room allocation before the event day.",
 };
@@ -2595,7 +2595,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                 );
                                 const rounds = form.getValues("rounds");
                                 rounds.forEach((_, index) => {
-                                  // Flow B needs per-track đề when round opens.
+                                  // Flow B needs a problem statement per track when the round opens.
                                   form.setValue(
                                     `rounds.${index}.isTrackSpecific`,
                                     true,
@@ -2626,7 +2626,7 @@ export default function EventForm({ initialData }: EventFormProps) {
 
                 {!useTracks ? (
                   <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-                    Thêm bảng sau khi tạo event tại{" "}
+                    Add tracks after creating the event in{" "}
                     <strong className="text-foreground">
                       Tracks &amp; Rounds
                     </strong>
@@ -2746,7 +2746,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                           submissionType: "file",
                           submissionDeadline: "",
                           maxFileSizeMb: 20,
-                          // Flow B (!useTracks) always needs per-track đề.
+                          // Flow B (!useTracks) always needs a problem statement per track.
                           isTrackSpecific: true,
                         })
                       }
@@ -2947,7 +2947,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                                       />
                                     </FormControl>
                                     <FormDescription className="text-xs">
-                                      Tùy cuộc thi — per track nếu bật track-specific.
+                                      Optional — applied per track when track-specific mode is enabled.
                                     </FormDescription>
                                     <FormMessage />
                                   </FormItem>
@@ -2973,10 +2973,10 @@ export default function EventForm({ initialData }: EventFormProps) {
                                   </FormControl>
                                   <div className="space-y-1 leading-none">
                                     <FormLabel className="text-sm font-medium text-foreground">
-                                      Thi theo track (vòng này)
+                                      Track-specific round
                                     </FormLabel>
                                     <p className="text-xs text-muted-foreground">
-                                      Bật: mỗi track một đề. Tắt: một đề chung cả vòng.
+                                      Enabled: one problem per track. Disabled: one shared problem for the round.
                                     </p>
                                   </div>
                                 </FormItem>
@@ -2986,8 +2986,8 @@ export default function EventForm({ initialData }: EventFormProps) {
                         ) : (
                         <div className="md:col-span-12 mt-2 pt-4 border-t border-border/50">
                           <p className="text-xs text-muted-foreground">
-                            Luồng B: mọi vòng thi theo track — đội giữ nguyên bảng
-                            từ V1 tới chung kết; mỗi vòng có đề và tiêu chí chấm riêng.
+                            Flow B: every round is track-specific. Teams keep the same track
+                            from Round 1 through the final, with separate problems and criteria for each round.
                           </p>
                         </div>
                         )}

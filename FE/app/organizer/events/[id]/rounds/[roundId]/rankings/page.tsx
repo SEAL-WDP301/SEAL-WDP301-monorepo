@@ -190,16 +190,16 @@ function getAwardPresentation(award?: OrganizerPrize | null, allPrizes?: Organiz
 
   // Backward-compatible fallback for prize records created before placement existed.
   const name = (award.name || "").toLowerCase();
-  if (name.includes("champion") || name.includes("first") || name.includes("gold") || name.includes("nhất")) {
+  if (name.includes("champion") || name.includes("first") || name.includes("gold")) {
     return AWARD_PRESENTATION_STYLES[0]; // Gold Crown 👑
   }
-  if (name.includes("second") || name.includes("runner") || name.includes("silver") || name.includes("nhì")) {
+  if (name.includes("second") || name.includes("runner") || name.includes("silver")) {
     return AWARD_PRESENTATION_STYLES[1]; // Silver Medal 🥈
   }
   if (name.includes("third") || name.includes("bronze") || name.includes("ba")) {
     return AWARD_PRESENTATION_STYLES[2]; // Bronze Ribbon 🥉
   }
-  if (name.includes("honorable") || name.includes("mention") || name.includes("khuyến khích")) {
+  if (name.includes("honorable") || name.includes("mention")) {
     return AWARD_PRESENTATION_STYLES[3]; // Sky Blue Sparkles ✨
   }
 

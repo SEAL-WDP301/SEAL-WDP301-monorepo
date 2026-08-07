@@ -268,7 +268,7 @@ function CommitsTimelineChart({
   return (
     <div className="overflow-x-auto">
       <div className="flex gap-3 text-xs mb-2 text-muted-foreground">
-        <span className="text-orange-600 font-medium">● Commits / ngày</span>
+        <span className="text-orange-600 font-medium">● Commits per day</span>
         <span>peak {max}</span>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} className="min-w-full h-48">
@@ -611,7 +611,7 @@ export function TeamGithubAnalyticsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 pr-8">
             <FaGithub className="h-5 w-5 text-orange-500" />
-            Chi tiết repo · {data?.teamName || teamName || `Team #${teamId}`}
+            Repository details · {data?.teamName || teamName || `Team #${teamId}`}
           </DialogTitle>
         </DialogHeader>
 
@@ -678,7 +678,7 @@ export function TeamGithubAnalyticsDialog({
               </div>
             </div>
             <p className="text-xs text-muted-foreground -mt-3">
-              Sync only calls GitHub API for this team — doesn't sync whole event to avoid quota limit.
+              Sync only calls GitHub API for this team — doesn&apos;t sync the whole event to avoid the quota limit.
             </p>
 
             <GithubSummaryBar

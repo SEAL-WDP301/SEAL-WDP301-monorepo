@@ -1,99 +1,116 @@
 # SEAL – Software Engineering Hackathon Management System
 
-## 1. Project Overview (Tổng quan dự án)
-**Tên tiếng Việt:** Hệ thống quản lý cuộc thi SEAL Hackathon ngành Kỹ thuật Phần mềm.
-**Tên tiếng Anh:** SEAL – Software Engineering Hackathon Management System
+## 1. Project Overview
 
-"Software Engineering Agile League (SEAL)" là cuộc thi hackathon học thuật thường niên do Khoa Kỹ thuật Phần mềm phối hợp với PDP tổ chức tại Trường Đại học FPT TP.HCM. Mỗi năm, SEAL tổ chức ba sự kiện hackathon tương ứng với ba học kỳ (Spring, Summer, Fall).
-Mỗi sự kiện hackathon có thể bao gồm nhiều vòng thi (ví dụ: Vòng sơ khảo và Vòng chung kết).
+**English name:** SEAL – Software Engineering Hackathon Management System
 
-Các sự kiện SEAL mở cửa cho nhiều trường đại học cùng tham gia: đội thi có thể gồm toàn sinh viên FPT, hỗn hợp sinh viên FPT và sinh viên ngoài trường, hoặc toàn sinh viên từ các trường đối tác.
+The Software Engineering Agile League (SEAL) is an annual academic hackathon organized by the Software Engineering Department and PDP at FPT University Ho Chi Minh City. SEAL runs three hackathon events each year, corresponding to the Spring, Summer, and Fall semesters.
 
-Hiện tại, công tác quản lý sự kiện chủ yếu được thực hiện thủ công, dễ xảy ra sai sót và thiếu minh bạch. Bên cạnh việc phát triển hệ thống quản lý, đề tài còn nghiên cứu tính nhất quán trong chấm điểm của giám khảo tại các cuộc thi hackathon - một yếu tố quan trọng nhưng chưa được nghiên cứu đầy đủ liên quan đến sự công bằng trong thi cử. Hệ thống đóng vai trò vừa là nền tảng quản lý cuộc thi, vừa là công cụ thu thập dữ liệu cho nghiên cứu về độ tin cậy liên đánh giá viên trong đánh giá kỹ thuật phần mềm.
+Each hackathon may contain multiple competition rounds, such as a qualifying round and a final round.
 
-## 2. Vấn đề hiện tại (Current Problems)
-Quy trình quản lý sự kiện hiện tại đang tồn tại nhiều vấn đề:
-- **Đăng ký và Quản lý thủ công:** Đăng ký đội thi và quản lý hạng mục thực hiện thủ công dẫn đến chậm trễ và sai sót dữ liệu.
-- **Quy trình chấm điểm phân mảnh:** Chấm điểm thực hiện qua file Excel riêng lẻ của từng giám khảo; phải thu thập và nhập lại toàn bộ kết quả thủ công, dẫn đến chậm trễ và dễ xảy ra sai sót.
-- **Giao tiếp hạn chế:** Kênh thông tin liên lạc hạn chế giữa ban tổ chức, mentor, đội thi và người tham gia.
-- **Thiếu tính minh bạch:** Không có nhật ký kiểm tra cho các quyết định chấm điểm, làm giảm tính minh bạch và độ tin cậy của kết quả.
+SEAL events are open to students from multiple universities. A team may consist entirely of FPT University students, a mix of FPT University and external students, or students from partner universities.
 
-## 3. Đối tượng người dùng (Actors)
-- Team Member (Thành viên đội thi)
-- Team Leader (Trưởng đội thi)
-- Mentor (Người hướng dẫn)
-- Judge (Giám khảo - Nội bộ hoặc Khách mời)
-- Event Coordinator (Điều phối viên sự kiện - SE Dept / PDP Staff)
+Event operations are currently handled largely through manual processes, which are prone to errors and provide limited transparency. In addition to delivering a competition management platform, the project studies the consistency of judges' scores in hackathons. This is an important but under-researched factor in competition fairness. The system therefore serves both as an event management platform and as a data collection tool for research into inter-rater reliability in software engineering assessment.
 
-## 4. Chức năng chính (Main Features)
+## 2. Current Problems
 
-### 4.1. Quản lý sự kiện & Vòng thi (Event & Round Management)
-- Tạo và quản lý sự kiện hackathon.
-- Cấu hình nhiều vòng thi trong mỗi sự kiện (ví dụ: Vòng loại và Vòng chung kết).
-- Thiết lập cho từng vòng: hạn nộp bài, phân công giám khảo và tiêu chí chấm điểm.
-- Định nghĩa quy tắc thăng vòng: top N đội mỗi Hạng mục sẽ vào vòng tiếp theo.
+The current event management process has several limitations:
 
-### 4.2. Quản lý tiêu chí chấm điểm (Criteria Management)
-- Duy trì mẫu tiêu chí mặc định (dùng lại qua các sự kiện).
-- Mỗi sự kiện kế thừa mẫu và có thể thêm, bỏ hoặc điều chỉnh tiêu chí và trọng số.
+- **Manual registration and management:** Manual team registration and track management cause delays and data-entry errors.
+- **Fragmented evaluation process:** Each judge scores submissions in a separate Excel file. Results must then be collected and entered manually, which is slow and error-prone.
+- **Limited communication:** Communication channels between organizers, mentors, teams, and participants are limited.
+- **Limited transparency:** Evaluation decisions have no audit trail, reducing the transparency and credibility of the results.
 
-### 4.3. Quản lý hạng mục (Track Management)
-- Tạo Hạng mục (danh mục thi đấu) trong mỗi sự kiện.
-- Phân công Mentor cho Hạng mục (một giảng viên có thể làm Mentor một Hạng mục và Giám khảo Hạng mục khác trong cùng sự kiện).
+## 3. Actors
 
-### 4.4. Quản lý đội thi (Team Management)
-- Thành lập đội (3–5 Thành viên).
-- Đăng ký đội vào một Hạng mục cụ thể.
+- Team Member
+- Team Leader
+- Mentor
+- Judge (Internal or Guest)
+- Event Coordinator (Software Engineering Department or PDP staff)
 
-### 4.5. Đăng ký & Xác thực người dùng (Auth & User Management)
-- Tất cả người tham gia sử dụng Email/Mật khẩu với JWT.
-- Phân loại người tham gia khi đăng ký:
-  - Sinh viên FPT (cung cấp mã số SV FPT).
-  - Sinh viên ngoài trường (cung cấp mã số SV + tên trường).
-- Tất cả tài khoản cần Ban tổ chức phê duyệt trước khi được tham gia thi.
-- Giám khảo khách mời: tài khoản tạm thời do Ban tổ chức tạo, chỉ có quyền chấm điểm cho các vòng được phân công.
+## 4. Main Features
 
-### 4.6. Nộp bài (Submission)
-- Đội nộp bài theo từng vòng bằng cách cung cấp các đường dẫn URL (repository dự án, demo, link báo cáo/slide).
-- Tích hợp GitHub/GitLab API để tự động lấy metadata repository (Optional).
+### 4.1. Event and Round Management
 
-### 4.7. Đánh giá (Evaluation)
-- Giám khảo chấm điểm theo tiêu chí của từng sự kiện; điểm số từng tiêu chí của từng giám khảo được ghi lại riêng biệt.
-- Ban tổ chức phân công Giám khảo nội bộ và Giám khảo khách mời vào các vòng theo nhu cầu.
+- Create and manage hackathon events.
+- Configure multiple rounds for each event, such as qualifying and final rounds.
+- Configure submission deadlines, judge assignments, and evaluation criteria for each round.
+- Define advancement rules, such as promoting the top N teams from each track to the next round.
 
-### 4.8. Chấm điểm, Xếp hạng & Loại (Scoring, Ranking & Elimination)
-- Tự động xếp hạng đội theo từng vòng, từng Hạng mục và toàn bộ sự kiện.
-- Tính toán thăng vòng: hệ thống xác định đội đủ điều kiện vào vòng tiếp theo.
-- Loại: Ban tổ chức có thể loại đội/bài nộp vi phạm quy chế (kết quả bị hủy và ghi lại lý do).
-- Nhật ký kiểm tra (Audit log) cho tất cả hành động chấm điểm và loại bỏ.
+### 4.2. Criteria Management
 
-### 4.9. Thu thập dữ liệu nghiên cứu (RBL Direction)
-- Ghi lại điểm số của từng giám khảo theo từng tiêu chí cho từng bài nộp (không gộp chung).
-- Vòng hiệu chuẩn: giám khảo chấm bài mẫu; hệ thống hiển thị phân bố điểm để hỗ trợ đồng thuận giữa các giám khảo.
-- Xuất bộ dữ liệu chấm điểm đã ẩn danh (CSV) để phân tích độ tin cậy liên đánh giá viên.
-- Dashboard: hiển thị phương sai điểm giữa các giám khảo theo từng tiêu chí. *(Nhóm SV làm thêm tính năng này thì được cộng điểm)*
+- Maintain reusable default criteria templates.
+- Allow each event to inherit a template and add, remove, or adjust criteria and weights.
 
-### 4.10. Giải thưởng (Prizes)
-- Trao giải dựa trên kết quả xếp hạng.
-- Thông báo và công bố kết quả đến tất cả người tham gia.
-- Xếp hạng và báo cáo điểm xuất được dưới dạng CSV/Excel.
+### 4.3. Track Management
 
-## 5. Các thực thể cốt lõi (Key Entities)
-- **Hackathon Event**: Sự kiện Hackathon
-- **Track**: Hạng mục thi đấu (ví dụ: AI, Web, Mobile...)
-- **Round**: Vòng thi trong sự kiện (Vòng loại, Chung kết...)
-- **Team**: Đội thi
-- **Team Member**: Thành viên đội
-- **Mentor**: Người hướng dẫn
-- **Judge**: Giám khảo (Nội bộ / Khách mời)
-- **Submission**: Bài nộp
-- **Score/Ranking**: Điểm số / Xếp hạng
-- **Prize**: Giải thưởng
+- Create competition tracks for each event.
+- Assign mentors to tracks. A lecturer may mentor one track and judge another track in the same event.
 
-## 6. Câu hỏi nghiên cứu (Research Questions - RQ)
-**Câu hỏi chính (Main RQ):** How consistent are hackathon evaluation scores across different judges evaluating the same submission in academic software engineering competitions?
+### 4.4. Team Management
 
-**Câu hỏi phụ (Sub-RQs):**
+- Create teams of three to five members.
+- Register each team for a specific track.
+
+### 4.5. Authentication and User Management
+
+- All participants authenticate with an email address and password using JWT.
+- Classify participants during registration:
+  - FPT University students provide an FPT student ID.
+  - External students provide a student ID and university name.
+- Require organizer approval before an account can participate in a competition.
+- Let organizers create temporary accounts for guest judges, with access limited to their assigned rounds.
+
+### 4.6. Submissions
+
+- Teams submit work for each round by providing URLs for the project repository, demo, report, or presentation.
+- Optionally integrate with the GitHub or GitLab API to retrieve repository metadata automatically.
+
+### 4.7. Evaluation
+
+- Judges score submissions using event-specific criteria. Each judge's score for every criterion is stored separately.
+- Organizers assign internal and guest judges to rounds as needed.
+
+### 4.8. Scoring, Ranking, and Elimination
+
+- Rank teams automatically by round, track, and overall event results.
+- Determine which teams qualify for the next round.
+- Allow organizers to disqualify teams or submissions that violate competition rules, invalidate their results, and record a reason.
+- Keep an audit log for all scoring and disqualification actions.
+
+### 4.9. Research Data Collection
+
+- Store each judge's criterion-level scores for every submission without merging them.
+- Provide a calibration round in which judges score a sample submission and review the score distribution to improve agreement.
+- Export an anonymized evaluation dataset as CSV for inter-rater reliability analysis.
+- Display score variance between judges for each criterion on a dashboard.
+
+### 4.10. Prizes
+
+- Award prizes based on ranking results.
+- Notify participants and publish competition results.
+- Export rankings and score reports as CSV or Excel files.
+
+## 5. Key Entities
+
+- **Hackathon Event:** A hackathon competition event
+- **Track:** A competition category, such as AI, Web, or Mobile
+- **Round:** A competition stage, such as a qualifying or final round
+- **Team:** A competition team
+- **Team Member:** A student participating in a team
+- **Mentor:** A person who guides teams
+- **Judge:** An internal or guest evaluator
+- **Submission:** Work submitted by a team for a round
+- **Score/Ranking:** Evaluation scores and ranking results
+- **Prize:** An award granted based on competition results
+
+## 6. Research Questions
+
+**Main research question:** How consistent are hackathon evaluation scores across different judges evaluating the same submission in academic software engineering competitions?
+
+**Sub-questions:**
+
 - **RQ1:** What is the overall inter-rater reliability (ICC, Krippendorff's α) of SEAL hackathon scoring?
-- **RQ2:** Which scoring criteria show the highest and lowest inter-rater agreement (Technical criteria vs. Soft/subjective criteria)?
-- **RQ3:** Does judge type (SE Faculty vs. Guest Judge) affect scoring consistency?
+- **RQ2:** Which scoring criteria show the highest and lowest inter-rater agreement (technical criteria versus soft or subjective criteria)?
+- **RQ3:** Does judge type (Software Engineering faculty versus guest judge) affect scoring consistency?
