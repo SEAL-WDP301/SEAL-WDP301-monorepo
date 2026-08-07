@@ -36,6 +36,25 @@ const get = (record: JsonRecord, ...keys: string[]) => {
   return undefined;
 };
 
+function getDashboardQuery(filters: DashboardFilters, includeRange = true) {
+  const params = new URLSearchParams({ year: String(filters.year) });
+  if (filters.eventId !== "all") params.set("eventId", filters.eventId);
+  if (filters.season !== "all") {
+    params.set("season", filters.season.charAt(0).toUpperCase() + filters.season.slice(1));
+  }
+  if (includeRange) {
+    const to = filters.range === "year"
+      ? new Date(Date.UTC(filters.year + 1, 0, 1))
+      : new Date();
+    const from = filters.range === "year"
+      ? new Date(Date.UTC(filters.year, 0, 1))
+      : new Date(to.getTime() - Number(filters.range.slice(0, -1)) * 86_400_000);
+    params.set("from", from.toISOString());
+    params.set("to", to.toISOString());
+  }
+  return params.toString();
+}
+
 function formatRelative(value: unknown) {
   if (typeof value !== "string" || !value) return "";
   const timestamp = new Date(value).getTime();
@@ -196,7 +215,7 @@ function normalizeDeadlines(payload: unknown): UpcomingDeadlineItem[] {
 }
 
 export interface DashboardFilterOptions {
-  events: { value: string; label: string; participants?: number; registrations?: number; teams?: number; submissions?: number; capacity?: number }[];
+  events: { value: string; label: string; season?: string; year?: number; participants?: number; registrations?: number; teams?: number; submissions?: number; capacity?: number }[];
   seasons: string[];
   years: number[];
 }
@@ -206,7 +225,7 @@ export async function getDashboardFilterOptions(): Promise<DashboardFilterOption
   const events = organizerEvents.map((item) => {
     const event = asRecord(item);
     const counts = asRecord(event._count);
-    return { value: String(event.id ?? ""), label: text(get(event, "name", "title")), participants: number(get(event, "participants", "approved")), registrations: number(get(event, "registrations", "registrationCount")), teams: number(get(counts, "teams") ?? get(event, "teams", "teamCount")), submissions: number(get(counts, "submissions") ?? get(event, "submissions", "submissionCount")), capacity: number(get(event, "capacity", "maxParticipants")) };
+    return { value: String(event.id ?? ""), label: text(get(event, "name", "title")), season: text(event.season), year: number(event.year), participants: number(get(event, "participants", "approved")), registrations: number(get(event, "registrations", "registrationCount")), teams: number(get(counts, "teams") ?? get(event, "teams", "teamCount")), submissions: number(get(counts, "submissions") ?? get(event, "submissions", "submissionCount")), capacity: number(get(event, "capacity", "maxParticipants")) };
   }).filter((event) => event.value && event.label);
   const seasons = [...new Set(organizerEvents.map((event) => event.season).filter((season): season is NonNullable<typeof season> => Boolean(season)))];
   const years = [...new Set(organizerEvents.map((event) => Number(event.year)).filter(Number.isFinite))].sort((a, b) => b - a);
@@ -221,17 +240,26 @@ export const adminDashboardService = {
   getFilterOptions: getDashboardFilterOptions,
   async getDashboard(filters: DashboardFilters, cachedFilterOptions?: DashboardFilterOptions): Promise<AdminDashboardData> {
     const eventQuery = filters.eventId !== "all" ? `&eventId=${encodeURIComponent(filters.eventId)}` : "";
+    const dashboardQuery = getDashboardQuery(filters);
+    const scopeQuery = getDashboardQuery(filters, false);
     const filterOptions = cachedFilterOptions ?? await getDashboardFilterOptions();
-    const [monthResponse, statusResponse, registrationsResponse, trendResponse, submissionResponses, deadlinesResponse, participantsByEventResponse] = await Promise.all([
-      axiosClient.get(`/organizer/dashboard/events-by-month?year=${filters.year}`),
-      axiosClient.get(`/organizer/dashboard/event-status?year=${filters.year}${eventQuery}`),
+    const [overviewResponse, monthResponse, statusResponse, registrationsResponse, trendResponse, submissionResponses, deadlinesResponse, participantsByEventResponse] = await Promise.all([
+      axiosClient.get(`/organizer/dashboard/overview?${dashboardQuery}`),
+      axiosClient.get(`/organizer/dashboard/events-by-month?${scopeQuery}`),
+      axiosClient.get(`/organizer/dashboard/event-status?${scopeQuery}`),
       axiosClient.get(`/organizer/dashboard/recent-registrations?limit=10${eventQuery}`),
-      axiosClient.get(`/organizer/dashboard/registration-trend?groupBy=day${eventQuery}`),
-      Promise.all([axiosClient.get(`/organizer/dashboard/submissions?groupBy=day${eventQuery}`)]),
+      axiosClient.get(`/organizer/dashboard/registration-trend?${dashboardQuery}&groupBy=day`),
+      Promise.all([axiosClient.get(`/organizer/dashboard/submissions?${dashboardQuery}&groupBy=day`)]),
       axiosClient.get(`/organizer/dashboard/upcoming-deadlines?withinDays=30${eventQuery}`),
-      axiosClient.get(`/organizer/dashboard/participants-by-event?year=${filters.year}${eventQuery}`),
+      axiosClient.get(`/organizer/dashboard/participants-by-event?${scopeQuery}`),
     ]);
 
+    const overview = asRecord(unwrap(overviewResponse.data));
+    const totalEventsOverview = asRecord(overview.totalEvents);
+    const activeEventsOverview = asRecord(overview.activeEvents);
+    const totalRegistrationsOverview = asRecord(overview.totalRegistrations);
+    const totalParticipantsOverview = asRecord(overview.totalParticipants);
+    const totalSubmissionsOverview = asRecord(overview.totalSubmissions);
     const recentRegistrations = normalizeRecent(registrationsResponse.data);
     const participantsByEvent = normalizeParticipantsByEvent(participantsByEventResponse.data, filterOptions);
     const eventStatus = normalizeEventStatus(statusResponse.data);
@@ -243,30 +271,29 @@ export const adminDashboardService = {
     );
     const trend = listFrom(trendResponse.data, "trend", "registrationTrend", "items").map((item) => {
       const row = asRecord(item);
-      return { date: text(get(row, "date", "day", "label")), Registrations: number(get(row, "Registrations", "registrations", "total")), Participants: number(get(row, "Participants", "participants", "approved")) };
+      return { date: text(get(row, "period", "date", "day", "label")), Registrations: number(get(row, "Registrations", "registrations", "total")), Participants: number(get(row, "approvedParticipants", "Participants", "participants", "approved")) };
     });
     const submissionActivityMap = new Map<string, number>();
     submissionResponses.forEach((response) => { const payload = asRecord(unwrap(response.data)); listFrom(payload, "activity", "trend", "submissionActivity").forEach((item) => { const row = asRecord(item); const date = text(get(row, "period", "date", "day", "label")); if (!date) return; submissionActivityMap.set(date, (submissionActivityMap.get(date) ?? 0) + number(get(row, "submissionCount", "Submissions", "submissions", "count"))); }); });
     const submissionActivity = [...submissionActivityMap]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([date, Submissions]) => ({ date, Submissions }));
-    const totalRegistrations = trend.reduce((sum, item) => sum + item.Registrations, 0) || recentRegistrations.length;
-    const participants = trend.reduce((sum, item) => sum + item.Participants, 0) || recentRegistrations.filter((item) => item.status === "Approved").length;
-    const totalSubmissions = submissionStatus.reduce((sum, item) => sum + (item.status.toLowerCase().includes("evaluat") ? 0 : item.value), 0);
+    const totalRegistrations = number(totalRegistrationsOverview.value);
+    const participants = number(totalParticipantsOverview.value);
+    const totalSubmissions = number(totalSubmissionsOverview.value);
     const submittedTeams = submissionSummary.totalSubmittedTeams;
     const percentage = (value: number, total: number) =>
       total > 0 ? (value / total) * 100 : 0;
-    const activeEvents = eventStatus.filter((item) => ["active", "ongoing", "registration open"].includes(item.status.toLowerCase())).reduce((sum, item) => sum + item.value, 0);
-    const totalEvents = eventStatus.reduce((sum, item) => sum + item.value, 0) || filterOptions.events.length;
-    const metric = (id: string, label: string, value: number, icon: "events" | "active" | "registrations" | "participants" | "submissions" | "users", href: string, detail: string) => ({ id, label, value, delta: 0, detail, comparison: "Live API data", href, sparkline: [], icon });
+    const activeEvents = number(activeEventsOverview.value);
+    const totalEvents = number(totalEventsOverview.value);
+    const metric = (id: string, label: string, value: number, delta: number, icon: "events" | "active" | "registrations" | "participants" | "submissions" | "users", href: string, detail: string) => ({ id, label, value, delta, detail, comparison: "Compared with previous period", href, sparkline: [], icon });
 
     return {
       overview: { metrics: [
-        metric("events", "Total Events", totalEvents, "events", "/organizer/events", `${filterOptions.events.length} available in filters`),
-        metric("active", "Active Events", activeEvents, "active", "/organizer/events", "Currently active or ongoing"),
-        metric("registrations", "Total Registrations", totalRegistrations, "registrations", "/organizer/registrations", `${recentRegistrations.length} recent registrations loaded`),
-        metric("participants", "Total Participants", participants, "participants", "/organizer/registrations?status=approved", "Approved participants"),
-        metric("submissions", "Total Submissions", totalSubmissions, "submissions", "/organizer/submissions", "Across selected events"),
+        metric("events", "Total Events", totalEvents, number(totalEventsOverview.changePercentage), "events", "/organizer/events", `${number(totalEventsOverview.newEvents)} new events`),
+        metric("active", "Active Events", activeEvents, 0, "active", "/organizer/events", `${number(activeEventsOverview.endingSoon)} ending soon`),
+        metric("registrations", "Total Registrations", totalRegistrations, number(totalRegistrationsOverview.changePercentage), "registrations", "/organizer/registrations", `${number(totalRegistrationsOverview.pending)} pending`),
+        metric("submissions", "Total Submissions", totalSubmissions, number(totalSubmissionsOverview.changePercentage), "submissions", "/organizer/submissions", `${number(totalSubmissionsOverview.last24Hours)} in the last 24 hours`),
       ] },
       eventsByMonth: normalizeMonthly(monthResponse.data),
       eventStatus,

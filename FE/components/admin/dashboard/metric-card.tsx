@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 
 const icons = { events: CalendarDays, active: Radio, registrations: ClipboardCheck, participants: Users, submissions: FileCheck, users: Activity };
 
-export function MetricCard({ metric, wide = false }: { metric: MetricCardData; wide?: boolean }) {
+export function MetricCard({ metric }: { metric: MetricCardData }) {
   const Icon = icons[metric.icon];
   const sparkData = metric.sparkline.map((value, index) => ({ index, value }));
   return (
-    <Link href={metric.href} className={wide ? "xl:col-span-2" : ""}>
+    <Link href={metric.href}>
       <Card className="h-full p-5 hover:-translate-y-0.5 hover:border-orange-500/30">
         <div className="flex items-start justify-between">
           <div className="grid size-10 place-items-center rounded-xl border border-orange-500/20 bg-orange-500/10 text-[#ff8a3d]"><Icon className="size-5" /></div>
