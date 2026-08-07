@@ -371,7 +371,7 @@ export function AiSuggestRubricsModal({
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="flex flex-col gap-3.5">
                 {suggestion.criteria.map((criterion, index) => {
                   const isSelected = selectedCriteriaIndexes.includes(index);
 
