@@ -8,9 +8,19 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   JUDGE_SCORE_SCALE,
+  JUDGE_SCORE_STEP,
   getScoreColorClass,
   type JudgeRubric,
 } from "@/lib/api/judge.api";
+
+function clampScore(value: number, snapToStep = false) {
+  if (!Number.isFinite(value)) return 0;
+  const bounded = Math.min(JUDGE_SCORE_SCALE, Math.max(0, value));
+  if (!snapToStep) return Number(bounded.toFixed(2));
+  const stepped =
+    Math.round(bounded / JUDGE_SCORE_STEP) * JUDGE_SCORE_STEP;
+  return Number(stepped.toFixed(2));
+}
 
 interface Props {
   rubrics: JudgeRubric[];
@@ -44,7 +54,7 @@ export function CriteriaScoring({
         const weight = Number(item.weight);
 
         return (
-          <GlassCard key={item.id} className="px-5 py-4">
+          <GlassCard key={item.id} className="overflow-visible px-5 py-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -61,8 +71,15 @@ export function CriteriaScoring({
               </div>
 
               <div className="text-right shrink-0">
-                <div className={cn("text-3xl font-bold leading-none tabular-nums", disabled ? "text-muted-foreground opacity-60" : getScoreColorClass(score))}>
-                  {score % 1 === 0 ? score.toFixed(1) : score.toFixed(2)}
+                <div
+                  className={cn(
+                    "text-3xl font-bold leading-none tabular-nums",
+                    disabled
+                      ? "text-muted-foreground opacity-60"
+                      : getScoreColorClass(score),
+                  )}
+                >
+                  {score.toFixed(2)}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   /{JUDGE_SCORE_SCALE}
@@ -75,26 +92,33 @@ export function CriteriaScoring({
                 value={[score]}
                 max={JUDGE_SCORE_SCALE}
                 min={0}
-                step={0.25}
+                step={JUDGE_SCORE_STEP}
                 disabled={disabled}
                 className="flex-1"
-                onValueChange={(values) => onScoreChange(item.id, values[0] ?? 0)}
+                onValueChange={(values) =>
+                  onScoreChange(item.id, clampScore(values[0] ?? 0, true))
+                }
               />
 
               <Input
                 type="number"
                 min={0}
                 max={JUDGE_SCORE_SCALE}
-                step={0.25}
+                step={JUDGE_SCORE_STEP}
                 disabled={disabled}
-                value={score}
-                className="w-20 text-center h-9"
-                onChange={(e) =>
+                value={Number(score.toFixed(2))}
+                className="w-24 text-center h-9"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "" || raw === ".") return;
+                  onScoreChange(item.id, clampScore(Number(raw)));
+                }}
+                onBlur={(e) => {
                   onScoreChange(
                     item.id,
-                    Math.min(JUDGE_SCORE_SCALE, Number(e.target.value) || 0),
-                  )
-                }
+                    clampScore(Number(e.target.value), true),
+                  );
+                }}
               />
             </div>
 

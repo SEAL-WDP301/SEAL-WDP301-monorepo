@@ -95,11 +95,11 @@ async function main() {
     },
     {
       id: "teams-approved",
-      label: "Đội đã approved (auto-approve = bước này tự xong)",
+      label: "Đội đã approved (auto khi đủ thành viên accepted ≥ min)",
       done: teams.length > 0 && pending.length === 0,
       detail:
         pending.length > 0
-          ? `Còn ${pending.length} đội pending — auto-approve chưa áp dụng hoặc đội cũ`
+          ? `Còn ${pending.length} đội pending — chưa đủ thành viên accepted hoặc chờ BTC duyệt`
           : `Tất cả ${approved.length} đội đã approved`,
     },
     {

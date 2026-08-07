@@ -171,7 +171,7 @@ describe("TeamStudentService event capacity", () => {
     expect(transactionClient.team.create).not.toHaveBeenCalled();
   });
 
-  it("automatically approves a team while the event still has capacity", async () => {
+  it("auto-approves only when the leader alone already meets minMembersPerTeam", async () => {
     transactionClient.event.findUnique.mockResolvedValue({
       status: "active",
       registrationDeadline: null,
@@ -194,6 +194,7 @@ describe("TeamStudentService event capacity", () => {
       }),
     ).resolves.toMatchObject({ id: 20, name: "Tenth Team" });
 
+    // Default fixture minMembersPerTeam=1 → leader alone is enough.
     expect(transactionClient.team.create).toHaveBeenCalledWith({
       data: {
         name: "Tenth Team",
@@ -207,6 +208,48 @@ describe("TeamStudentService event capacity", () => {
       "team.registered",
       expect.objectContaining({ eventId: 3, teamId: 20 }),
     );
+  });
+
+  it("keeps a newly registered team pending until invited members accept", async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 3,
+      status: "active",
+      registrationDeadline: null,
+      minMembersPerTeam: 3,
+      maxMembersPerTeam: 5,
+      deferredTrackAssignment: false,
+    });
+    transactionClient.event.findUnique.mockResolvedValue({
+      status: "active",
+      registrationDeadline: null,
+      maxTeams: null,
+    });
+    transactionClient.team.create.mockResolvedValue({
+      id: 24,
+      name: "Waiting Team",
+    });
+    transactionClient.round.findFirst.mockResolvedValue(null);
+    transactionClient.teamMember.create.mockResolvedValue({});
+    transactionClient.teamInvitation.createMany.mockResolvedValue({ count: 2 });
+    transactionClient.studentRegistration.upsert.mockResolvedValue({});
+
+    await expect(
+      service.registerTeam(11, 3, {
+        trackId: 7,
+        teamName: "Waiting Team",
+        memberEmails: ["a@test.dev", "b@test.dev"],
+      }),
+    ).resolves.toMatchObject({ id: 24 });
+
+    expect(transactionClient.team.create).toHaveBeenCalledWith({
+      data: {
+        name: "Waiting Team",
+        eventId: 3,
+        trackId: 7,
+        leaderId: 11,
+        status: TeamStatus.pending,
+      },
+    });
   });
 
   it("clears the previous rejection review when a student registers again", async () => {
@@ -330,7 +373,8 @@ describe("TeamStudentService event capacity", () => {
         eventId: 3,
         trackId: 7,
         leaderId: 11,
-        status: TeamStatus.approved,
+        // minMembersPerTeam=2 and only the leader is accepted yet
+        status: TeamStatus.pending,
       },
     });
     expect(transactionClient.teamInvitation.createMany).toHaveBeenCalledWith({
@@ -408,6 +452,13 @@ describe("TeamStudentService event capacity", () => {
     expect(transactionClient.teamInvitation.update).toHaveBeenCalledWith({
       where: { id: 50 },
       data: { status: "accepted", acceptedById: 12 },
+    });
+    expect(transactionClient.team.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 22,
+        status: TeamStatus.pending,
+      },
+      data: { status: TeamStatus.approved },
     });
   });
 });

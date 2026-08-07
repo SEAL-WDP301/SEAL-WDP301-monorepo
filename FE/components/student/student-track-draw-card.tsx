@@ -61,10 +61,16 @@ export function StudentTrackDrawCard({
 
   if (resultTrack) {
     return (
-      <GlassCard className="rounded-[24px] border-emerald-500/40 bg-emerald-500/10 p-6">
-        <p className="text-sm text-muted-foreground">Your team&apos;s track</p>
-        <p className="mt-1 text-2xl font-bold text-emerald-600">{resultTrack}</p>
-        <p className="mt-2 text-xs text-muted-foreground">
+      <GlassCard
+        glow
+        className="relative overflow-hidden rounded-[24px] border-orange-500/30 bg-gradient-to-br from-orange-500/10 via-card to-background p-6"
+      >
+        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-orange-500/15 blur-[60px]" />
+        <p className="relative z-10 text-sm text-muted-foreground">Your team&apos;s track</p>
+        <p className="relative z-10 mt-1 text-2xl font-bold text-orange-600 dark:text-orange-400">
+          {resultTrack}
+        </p>
+        <p className="relative z-10 mt-2 text-xs text-muted-foreground">
           This track remains unchanged throughout the competition.
         </p>
       </GlassCard>
