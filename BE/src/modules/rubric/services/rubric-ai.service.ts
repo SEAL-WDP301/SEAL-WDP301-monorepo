@@ -141,30 +141,31 @@ Rules:
 - 4–7 criteria for ONE round rubric shared by all tracks in that round.
 - Weights are % and MUST sum to 100 (1 decimal max).
 - Avoid duplicating existingCriteria names.
-- Ground criteria in event name, this round, track names, and problem titles; cite them in whyChosen.
-- English only. Keep overallRationale and whyChosen concise (1–2 sentences each).
-- overallRationale MUST start by naming the event and listing track themes, e.g. "Based on the event \"X\" and track themes (A, B), here are suggested grading criteria:" then briefly explain the rubric design.`;
+- Ground criteria directly in the Event Name, Event Description, Round Name, Track Names, and Track Descriptions.
+- Cite specific track descriptions and problem titles in whyChosen.
+- English only. Keep overallRationale and whyChosen concise (2–3 sentences each).
+- overallRationale MUST explicitly cite the Event Name, Event Description themes, and detailed Track Descriptions, explaining why these rubrics were chosen based on those specific details. Example: "Grounded in event '{eventName}' ({eventDescriptionSummary}) and track scopes ({trackNamesAndDescriptions}), these criteria evaluate..."`;
 
     const user = `Design grading criteria for this hackathon round.
 
-Event: ${basedOn.eventName}
-Event blurb: ${(event.description || "").slice(0, 800) || "(none)"}
+Event Name: ${basedOn.eventName}
+Event Description: ${(event.description || "").slice(0, 1000) || "(none)"}
 Round: ${basedOn.roundName}
 Track-specific problems: ${round.isTrackSpecific ? "yes" : "no / shared"}
 
-Tracks:
+Tracks and Track Descriptions:
 ${
   basedOn.tracks.length
     ? basedOn.tracks
         .map(
           (t, i) =>
-            `${i + 1}. ${t.name}${t.description ? ` — ${t.description}` : ""}`,
+            `${i + 1}. Track Name: "${t.name}"${t.description ? `\n   Track Description: "${t.description}"` : "\n   Track Description: (none)"}`,
         )
         .join("\n")
     : "(no tracks yet)"
 }
 
-Problem statement titles (đề):
+Problem statement titles:
 ${
   basedOn.problemStatements.length
     ? basedOn.problemStatements
@@ -173,7 +174,7 @@ ${
             `- ${p.label}${p.trackName ? ` (track: ${p.trackName})` : " (shared)"}`,
         )
         .join("\n")
-    : "(no problem files uploaded yet — infer from track/event names only)"
+    : "(no problem files uploaded yet — infer from track/event names and descriptions)"
 }
 
 Existing criteria to avoid duplicating:
@@ -198,7 +199,7 @@ Return JSON now.`;
       typeof (raw as { overallRationale?: unknown })?.overallRationale ===
       "string"
         ? String((raw as { overallRationale: string }).overallRationale).trim()
-        : this.buildFallbackRationale(basedOn);
+        : this.buildFallbackRationale(basedOn, event.description);
 
     return {
       basedOn,
@@ -220,30 +221,27 @@ Return JSON now.`;
       const row = item as Record<string, unknown>;
       const name = String(row.name || "").trim();
       const description = String(row.description || "").trim();
-      const whyChosen = String(row.whyChosen || row.reason || "").trim();
-      const weight = Number(row.weight);
-      if (!name || !Number.isFinite(weight) || weight <= 0) continue;
-      parsed.push({
-        name: name.slice(0, 120),
-        description: description.slice(0, 2000) || name,
-        weight,
-        whyChosen:
-          whyChosen.slice(0, 1000) ||
-          "Chosen to cover a core judging dimension for this round.",
-      });
+      const weight = Number(row.weight || 0);
+      const whyChosen = String(row.whyChosen || "").trim();
+
+      if (name && description && !isNaN(weight) && weight > 0) {
+        parsed.push({
+          name,
+          description,
+          weight: Math.round(weight * 10) / 10,
+          whyChosen: whyChosen || `Selected for ${name}`,
+        });
+      }
     }
 
-    if (parsed.length < 3) {
+    if (!parsed.length) {
       throw new ServiceUnavailableException(
-        "AI returned too few valid criteria. Try again.",
+        "AI returned unparseable criteria. Try again.",
       );
     }
 
-    // Normalize weights to exactly 100%.
     const sum = parsed.reduce((s, c) => s + c.weight, 0);
-    if (sum <= 0) {
-      throw new ServiceUnavailableException("AI returned invalid weights.");
-    }
+    if (sum <= 0) return parsed;
 
     const scaled = parsed.map((c) => ({
       ...c,
@@ -262,13 +260,17 @@ Return JSON now.`;
 
   private buildFallbackRationale(
     basedOn: SuggestRubricsResult["basedOn"],
+    eventDesc?: string | null,
   ): string {
-    const trackNames = basedOn.tracks.map((t) => t.name).filter(Boolean);
+    const trackDetails = basedOn.tracks
+      .map((t) => (t.description ? `${t.name} ("${t.description}")` : t.name))
+      .filter(Boolean);
     const trackPart =
-      trackNames.length > 0
-        ? ` and track themes (${trackNames.join(", ")})`
+      trackDetails.length > 0
+        ? ` and track scopes (${trackDetails.join("; ")})`
         : "";
-    return `Based on the event "${basedOn.eventName}"${trackPart}, here are suggested grading criteria for ${basedOn.roundName}.`;
+    const eventPart = eventDesc?.trim() ? ` — "${eventDesc.slice(0, 150)}..."` : "";
+    return `Grounded in the event "${basedOn.eventName}"${eventPart}${trackPart}, these criteria evaluate technical depth, innovation, domain execution, and presentation aligned with the round objectives for ${basedOn.roundName}.`;
   }
 
   private labelFromUrl(url: string): string | null {

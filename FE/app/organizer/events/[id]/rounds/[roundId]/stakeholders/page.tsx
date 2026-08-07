@@ -31,7 +31,10 @@ type RoundTeam = {
   status: string;
   trackId: number | null;
   track?: RoundTrack | null;
-  mentorAssignments?: unknown[];
+  mentorAssignments?: Array<{
+    id?: number;
+    mentor?: { id?: number; name?: string; email?: string };
+  }>;
 };
 
 type RoundConfig = {
@@ -140,17 +143,12 @@ export default function EventStakeholdersPage() {
       eventId,
       "mentor-track-assignment",
       roundId,
-      selectedMentorTrackId ?? "all",
     ],
     queryFn: async () => {
       const res = await axiosClient.get(`/organizer/teams/events/${eventId}`, {
         params: {
           roundId,
-          ...(selectedMentorTrackId !== null
-            ? { trackId: selectedMentorTrackId }
-            : {}),
           status: "approved",
-          hasMentor: "false",
           limit: 1000,
         },
       });
@@ -187,19 +185,21 @@ export default function EventStakeholdersPage() {
       ? "All Tracks"
       : roundTracks.find((track) => track.id === selectedMentorTrackId)?.name ??
         "Select Track";
-  const availableMentorTeams = mentorAvailableTeams.filter(
+  const filteredMentorTeams = mentorAvailableTeams.filter(
     (team) =>
       (selectedMentorTrackId === null ||
         team.trackId === selectedMentorTrackId) &&
-      team.status === "approved" &&
-      (!team.mentorAssignments || team.mentorAssignments.length === 0),
+      team.status === "approved",
+  );
+  const selectableMentorTeams = filteredMentorTeams.filter(
+    (team) => !team.mentorAssignments || team.mentorAssignments.length === 0,
   );
   const areAllRoundTracksSelected =
     roundTracks.length > 0 &&
     roundTracks.every((track) => selectedTrackIds.includes(track.id));
   const areAllMentorTeamsSelected =
-    availableMentorTeams.length > 0 &&
-    availableMentorTeams.every((team) =>
+    selectableMentorTeams.length > 0 &&
+    selectableMentorTeams.every((team) =>
       selectedTeamIds.includes(team.id),
     );
 
@@ -545,30 +545,64 @@ export default function EventStakeholdersPage() {
 
       {/* Drawer for Details */}
       <Sheet open={!!drawerUser} onOpenChange={(open) => !open && setDrawerUser(null)}>
-        <SheetContent className="w-full sm:max-w-[480px] overflow-y-auto bg-card border-l border-border p-6">
-          <SheetHeader className="mb-6 flex flex-row items-center gap-4">
+        <SheetContent className="!w-full sm:!max-w-[540px] md:!max-w-[580px] overflow-y-auto bg-card border-l border-border/80 p-6 sm:p-7">
+          <SheetHeader className="mb-6 flex flex-row items-center gap-4 border-b border-border/60 pb-6">
             {drawerUser?.avatarUrl ? (
-              <img src={drawerUser.avatarUrl} alt={drawerUser.name} className="w-16 h-16 rounded-full border-2 border-border object-cover" />
+              <img src={drawerUser.avatarUrl} alt={drawerUser.name} className="w-16 h-16 rounded-full border-2 border-primary/20 object-cover shadow-sm" />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-xl font-bold text-muted-foreground border-2 border-border">
+              <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-bold border-2 border-primary/20 shadow-sm">
                 {drawerUser?.name?.[0]?.toUpperCase()}
               </div>
             )}
-            <div className="flex flex-col text-left">
-              <SheetTitle className="text-2xl mt-0">{drawerUser?.name}</SheetTitle>
-              <SheetDescription>{drawerUser?.email}</SheetDescription>
+            <div className="flex flex-col text-left min-w-0 flex-1">
+              <SheetTitle className="text-2xl font-bold tracking-tight text-foreground">{drawerUser?.name}</SheetTitle>
+              <SheetDescription className="text-sm text-muted-foreground">{drawerUser?.email}</SheetDescription>
             </div>
           </SheetHeader>
 
           <div className="space-y-6">
             {/* Profile Info */}
-            <div className="bg-muted/30 p-4 rounded-xl border border-border">
-              <h3 className="font-semibold mb-2">Professional Profile</h3>
-              <div className="space-y-2 text-sm">
-                <p><span className="text-muted-foreground">Job Title:</span> {drawerUser?.stakeholderProfile?.jobTitle}</p>
-                <p><span className="text-muted-foreground">Organization:</span> {drawerUser?.stakeholderProfile?.organization}</p>
-                <p><span className="text-muted-foreground">Experience:</span> {drawerUser?.stakeholderProfile?.experience}</p>
-                <p><span className="text-muted-foreground">Bio:</span> {drawerUser?.stakeholderProfile?.bio}</p>
+            <div className="bg-muted/30 p-5 sm:p-6 rounded-2xl border border-border/80 space-y-4">
+              <h3 className="text-base font-bold text-foreground border-b border-border/60 pb-2">
+                Professional Profile
+              </h3>
+              <div className="space-y-3.5 text-sm leading-relaxed">
+                {drawerUser?.stakeholderProfile?.jobTitle && (
+                  <div>
+                    <span className="font-semibold text-foreground">Job Title:</span>{" "}
+                    <span className="text-muted-foreground">{drawerUser.stakeholderProfile.jobTitle}</span>
+                  </div>
+                )}
+                {drawerUser?.stakeholderProfile?.organization && (
+                  <div>
+                    <span className="font-semibold text-foreground">Organization:</span>{" "}
+                    <span className="text-muted-foreground">{drawerUser.stakeholderProfile.organization}</span>
+                  </div>
+                )}
+                {drawerUser?.stakeholderProfile?.experience && (
+                  <div>
+                    <span className="font-semibold text-foreground block mb-1">Experience:</span>
+                    <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed bg-background/50 p-3.5 rounded-xl border border-border/50">
+                      {drawerUser.stakeholderProfile.experience}
+                    </p>
+                  </div>
+                )}
+                {drawerUser?.stakeholderProfile?.achievements && (
+                  <div>
+                    <span className="font-semibold text-foreground block mb-1">Key Achievements:</span>
+                    <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed bg-background/50 p-3.5 rounded-xl border border-border/50">
+                      {drawerUser.stakeholderProfile.achievements}
+                    </p>
+                  </div>
+                )}
+                {drawerUser?.stakeholderProfile?.bio && (
+                  <div>
+                    <span className="font-semibold text-foreground block mb-1">Bio:</span>
+                    <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed bg-background/50 p-3.5 rounded-xl border border-border/50">
+                      {drawerUser.stakeholderProfile.bio}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -901,120 +935,160 @@ export default function EventStakeholdersPage() {
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <label className="block text-xs font-semibold uppercase text-muted-foreground">
-                  Select Teams
-                </label>
-                <Select
-                  value={
-                    selectedMentorTrackId === null
-                      ? "all"
-                      : String(selectedMentorTrackId)
-                  }
-                  onValueChange={(value) => {
-                    if (!value) return;
-                    selectMentorTrack(value === "all" ? null : Number(value));
-                  }}
-                >
-                  <SelectTrigger
-                    size="sm"
-                    aria-label="Select track"
-                    className="min-w-32 bg-muted/30"
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <label className="block text-xs font-semibold uppercase text-muted-foreground">
+                    Select Teams{" "}
+                    <span className="text-xs font-normal normal-case text-muted-foreground/80">
+                      ({selectableMentorTeams.length} available / {filteredMentorTeams.length} total)
+                    </span>
+                  </label>
+                  <Select
+                    value={
+                      selectedMentorTrackId === null
+                        ? "all"
+                        : String(selectedMentorTrackId)
+                    }
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      setSelectedMentorTrackId(value === "all" ? null : Number(value));
+                    }}
                   >
-                    <SelectValue>{selectedMentorTrackName}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectItem value="all">All Tracks</SelectItem>
-                    {roundTracks.map((track) => (
-                      <SelectItem key={track.id} value={String(track.id)}>
-                        {track.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="max-h-[190px] space-y-1 overflow-y-auto rounded-lg border border-border p-2">
-                {isFetchingMentorTeams ? (
-                  <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading teams...
-                  </div>
-                ) : isMentorTeamsError ? (
-                  <p className="p-2 text-sm text-destructive">
-                    Failed to load teams. Please try again.
-                  </p>
-                ) : availableMentorTeams.length > 0 ? (
-                  <>
-                    <label
-                      className={`mb-1 flex cursor-pointer items-center space-x-2 rounded border p-2 ${
-                        areAllMentorTeamsSelected
-                          ? "border-amber-500/40 bg-amber-500/10"
-                          : "border-transparent hover:bg-muted/50"
-                      }`}
+                    <SelectTrigger
+                      size="sm"
+                      aria-label="Select track"
+                      className="min-w-32 bg-muted/30"
                     >
-                      <input
-                        type="checkbox"
-                        className="rounded border-border bg-background"
-                        checked={areAllMentorTeamsSelected}
-                        onChange={(e) => {
-                          setSelectedTeamIds(
-                            e.target.checked
-                              ? availableMentorTeams.map((team) => team.id)
-                              : [],
-                          );
-                        }}
-                      />
-                      <span className="text-sm font-semibold">Select All</span>
-                    </label>
-                    {availableMentorTeams.map((team) => {
-                      const isSelected = selectedTeamIds.includes(team.id);
+                      <SelectValue>{selectedMentorTrackName}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent align="end" alignItemWithTrigger={false}>
+                      <SelectItem value="all">All Tracks</SelectItem>
+                      {roundTracks.map((track) => (
+                        <SelectItem key={track.id} value={String(track.id)}>
+                          {track.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="max-h-[220px] space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+                  {isFetchingMentorTeams ? (
+                    <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading teams...
+                    </div>
+                  ) : isMentorTeamsError ? (
+                    <p className="p-2 text-sm text-destructive">
+                      Failed to load teams. Please try again.
+                    </p>
+                  ) : filteredMentorTeams.length > 0 ? (
+                    <>
+                      <label
+                        className={`mb-1 flex items-center space-x-2 rounded border p-2 ${
+                          selectableMentorTeams.length === 0
+                            ? "cursor-not-allowed opacity-50 border-transparent"
+                            : areAllMentorTeamsSelected
+                              ? "cursor-pointer border-amber-500/40 bg-amber-500/10"
+                              : "cursor-pointer border-transparent hover:bg-muted/50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="rounded border-border bg-background"
+                          checked={areAllMentorTeamsSelected}
+                          disabled={selectableMentorTeams.length === 0}
+                          onChange={(e) => {
+                            setSelectedTeamIds(
+                              e.target.checked
+                                ? selectableMentorTeams.map((team) => team.id)
+                                : [],
+                            );
+                          }}
+                        />
+                        <span className="text-sm font-semibold">
+                          Select All ({selectableMentorTeams.length} available)
+                        </span>
+                      </label>
+                      {filteredMentorTeams.map((team) => {
+                        const assignedMentorName = (team.mentorAssignments as any)?.[0]?.mentor?.name;
+                        const hasMentor = Boolean(team.mentorAssignments && team.mentorAssignments.length > 0);
+                        const isSelected = selectedTeamIds.includes(team.id);
 
-                      return (
-                        <label
-                          key={team.id}
-                          className={`flex cursor-pointer items-center space-x-2 rounded border p-2 transition-colors ${
-                            isSelected
-                              ? "border-amber-500/40 bg-amber-500/10"
-                              : "border-transparent hover:bg-muted/50"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            className="rounded border-border bg-background"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedTeamIds((current) => [
-                                  ...current,
-                                  team.id,
-                                ]);
-                              } else {
-                                setSelectedTeamIds((current) =>
-                                  current.filter((id) => id !== team.id),
-                                );
-                              }
-                            }}
-                          />
-                          <span className="flex w-full items-center justify-between gap-3 pr-2 text-sm">
-                            <span>{team.name}</span>
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              {team.track?.name || "Track not assigned"}
+                        if (hasMentor) {
+                          return (
+                            <label
+                              key={team.id}
+                              title={`Already assigned to mentor ${assignedMentorName ?? ""}`}
+                              className="flex cursor-not-allowed items-center space-x-2 rounded border border-border/40 bg-muted/20 p-2 opacity-65 transition-colors"
+                            >
+                              <span className="inline-block cursor-not-allowed pointer-events-auto flex items-center">
+                                <input
+                                  type="checkbox"
+                                  disabled
+                                  checked={false}
+                                  className="rounded border-border bg-background cursor-not-allowed"
+                                />
+                              </span>
+                              <span className="flex w-full items-center justify-between gap-3 pr-2 text-sm text-muted-foreground">
+                                <span className="line-through">{team.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="shrink-0 text-xs text-muted-foreground/70">
+                                    {team.track?.name || "Track not assigned"}
+                                  </span>
+                                  <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                                    Mentor: {assignedMentorName ?? "Assigned"}
+                                  </span>
+                                </div>
+                              </span>
+                            </label>
+                          );
+                        }
+
+                        return (
+                          <label
+                            key={team.id}
+                            className={`flex cursor-pointer items-center space-x-2 rounded border p-2 transition-colors ${
+                              isSelected
+                                ? "border-amber-500/40 bg-amber-500/10"
+                                : "border-transparent hover:bg-muted/50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="rounded border-border bg-background"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedTeamIds((current) => [
+                                    ...current,
+                                    team.id,
+                                  ]);
+                                } else {
+                                  setSelectedTeamIds((current) =>
+                                    current.filter((id) => id !== team.id),
+                                  );
+                                }
+                              }}
+                            />
+                            <span className="flex w-full items-center justify-between gap-3 pr-2 text-sm">
+                              <span className="font-medium">{team.name}</span>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {team.track?.name || "Track not assigned"}
+                              </span>
                             </span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </>
-                ) : (
-                  <p className="p-2 text-sm text-muted-foreground">
-                    No approved teams without a mentor are available
-                    {selectedMentorTrackId === null
-                      ? " in this round."
-                      : " for this track in this round."}
-                  </p>
-                )}
+                          </label>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <p className="p-2 text-sm text-muted-foreground">
+                      No approved teams found
+                      {selectedMentorTrackId === null
+                        ? " in this round."
+                        : " for this track in this round."}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
 
             <div className="flex justify-end gap-3 mt-6">
               <Button variant="outline" onClick={() => setIsMentorModalOpen(false)}>Cancel</Button>

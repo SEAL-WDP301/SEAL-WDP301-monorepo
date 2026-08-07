@@ -13,6 +13,7 @@ const LEGACY_SCRIPTS: Record<string, { file: string; title: string }> = {
   '07-advance-to-round2': { file: 'scripts/e2e-tester/07-advance-to-round2.ts', title: '07. Advance to Round 2' },
   '08-create-submissions-round2': { file: 'scripts/e2e-tester/08-create-submissions-round2.ts', title: '08. Create Submissions (R2)' },
   '09-score-round2': { file: 'scripts/e2e-tester/09-score-round2.ts', title: '09. Score Round 2' },
+  '10-publish-round2': { file: 'scripts/e2e-tester/10-publish-round2.ts', title: '10. Publish Round 2 & Awards' },
 };
 
 const LIVE_DEMO_SCRIPTS: Record<string, { file: string; title: string }> = {

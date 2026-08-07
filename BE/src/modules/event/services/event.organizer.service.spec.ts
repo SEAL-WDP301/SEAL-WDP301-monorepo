@@ -269,7 +269,13 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
 describe("EventOrganizerService.removeTrackFromRound", () => {
   const prisma = {
     round: { findFirst: jest.fn() },
-    roundTrackProblem: { findUnique: jest.fn(), delete: jest.fn() },
+    roundTrackProblem: {
+      findUnique: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    team: { count: jest.fn().mockResolvedValue(0) },
+    track: { delete: jest.fn().mockResolvedValue({}) },
   };
   const service = new EventOrganizerService(
     prisma as unknown as PrismaService,

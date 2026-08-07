@@ -101,6 +101,7 @@ export function ProblemStatementViewer({
           render={
             <button
               type="button"
+              title={trackName ? `View topic statement for ${trackName}` : "View topic statement"}
               className={cn(
                 "inline-flex items-center gap-1.5 text-xs font-semibold text-orange-500 underline underline-offset-4 hover:text-orange-600",
                 className,
@@ -109,7 +110,7 @@ export function ProblemStatementViewer({
           }
         >
           <Eye className="h-3.5 w-3.5" />
-          View Topic{trackName ? ` · ${trackName}` : ""}
+          View Topic
         </DialogTrigger>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>

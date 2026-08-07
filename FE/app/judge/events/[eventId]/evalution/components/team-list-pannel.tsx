@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import {
   type JudgeRoundSubmission,
   formatJudgeScore,
+  getScoreColorClass,
   mapScoringStatusLabel,
 } from "@/lib/api/judge.api";
 
@@ -143,7 +144,7 @@ export function TeamListPanel({
                   className={`w-full rounded-2xl border p-4 text-left transition-all ${
                     active
                       ? "border-orange-500 bg-orange-500/10 shadow-[0_0_25px_rgba(249,115,22,.25)]"
-                      : "border-white/10 hover:border-orange-500/30"
+                      : "border-border/80 bg-muted/30 hover:border-orange-500/40 hover:bg-muted/50 dark:border-white/10 dark:bg-background/40 dark:hover:border-orange-500/30"
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -169,7 +170,7 @@ export function TeamListPanel({
                           </p>
                         </div>
 
-                        <span className="text-lg font-bold text-green-600 dark:text-green-400 shrink-0">
+                        <span className={cn("text-lg font-bold tabular-nums shrink-0", getScoreColorClass(team.weightedScore))}>
                           {formatJudgeScore(team.weightedScore)}
                         </span>
                       </div>

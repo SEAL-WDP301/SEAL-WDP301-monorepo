@@ -281,7 +281,7 @@ export default function EventCriteriaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="mb-2 flex items-center gap-2">
             <Badge variant="outline">{event.season} {event.year}</Badge>
@@ -296,10 +296,10 @@ export default function EventCriteriaPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
           <Button
             type="button"
-            className="gap-2 bg-orange-600 hover:bg-orange-700 text-white"
+            className="gap-2 bg-orange-600 hover:bg-orange-700 text-white shrink-0"
             disabled={!canEditCriteria || !currentRound}
             onClick={() => setIsAiSuggestOpen(true)}
             title={getDisabledReason()}
@@ -309,7 +309,7 @@ export default function EventCriteriaPage() {
           </Button>
           <Button
             type="button"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
             disabled={!canEditCriteria || !currentRound}
             onClick={() => setIsBulkImportOpen(true)}
             title={getDisabledReason()}
@@ -319,6 +319,7 @@ export default function EventCriteriaPage() {
           </Button>
           <Button
             type="button"
+            variant="orange"
             className="shrink-0"
             disabled={!canEditCriteria || !currentRound}
             onClick={() => { setEditingRubricId(null); setIsAddEditModalOpen(true); }}
@@ -361,24 +362,26 @@ export default function EventCriteriaPage() {
       )}
 
       <GlassCard className="min-w-0 rounded-[24px] p-5">
-        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h2 className="text-xl font-bold">Rubric List</h2>
-            <p className="text-sm text-muted-foreground">
-              {roundRubrics.length} criteria ·{" "}
+            <span className="text-sm text-muted-foreground font-medium flex items-center gap-2">
+              <span>·</span>
+              <span>{roundRubrics.length} criteria</span>
+              <span>·</span>
               <span
                 className={cn(
                   "font-semibold",
                   weightOverBudget
-                    ? "text-red-600"
+                    ? "text-red-600 dark:text-red-400"
                     : Math.abs(weightTotal - TARGET_WEIGHT_TOTAL) <= 0.01
-                      ? "text-emerald-600"
-                      : "text-amber-600",
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-400",
                 )}
               >
                 {weightTotal.toFixed(2)}% / 100%
               </span>
-            </p>
+            </span>
           </div>
 
           <div className="flex items-center gap-3">

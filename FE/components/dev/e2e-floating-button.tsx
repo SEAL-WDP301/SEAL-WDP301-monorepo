@@ -53,7 +53,8 @@ const E2E_SCRIPTS: E2eScriptItem[] = [
   { key: "06-score-round1", number: "06", title: "Score Round 1", description: "Close round 1 + score", icon: Award },
   { key: "07-advance-to-round2", number: "07", title: "Publish R1 + Open R2", description: "Publish results (top 2/track) and open finals", icon: TrendingUp },
   { key: "08-create-submissions-round2", number: "08", title: "Create Submissions (R2)", description: "Submit finals", icon: FileUp },
-  { key: "09-score-round2", number: "09", title: "Score R2 + Awards", description: "Score finals and give 4 awards", icon: Award },
+  { key: "09-score-round2", number: "09", title: "Score Round 2", description: "Score finals submissions", icon: Award },
+  { key: "10-publish-round2", number: "10", title: "Publish R2 & Awards", description: "Publish final rankings and give awards", icon: Sparkles },
 ];
 
 const LIVE_DEMO_SCRIPTS: E2eScriptItem[] = [
