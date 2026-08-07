@@ -13,8 +13,16 @@ import {
   Award, Crown, Medal, ChevronDown, ChevronUp, AlertTriangle,
   CheckCircle2, Minus, Star, Heart,
   BarChart3, Users, Loader2, Gavel, Send, Globe, Trophy,
-  Sparkles
+  Sparkles, Eye, MessageSquare, Quote, X
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   HoverCard,
   HoverCardContent,
@@ -28,11 +36,12 @@ import {
   DetailedRankedTeamEntry,
   DetailedRankingsResponse,
   PublishResultsPayload,
-  OrganizerPrize
+  OrganizerPrize,
 } from "@/lib/api/organizer-events.api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { DetailedJudgeScore } from "@/lib/api/organizer-events.api";
+import { getScoreColorClass } from "@/lib/api/judge.api";
 
 const ANOMALY_THRESHOLD = 1.5;
 
@@ -40,27 +49,27 @@ function getJudgeCardPresentation(status: DetailedJudgeScore["status"]) {
   switch (status) {
     case "completed":
       return {
-        card: "border-emerald-500/40 bg-gradient-to-br from-emerald-500/20 via-orange-500/12 to-orange-500/5 shadow-lg shadow-emerald-500/15 ring-1 ring-emerald-500/25",
-        name: "text-foreground",
-        score: "text-xl font-black text-emerald-600 dark:text-emerald-400 drop-shadow-sm",
-        chip: "border-emerald-500/35 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 font-semibold",
-        comment: "text-foreground/75",
+        card: "border-emerald-500/35 dark:border-emerald-500/45 bg-emerald-500/[0.04] dark:bg-emerald-950/20 shadow-sm ring-1 ring-emerald-500/20 hover:border-emerald-500/50 hover:shadow-emerald-500/10",
+        name: "text-foreground font-semibold",
+        score: "text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums",
+        chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 font-medium",
+        comment: "text-foreground/80",
         empty: "",
       };
     case "partial":
       return {
-        card: "border-amber-500/35 bg-gradient-to-br from-amber-500/15 to-amber-500/5 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/15",
-        name: "text-foreground/90",
-        score: "text-base font-bold text-amber-600 dark:text-amber-400",
-        chip: "border-amber-500/30 bg-amber-500/12 text-amber-800 dark:text-amber-200",
+        card: "border-amber-500/35 dark:border-amber-500/45 bg-amber-500/[0.04] dark:bg-amber-950/20 shadow-sm ring-1 ring-amber-500/20 hover:border-amber-500/50 hover:shadow-amber-500/10",
+        name: "text-foreground font-semibold",
+        score: "text-base font-bold text-amber-600 dark:text-amber-400 tabular-nums",
+        chip: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200 font-medium",
         comment: "text-muted-foreground",
         empty: "",
       };
     default:
       return {
-        card: "border-dashed border-border/70 bg-muted/25 shadow-none opacity-55 saturate-50",
-        name: "text-muted-foreground",
-        score: "text-sm font-medium text-muted-foreground",
+        card: "border-dashed border-border/70 bg-muted/20 opacity-60 shadow-none",
+        name: "text-muted-foreground font-medium",
+        score: "text-sm font-medium text-muted-foreground tabular-nums",
         chip: "border-border/60 bg-muted/40 text-muted-foreground",
         comment: "text-muted-foreground/80",
         empty: "text-muted-foreground/70",
@@ -215,58 +224,84 @@ function getAwardPriority(award?: OrganizerPrize | null) {
     : Number.POSITIVE_INFINITY;
 }
 
-function RankBadge({ rank, award }: { rank: number; award?: OrganizerPrize | null }) {
-  const awardPresentation = getAwardPresentation(award);
-  const rankPresentation = getRankPresentation(rank);
+function getOrdinalRank(rank: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = rank % 100;
+  return rank + (s[(v - 20) % 10] || s[v] || s[0]);
+}
 
-  if (awardPresentation) {
-    const Icon = awardPresentation.icon;
-    const isChampion = getAwardPresentation(award) === AWARD_PRESENTATION_STYLES[0];
+function RankBadge({ rank, award, isPublished }: { rank: number; award?: OrganizerPrize | null; isPublished?: boolean }) {
+  if (isPublished && award) {
+    const awardPresentation = getAwardPresentation(award);
+    if (awardPresentation) {
+      const Icon = awardPresentation.icon;
+      const isChampion = awardPresentation === AWARD_PRESENTATION_STYLES[0];
 
+      return (
+        <motion.div
+          title={award?.name || "Award"}
+          animate={isChampion ? { y: [0, -2, 0], rotate: [-2, 2, -2] } : undefined}
+          transition={isChampion ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : undefined}
+          className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 ${awardPresentation.ringClass}`}
+        >
+          {isChampion && (
+            <motion.span
+              className="absolute -right-1 -top-1"
+              animate={{ scale: [0.8, 1.15, 0.8], opacity: [0.55, 1, 0.55] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-yellow-200" />
+            </motion.span>
+          )}
+          <Icon className={`h-5 w-5 ${awardPresentation.iconClass}`} />
+        </motion.div>
+      );
+    }
+  }
+
+  const ordinal = getOrdinalRank(rank);
+
+  if (rank === 1) {
     return (
       <motion.div
-        title={award?.name || "Award"}
-        animate={isChampion ? { y: [0, -2, 0], rotate: [-2, 2, -2] } : undefined}
-        transition={isChampion ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : undefined}
-        className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1 ${awardPresentation.ringClass}`}
+        title="Rank 1"
+        animate={{ y: [0, -1.5, 0] }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+        className="flex h-9 min-w-9 px-2.5 shrink-0 items-center justify-center gap-1 rounded-full bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border border-yellow-500/40 text-xs font-extrabold shadow-[0_0_12px_rgba(234,179,8,0.25)]"
       >
-        {isChampion && (
-          <motion.span
-            className="absolute -right-1 -top-1"
-            animate={{ scale: [0.8, 1.15, 0.8], opacity: [0.55, 1, 0.55] }}
-            transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <Sparkles className="h-3.5 w-3.5 text-yellow-200" />
-          </motion.span>
-        )}
-        <Icon className={`h-5 w-5 ${awardPresentation.iconClass}`} />
+        <Crown className="w-3.5 h-3.5 fill-yellow-500/20" />
+        <span>1st</span>
       </motion.div>
     );
   }
+  if (rank === 2) {
+    return (
+      <div title="Rank 2" className="flex h-9 min-w-9 px-2.5 shrink-0 items-center justify-center gap-1 rounded-full bg-slate-500/15 text-slate-700 dark:text-slate-200 border border-slate-500/40 text-xs font-extrabold shadow-2xs">
+        <Medal className="w-3.5 h-3.5" />
+        <span>2nd</span>
+      </div>
+    );
+  }
+  if (rank === 3) {
+    return (
+      <div title="Rank 3" className="flex h-9 min-w-9 px-2.5 shrink-0 items-center justify-center gap-1 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/40 text-xs font-extrabold shadow-2xs">
+        <Award className="w-3.5 h-3.5" />
+        <span>3rd</span>
+      </div>
+    );
+  }
+  if (rank === 4) {
+    return (
+      <div title="Rank 4" className="flex h-9 min-w-9 px-2.5 shrink-0 items-center justify-center gap-1 rounded-full bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/40 text-xs font-extrabold shadow-2xs">
+        <Sparkles className="w-3.5 h-3.5" />
+        <span>4th</span>
+      </div>
+    );
+  }
 
-  if (rank === 1) return (
-    <motion.div
-      title="Top 1 of Track"
-      animate={{ y: [0, -2, 0] }}
-      transition={{ duration: 1.9, repeat: Infinity, ease: "easeInOut" }}
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${rankPresentation?.ringClass}`}
-    >
-      <Crown className={`h-4 w-4 ${rankPresentation?.iconClass}`} />
-    </motion.div>
-  );
-  if (rank === 2) return (
-    <div title="Top 2 of Track" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${rankPresentation?.ringClass}`}>
-      <Medal className={`h-4 w-4 ${rankPresentation?.iconClass}`} />
-    </div>
-  );
-  if (rank === 3) return (
-    <div title="Top 3 of Track" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ring-1 ${rankPresentation?.ringClass}`}>
-      <Award className={`h-4 w-4 ${rankPresentation?.iconClass}`} />
-    </div>
-  );
   return (
-    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted/30 ring-1 ring-border text-sm font-bold text-muted-foreground">
-      {rank}
+    <div className="flex h-8 min-w-8 px-2 shrink-0 items-center justify-center rounded-full bg-muted/40 border border-border/80 text-xs font-bold text-muted-foreground">
+      {ordinal}
     </div>
   );
 }
@@ -317,6 +352,7 @@ function TeamRow({
   prizes: OrganizerPrize[];
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [selectedJudgeDetail, setSelectedJudgeDetail] = useState<DetailedJudgeScore | null>(null);
   const completedJudges = entry.judges.filter((j) => j.status === "completed");
   const hasAnomalous = completedJudges.some(
     (j) => j.deviationFromAverage !== null && Math.abs(j.deviationFromAverage) >= ANOMALY_THRESHOLD,
@@ -331,8 +367,8 @@ function TeamRow({
       return a.judgeName.localeCompare(b.judgeName);
     });
   }, [entry.judges]);
-  const activeAward = isFinalRound ? ((isPublished ? entry.award : awardValue) ?? null) : null;
-  const awardPresentation = getAwardPresentation(activeAward, prizes);
+  const activeAward = isFinalRound && isPublished ? (entry.award ?? null) : null;
+  const awardPresentation = isPublished ? getAwardPresentation(activeAward, prizes) : null;
   const rankPresentation = getRankPresentation(rank);
 
   const isPassed = !isFinalRound && isPublished && entry.status === "advanced";
@@ -371,7 +407,7 @@ function TeamRow({
       <div
         className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors relative z-10 ${headerClass}`}
       >
-        <RankBadge rank={rank} award={activeAward} />
+        <RankBadge rank={rank} award={activeAward} isPublished={isPublished} />
 
         <div className="flex-1 min-w-0" onClick={() => setExpanded(!expanded)} style={{cursor: "pointer"}}>
           <div className="flex items-center gap-2 flex-wrap">
@@ -405,7 +441,7 @@ function TeamRow({
 
         <div className="flex items-center gap-4 shrink-0">
           <div className="text-right">
-            <div className={`text-2xl font-bold tabular-nums ${scoreClass}`}>
+            <div className={cn("text-2xl font-bold tabular-nums", getScoreColorClass(entry.finalScore))}>
               {entry.finalScore !== null ? entry.finalScore.toFixed(2) : "—"}
             </div>
             <div className="text-[10px] text-muted-foreground">/ 10.00</div>
@@ -470,7 +506,7 @@ function TeamRow({
               {/* Criteria Breakdown */}
               <div>
                 <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4" /> Criteria Averages
+                  <BarChart3 className="w-4 h-4 text-indigo-500" /> Criteria Averages
                 </h4>
                 <div className="space-y-3">
                   {entry.criteriaAverages.map(ca => (
@@ -489,7 +525,7 @@ function TeamRow({
                           className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500"
                         />
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">Weight: {ca.weight}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">Weight: {ca.weight}%</div>
                     </div>
                   ))}
                 </div>
@@ -497,72 +533,113 @@ function TeamRow({
 
               {/* Judge Matrix */}
               <div>
-                <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Users className="w-4 h-4" /> Judge Scores
+                <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-orange-500" /> Judge Scores
+                  </span>
+                  <span className="text-[11px] font-normal text-muted-foreground flex items-center gap-1">
+                    Click <Eye className="w-3 h-3 text-orange-500 inline" /> for details
+                  </span>
                 </h4>
                 {sortedJudges.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">No judges assigned to this track.</p>
                 ) : (
                   <div className="space-y-3">
                     {sortedJudges.map(j => {
-                      const presentation = getJudgeCardPresentation(j.status);
                       const statusLabel =
                         j.status === "completed"
                           ? "Completed"
                           : j.status === "partial"
-                            ? "In progress"
-                            : "Not scored";
+                            ? "In Progress"
+                            : "Not Scored";
                       const statusClass =
                         j.status === "completed"
-                          ? "bg-emerald-500/25 text-emerald-800 dark:text-emerald-100 border border-emerald-500/30"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                           : j.status === "partial"
-                            ? "bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/25"
-                            : "bg-muted/60 text-muted-foreground border border-border/60";
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                            : "bg-muted text-muted-foreground border border-border/60";
 
                       return (
                         <div
                           key={j.judgeId}
-                          className={cn(
-                            "rounded-xl p-4 border transition-all duration-200",
-                            presentation.card,
-                          )}
+                          className="group rounded-xl p-3.5 border border-border/80 bg-card hover:border-orange-500/30 hover:bg-muted/20 transition-all duration-200 shadow-sm"
                         >
                           <div className="flex items-center justify-between gap-2 mb-2">
                             <div className="min-w-0 flex items-center gap-2">
-                              <span className={cn("text-sm truncate max-w-[150px]", presentation.name)}>
+                              <span className="text-sm font-bold text-foreground truncate max-w-[150px]">
                                 {j.judgeName}
                               </span>
-                              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", statusClass)}>
+                              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider", statusClass)}>
                                 {statusLabel}
                               </span>
                             </div>
-                            <span className={cn("tabular-nums shrink-0", presentation.score)}>
-                              {j.totalGivenScore !== null ? j.totalGivenScore.toFixed(2) : "—"}
-                            </span>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={cn(
+                                "tabular-nums text-sm font-extrabold px-2 py-0.5 rounded-lg border",
+                                j.totalGivenScore !== null && j.totalGivenScore >= 8
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  : j.totalGivenScore !== null && j.totalGivenScore >= 5
+                                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                                    : j.totalGivenScore !== null
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                      : "text-muted-foreground"
+                              )}>
+                                {j.totalGivenScore !== null ? j.totalGivenScore.toFixed(2) : "—"}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-lg text-orange-500 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/25 transition-all shadow-2xs"
+                                title="View detailed evaluation & comments"
+                                onClick={() => setSelectedJudgeDetail(j)}
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </div>
+
                           {j.comment && (
-                            <p className={cn("text-[11px] italic border-t border-border/40 pt-2 mt-1 line-clamp-3", presentation.comment)}>
-                              &ldquo;{j.comment}&rdquo;
-                            </p>
+                            <div className="my-2 border-l-2 border-orange-500/40 pl-2.5 py-0.5">
+                              <p className="text-[11px] text-muted-foreground italic line-clamp-2 leading-relaxed">
+                                &ldquo;{j.comment}&rdquo;
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedJudgeDetail(j)}
+                                className="mt-1 text-[10px] font-semibold text-orange-500 hover:text-orange-600 dark:hover:text-orange-400 inline-flex items-center gap-1 hover:underline cursor-pointer"
+                              >
+                                <Eye className="w-3 h-3" /> View full feedback
+                              </button>
+                            </div>
                           )}
+
                           {j.status === "pending" ? (
-                            <p className={cn("text-[11px] mt-2", presentation.empty)}>
+                            <p className="text-[11px] text-muted-foreground mt-2 italic">
                               No scores submitted yet.
                             </p>
                           ) : (
                             <div className="flex flex-wrap gap-1.5 mt-2">
                               {j.criteriaScores.length > 0 ? (
-                                j.criteriaScores.map(cs => (
-                                  <span
-                                    key={cs.criterionId}
-                                    className={cn(
-                                      "text-[10px] border rounded-md px-2 py-0.5 tabular-nums shadow-sm",
-                                      presentation.chip,
-                                    )}
-                                  >
-                                    C{cs.criterionId}: {Number(cs.scoreValue).toFixed(1)}
-                                  </span>
-                                ))
+                                j.criteriaScores.map(cs => {
+                                  const matchingCa = entry.criteriaAverages.find(ca => ca.criterionId === cs.criterionId);
+                                  const shortLabel = matchingCa ? matchingCa.name.split(" ")[0] : `C${cs.criterionId}`;
+                                  const scoreVal = Number(cs.scoreValue);
+                                  const scoreColor = scoreVal >= 8 ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                                                    : scoreVal >= 5 ? "text-blue-600 dark:text-blue-400 font-bold"
+                                                    : "text-amber-600 dark:text-amber-400 font-bold";
+
+                                  return (
+                                    <span
+                                      key={cs.criterionId}
+                                      title={matchingCa ? `${matchingCa.name}: ${cs.scoreValue} / ${matchingCa.maxScore}` : undefined}
+                                      className="text-[10px] font-medium border border-border/70 bg-muted/40 text-muted-foreground rounded-md px-2 py-0.5 tabular-nums shadow-2xs"
+                                    >
+                                      {shortLabel}: <strong className={scoreColor}>{scoreVal.toFixed(1)}</strong>
+                                    </span>
+                                  );
+                                })
                               ) : (
                                 <span className="text-[10px] text-muted-foreground">—</span>
                               )}
@@ -578,6 +655,148 @@ function TeamRow({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Judge Detail Modal */}
+      <Dialog open={!!selectedJudgeDetail} onOpenChange={(open) => !open && setSelectedJudgeDetail(null)}>
+        <DialogContent className="sm:max-w-xl md:max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0 border border-border/80 bg-card shadow-2xl rounded-2xl">
+          {selectedJudgeDetail && (
+            <>
+              {/* Modal Header */}
+              <DialogHeader className="p-5 sm:p-6 border-b border-border bg-muted/20 shrink-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <DialogTitle className="flex items-center gap-2.5 text-base sm:text-lg font-bold text-foreground">
+                      <div className="p-2 rounded-xl bg-orange-500/10 text-orange-500 border border-orange-500/20 shrink-0">
+                        <Eye className="w-5 h-5" />
+                      </div>
+                      <span className="truncate">Evaluation Details by {selectedJudgeDetail.judgeName}</span>
+                    </DialogTitle>
+                    <DialogDescription className="mt-1.5 text-xs text-muted-foreground">
+                      Team: <span className="font-semibold text-foreground">{entry.teamName}</span> · Track: <span className="font-semibold text-foreground">{entry.trackName}</span>
+                    </DialogDescription>
+                  </div>
+
+                  {/* Status & Total Score Callout */}
+                  <div className="text-right shrink-0">
+                    <div className="inline-flex items-baseline gap-1 text-xl sm:text-2xl font-black tabular-nums px-3 py-1 rounded-xl bg-orange-500/10 text-orange-500 border border-orange-500/20 shadow-2xs">
+                      {selectedJudgeDetail.totalGivenScore !== null ? selectedJudgeDetail.totalGivenScore.toFixed(2) : "—"}
+                      <span className="text-xs font-semibold text-orange-500/70">/ 10.00</span>
+                    </div>
+                    <div className="mt-1">
+                      <span className={cn(
+                        "inline-block rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                        selectedJudgeDetail.status === "completed"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25"
+                          : selectedJudgeDetail.status === "partial"
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25"
+                            : "bg-muted text-muted-foreground border border-border"
+                      )}>
+                        {selectedJudgeDetail.status === "completed" ? "Completed" : selectedJudgeDetail.status === "partial" ? "In Progress" : "Not Scored"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+                {/* Section 1: Comment / General Overview */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-3">
+                    <MessageSquare className="w-4 h-4 text-orange-500" />
+                    GENERAL FEEDBACK & OVERVIEW
+                  </h4>
+                  {selectedJudgeDetail.comment ? (
+                    <div className="relative rounded-xl border border-orange-500/25 bg-orange-500/[0.03] dark:bg-orange-500/[0.05] p-4.5 text-sm leading-relaxed text-foreground shadow-2xs">
+                      <Quote className="w-6 h-6 text-orange-500/30 absolute right-3 top-3 pointer-events-none" />
+                      <p className="whitespace-pre-wrap italic leading-relaxed pr-6 text-foreground/90 font-serif">
+                        &ldquo;{selectedJudgeDetail.comment}&rdquo;
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-4 text-center text-xs text-muted-foreground italic">
+                      No general comments provided by the judge for this submission.
+                    </div>
+                  )}
+                </div>
+
+                {/* Section 2: Criteria Scores Breakdown */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-3">
+                    <BarChart3 className="w-4 h-4 text-blue-500" />
+                    DETAILED CRITERIA BREAKDOWN ({selectedJudgeDetail.criteriaScores.length}/{entry.criteriaAverages.length})
+                  </h4>
+
+                  {selectedJudgeDetail.criteriaScores.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">No criteria scores recorded yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedJudgeDetail.criteriaScores.map((cs) => {
+                        const matchingCa = entry.criteriaAverages.find((ca) => ca.criterionId === cs.criterionId);
+                        const criterionName = matchingCa ? matchingCa.name : `Criterion C${cs.criterionId}`;
+                        const maxScore = matchingCa ? matchingCa.maxScore : 10;
+                        const weight = matchingCa ? matchingCa.weight : 0;
+                        const teamAvg = matchingCa ? matchingCa.averageScore : null;
+                        const percentage = Math.min((Number(cs.scoreValue) / maxScore) * 100, 100);
+
+                        const scoreColorClass = percentage >= 90 ? "text-emerald-500 dark:text-emerald-300 font-extrabold"
+                                              : percentage >= 80 ? "text-emerald-600 dark:text-emerald-400"
+                                              : percentage >= 70 ? "text-teal-600 dark:text-teal-400"
+                                              : percentage >= 60 ? "text-amber-600 dark:text-amber-400"
+                                              : percentage >= 50 ? "text-slate-600 dark:text-slate-400"
+                                              : "text-rose-600 dark:text-rose-400";
+
+                        const barGradientClass = percentage >= 90 ? "from-emerald-400 to-green-300"
+                                               : percentage >= 80 ? "from-emerald-500 to-teal-400"
+                                               : percentage >= 70 ? "from-teal-500 to-emerald-400"
+                                               : percentage >= 60 ? "from-amber-500 to-orange-400"
+                                               : percentage >= 50 ? "from-slate-400 to-slate-500"
+                                               : "from-rose-500 to-red-400";
+
+                        return (
+                          <div key={cs.criterionId} className="rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs space-y-2.5">
+                            <div className="flex justify-between items-center text-xs">
+                              <div className="min-w-0 pr-2">
+                                <span className="font-semibold text-foreground text-sm">{criterionName}</span>
+                                <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                                  <span>Weight: <strong className="text-foreground/90">{weight}%</strong></span>
+                                  {teamAvg !== null && (
+                                    <span>· Team Avg: <strong className="text-foreground/90">{teamAvg.toFixed(2)}</strong></span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className={cn("text-base font-extrabold tabular-nums", scoreColorClass)}>
+                                  {Number(cs.scoreValue).toFixed(1)}
+                                </span>
+                                <span className="text-xs text-muted-foreground"> / {maxScore}</span>
+                              </div>
+                            </div>
+
+                            {/* Progress Bar */}
+                            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                              <div
+                                className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-300", barGradientClass)}
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter className="p-4 border-t border-border bg-muted/20 shrink-0 flex justify-end">
+                <Button variant="outline" onClick={() => setSelectedJudgeDetail(null)} className="w-full sm:w-auto rounded-xl">
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1021,7 +1240,7 @@ export default function RankingsPage() {
               <TeamRow 
                 key={entry.teamId} 
                 entry={entry} 
-                rank={entry.rank || idx + 1} 
+                rank={idx + 1} 
                 willAdvance={advancingTeamIds.has(entry.teamId)}
                 isPublished={isResultsPublished}
                 isFinalRound={round?.isFinalRound}

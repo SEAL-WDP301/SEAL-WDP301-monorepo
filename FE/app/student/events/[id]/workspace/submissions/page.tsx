@@ -36,6 +36,8 @@ import { useWorkspaceAccess } from "../workspace-access";
 import { useAdminSocket } from "@/hooks/use-admin-socket";
 import { axiosClient } from "@/lib/axios";
 import { TeamRoundStatusBanner } from "@/components/student/team-round-status-banner";
+import { cn } from "@/lib/utils";
+import { getScoreColorClass } from "@/lib/api/judge.api";
 import { TrackPendingBanner } from "@/components/student/track-pending-banner";
 import { StudentTeamTrackPanel } from "@/components/student/student-team-track-panel";
 import { SubmissionLockBanner } from "@/components/student/submission-lock-banner";
@@ -428,7 +430,7 @@ export default function SubmissionsPage() {
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold tracking-wider uppercase text-orange-600/80 dark:text-orange-400/80">Total Score</span>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-extrabold bg-gradient-to-r from-orange-600 to-yellow-500 bg-clip-text text-transparent leading-none">
+                  <span className={cn("text-2xl font-extrabold leading-none tabular-nums", getScoreColorClass(pastScore))}>
                     {Number(pastScore).toFixed(2)}
                   </span>
                   <span className="text-xs text-muted-foreground font-semibold">/ 10</span>
@@ -554,11 +556,14 @@ export default function SubmissionsPage() {
                 <h3 className="font-semibold text-lg mb-4 border-b border-border pb-4">Detailed Scores from Judges</h3>
                 <div className="space-y-4">
                   {judgeList.map((j: any) => {
-                    const judgeWeightedScore = j.scores.reduce((sum: number, s: any) => {
-                      const score = Number(s.scoreValue) || 0; // 0..10
-                      const weight = Number(s.criterion?.weight) || 0; // weight e.g. 2.5
-                      return sum + (score / 10) * weight;
-                    }, 0);
+                    const totalWeight = j.scores.reduce((sum: number, s: any) => sum + (Number(s.criterion?.weight) || 0), 0);
+                    const judgeWeightedScore = totalWeight > 0
+                      ? j.scores.reduce((sum: number, s: any) => {
+                          const score = Number(s.scoreValue) || 0;
+                          const weight = Number(s.criterion?.weight) || 0;
+                          return sum + score * weight;
+                        }, 0) / totalWeight
+                      : 0;
                     
                     return (
                       <details key={j.judge.id} className="group rounded-2xl border border-border bg-muted/20 overflow-hidden open:bg-muted/40 transition-colors">
@@ -573,7 +578,9 @@ export default function SubmissionsPage() {
                             )}
                             <div>
                               <p className="font-bold text-foreground">{j.judge.name}</p>
-                              <p className="text-sm font-semibold text-orange-500">Score: {judgeWeightedScore.toFixed(2)} <span className="text-muted-foreground font-normal">/ 10</span></p>
+                              <p className="text-sm font-semibold text-foreground">
+                                Score: <span className={cn("font-bold tabular-nums", getScoreColorClass(judgeWeightedScore))}>{judgeWeightedScore.toFixed(2)}</span> <span className="text-muted-foreground font-normal">/ 10</span>
+                              </p>
                             </div>
                           </div>
                           <div className="p-2 rounded-full bg-background/50 group-open:rotate-180 transition-transform">
@@ -590,12 +597,12 @@ export default function SubmissionsPage() {
                                     <p className="font-bold text-sm text-foreground">{s.criterion.name}</p>
                                     {s.criterion?.weight !== undefined && (
                                       <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-                                        Weight: <span className="font-semibold text-foreground">{Number(s.criterion.weight)} / 10</span>
+                                        Weight: <span className="font-semibold text-foreground">{Number(s.criterion.weight)}%</span>
                                       </p>
                                     )}
                                   </div>
-                                  <div className="bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap">
-                                    {Number(s.scoreValue)} / 10
+                                  <div className={cn("px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap border bg-muted/40 tabular-nums", getScoreColorClass(s.scoreValue))}>
+                                    {Number(s.scoreValue).toFixed(2)} / 10
                                   </div>
                                 </div>
                                 {s.comment && (

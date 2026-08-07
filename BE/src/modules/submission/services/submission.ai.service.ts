@@ -1202,7 +1202,7 @@ Rules:
       let scoreValue = Number(row.scoreValue);
       if (!Number.isFinite(scoreValue)) scoreValue = 0;
       scoreValue = Math.max(0, Math.min(rubric.maxScore, scoreValue));
-      scoreValue = Math.round(scoreValue * 2) / 2;
+      scoreValue = Math.round(scoreValue * 4) / 4;
       scoreValue = Math.max(0, Math.min(rubric.maxScore, scoreValue));
 
       const comment =

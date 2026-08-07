@@ -5,8 +5,10 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   JUDGE_SCORE_SCALE,
+  getScoreColorClass,
   type JudgeRubric,
 } from "@/lib/api/judge.api";
 
@@ -59,8 +61,8 @@ export function CriteriaScoring({
               </div>
 
               <div className="text-right shrink-0">
-                <div className={`text-3xl font-bold leading-none ${disabled ? "text-muted-foreground opacity-60" : "text-orange-500"}`}>
-                  {score.toFixed(1)}
+                <div className={cn("text-3xl font-bold leading-none tabular-nums", disabled ? "text-muted-foreground opacity-60" : getScoreColorClass(score))}>
+                  {score % 1 === 0 ? score.toFixed(1) : score.toFixed(2)}
                 </div>
                 <span className="text-xs text-muted-foreground">
                   /{JUDGE_SCORE_SCALE}
@@ -73,7 +75,7 @@ export function CriteriaScoring({
                 value={[score]}
                 max={JUDGE_SCORE_SCALE}
                 min={0}
-                step={0.5}
+                step={0.25}
                 disabled={disabled}
                 className="flex-1"
                 onValueChange={(values) => onScoreChange(item.id, values[0] ?? 0)}
@@ -83,7 +85,7 @@ export function CriteriaScoring({
                 type="number"
                 min={0}
                 max={JUDGE_SCORE_SCALE}
-                step={0.5}
+                step={0.25}
                 disabled={disabled}
                 value={score}
                 className="w-20 text-center h-9"

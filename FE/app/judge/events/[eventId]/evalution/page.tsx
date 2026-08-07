@@ -529,8 +529,8 @@ export default function EvaluationPage() {
                     </div>
                   )}
 
-                  <div className="grid gap-8 xl:grid-cols-12">
-                    <div className="xl:col-span-8">
+                  <div className="grid gap-6 lg:grid-cols-12">
+                    <div className="lg:col-span-7 xl:col-span-8">
                       <CriteriaScoring
                         rubrics={submissionDetail?.rubrics ?? []}
                         scores={scores}
@@ -545,7 +545,7 @@ export default function EvaluationPage() {
                       />
                     </div>
 
-                    <div className="xl:col-span-4">
+                    <div className="lg:col-span-5 xl:col-span-4">
                       <ScoreSummary
                         rubrics={submissionDetail?.rubrics ?? []}
                         scores={scores}

@@ -14,6 +14,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import {
   type JudgeRoundSubmission,
   formatJudgeScore,
+  getScoreColorClass,
   mapScoringStatusLabel,
 } from "@/lib/api/judge.api";
 
@@ -137,7 +138,7 @@ export function TeamSelectorBar({
                       {team.weightedScore != null && (
                         <>
                           <span className="text-muted-foreground text-xs">·</span>
-                          <span className="font-bold text-green-600 dark:text-green-400 text-sm">{formatJudgeScore(team.weightedScore)} pts</span>
+                          <span className={cn("font-bold text-sm tabular-nums", getScoreColorClass(team.weightedScore))}>{formatJudgeScore(team.weightedScore)} pts</span>
                         </>
                       )}
                     </div>

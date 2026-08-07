@@ -220,6 +220,18 @@ export function formatJudgeScore(score: number | null | undefined): string {
   return Number(score).toFixed(2);
 }
 
+/** Get score text color class matching the Rankings tab threshold colors. */
+export function getScoreColorClass(score: number | null | undefined): string {
+  if (score == null || !Number.isFinite(Number(score))) return "text-muted-foreground";
+  const val = Number(score);
+  if (val >= 9.0) return "text-emerald-500 dark:text-emerald-300 font-extrabold";
+  if (val >= 8.0) return "text-emerald-600 dark:text-emerald-400";
+  if (val >= 7.0) return "text-teal-600 dark:text-teal-400";
+  if (val >= 6.0) return "text-amber-600 dark:text-amber-400";
+  if (val >= 5.0) return "text-slate-600 dark:text-slate-400";
+  return "text-rose-600 dark:text-rose-400";
+}
+
 export function mapScoringStatusLabel(status: JudgeScoringStatus) {
   switch (status) {
     case "completed":

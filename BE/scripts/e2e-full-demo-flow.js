@@ -11,7 +11,7 @@ const bcrypt = require("bcrypt");
 
 const prisma = new PrismaClient();
 const API = process.env.API_BASE || "http://localhost:3000/api";
-const PASS = "Admin@123";
+const PASS = process.env.E2E_DEFAULT_PASSWORD || "";
 
 const log = (...a) => console.log(...a);
 const fail = (msg, detail) => {
@@ -106,7 +106,7 @@ async function main() {
         email: `e2e.student${i}@test.com`,
         name: `E2E Student ${i}`,
         role: "student",
-        password: "Student@123",
+        password: PASS,
       }),
     );
   }
@@ -523,10 +523,10 @@ async function main() {
           prize: t.award.name,
         })),
         accounts: {
-          organizer: "e2e.org@test.com / Admin@123",
-          mentorJudge: "e2e.mentorjudge@test.com / Admin@123",
-          judge: "e2e.judge@test.com / Admin@123",
-          students: "e2e.student1..6@test.com / Student@123",
+          organizer: "e2e.org@test.com / [E2E_DEFAULT_PASSWORD]",
+          mentorJudge: "e2e.mentorjudge@test.com / [E2E_DEFAULT_PASSWORD]",
+          judge: "e2e.judge@test.com / [E2E_DEFAULT_PASSWORD]",
+          students: "e2e.student1..6@test.com / [E2E_DEFAULT_PASSWORD]",
         },
       },
       null,

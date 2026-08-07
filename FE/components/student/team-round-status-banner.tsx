@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { getScoreColorClass } from "@/lib/api/judge.api";
 
 export interface TeamRoundStatusBannerProps {
   roundName?: string;
@@ -174,7 +176,7 @@ export function TeamRoundStatusBanner({
                   ✨ PASSED ROUND
                 </Badge>
                 {score !== null && score !== undefined && (
-                  <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+                  <span className={cn("text-xs font-bold tabular-nums", getScoreColorClass(score))}>
                     Score: {Number(score).toFixed(2)}/10
                   </span>
                 )}
@@ -226,7 +228,7 @@ export function TeamRoundStatusBanner({
                   ELIMINATED AT {roundName.toUpperCase()}
                 </Badge>
                 {score !== null && score !== undefined && (
-                  <span className="text-xs font-semibold text-muted-foreground">
+                  <span className={cn("text-xs font-bold tabular-nums", getScoreColorClass(score))}>
                     Score: {Number(score).toFixed(2)}/10
                   </span>
                 )}
@@ -261,7 +263,7 @@ export function TeamRoundStatusBanner({
                     {tierConfig.badgeText}
                   </Badge>
                   {score !== null && score !== undefined && (
-                    <span className={`text-xs font-semibold ${tierConfig.scoreTextClass}`}>
+                    <span className={cn("text-xs font-bold tabular-nums", getScoreColorClass(score))}>
                       Final Score: {Number(score).toFixed(2)}/10
                     </span>
                   )}
@@ -292,7 +294,7 @@ export function TeamRoundStatusBanner({
                   FINALIST COMPLETED
                 </Badge>
                 {score !== null && score !== undefined && (
-                  <span className="text-xs font-semibold text-muted-foreground">
+                  <span className={cn("text-xs font-bold tabular-nums", getScoreColorClass(score))}>
                     Final Score: {Number(score).toFixed(2)}/10
                   </span>
                 )}

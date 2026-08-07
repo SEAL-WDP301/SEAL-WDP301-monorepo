@@ -19,20 +19,20 @@ describe("track-capacity FE helpers", () => {
   });
 
   it("problem lottery disable reasons", () => {
-    expect(getProblemLotteryDisableReason(0, 5)).toMatch(/Thêm ít nhất/);
-    expect(getProblemLotteryDisableReason(3, 1)).toMatch(/Upload thêm/);
+    expect(getProblemLotteryDisableReason(0, 5)).toMatch(/Add at least/);
+    expect(getProblemLotteryDisableReason(3, 1)).toMatch(/Upload/);
     expect(getProblemLotteryDisableReason(3, 3)).toBeNull();
-    expect(getProblemLotteryDisableReason(4, 4, 3)).toMatch(/Tối đa 3 bảng/);
+    expect(getProblemLotteryDisableReason(4, 4, 3)).toMatch(/Maximum 3/);
     expect(canRunProblemLottery(3, 3)).toBe(true);
   });
 
   it("blocks repeat Phase 1 and Phase 2", () => {
     expect(
       getProblemLotteryDisableReason(3, 0, 30, true),
-    ).toMatch(/Phase 1 đã chạy/);
+    ).toMatch(/Phase 1 has been executed/);
     expect(
       getTeamLotteryDisableReason(3, 30, [{ problemFileUrl: "a.pdf" }], true),
-    ).toMatch(/Phase 2 đã chạy/);
+    ).toMatch(/Phase 2 has been executed/);
     expect(isTeamLotteryDone(2, true)).toBe(false);
     expect(isTeamLotteryDone(2, false)).toBe(true);
     expect(isProblemLotteryDone([{ assignedRoundId: 1 }], 3, 0)).toBe(true);
@@ -40,8 +40,8 @@ describe("track-capacity FE helpers", () => {
   });
 
   it("team lottery disable reasons", () => {
-    expect(getTeamLotteryDisableReason(0, 50, [])).toMatch(/Thêm ít nhất/);
-    expect(getTeamLotteryDisableReason(6, 5, [])).toMatch(/Tối đa 5 bảng/);
+    expect(getTeamLotteryDisableReason(0, 50, [])).toMatch(/Add at least/);
+    expect(getTeamLotteryDisableReason(6, 5, [])).toMatch(/Maximum 5/);
     expect(
       getTeamLotteryDisableReason(3, 50, [
         { problemFileUrl: "a.pdf" },
