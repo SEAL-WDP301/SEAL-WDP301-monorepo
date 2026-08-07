@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { exec } from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs';
 
 const LEGACY_SCRIPTS: Record<string, { file: string; title: string }> = {
   'seed-demo-event': { file: 'scripts/e2e-tester/seed-demo-event.ts', title: '00. Seed Flow B Demo Event' },
@@ -44,11 +45,13 @@ export class E2eTesterService {
     }
 
     const scriptPath = path.resolve(process.cwd(), targetScript.file);
-    let tsNodeRegister: string;
-    try {
-      tsNodeRegister = require.resolve('ts-node/register/transpile-only');
-    } catch {
-      tsNodeRegister = path.resolve(process.cwd(), 'node_modules/ts-node/register/transpile-only.js');
+    const tsNodeBin = path.resolve(process.cwd(), 'node_modules/.bin/ts-node');
+
+    let command: string;
+    if (fs.existsSync(tsNodeBin)) {
+      command = `"${tsNodeBin}" --transpile-only "${scriptPath}"`;
+    } else {
+      command = `npx --yes ts-node --transpile-only "${scriptPath}"`;
     }
 
     return new Promise((resolve) => {
@@ -57,7 +60,6 @@ export class E2eTesterService {
         env.TARGET_EVENT_ID = String(eventId);
       }
 
-      const command = `"${process.execPath}" -r "${tsNodeRegister}" "${scriptPath}"`;
       exec(command, { cwd: process.cwd(), env, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
         const fullOutput = (stdout + '\n' + stderr).trim();
 
