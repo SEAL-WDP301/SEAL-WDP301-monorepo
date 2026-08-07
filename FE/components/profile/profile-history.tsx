@@ -1,12 +1,15 @@
 "use client";
 
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { axiosClient } from "@/lib/axios";
-import { Loader2, Trophy, Medal, MapPin, Users, Calendar, Award, Star, ChevronRight } from "lucide-react";
+import { Loader2, Trophy, Medal, MapPin, Users, Calendar, Award, Star, ChevronRight, ChevronLeft } from "lucide-react";
 import { format } from "date-fns";
 import Link from "next/link";
 
 export function ProfileHistory({ userId }: { userId?: number }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["profileHistory", userId],
     queryFn: async () => {
@@ -38,6 +41,18 @@ export function ProfileHistory({ userId }: { userId?: number }) {
 
   const awardedTeams = hackerHistory.filter((t: any) => t.award);
 
+  const scrollLeft = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: -260, behavior: "smooth" });
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: 260, behavior: "smooth" });
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Achievements Showcase */}
@@ -49,17 +64,37 @@ export function ProfileHistory({ userId }: { userId?: number }) {
               <h2 className="text-xl font-bold text-amber-600 dark:text-yellow-500">Trophy Showcase</h2>
             </div>
             {awardedTeams.length > 4 && (
-              <div className="flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-yellow-400 bg-amber-500/15 dark:bg-yellow-500/10 px-2.5 py-1 rounded-full border border-amber-500/30 dark:border-yellow-500/30 animate-pulse">
-                <span>Cuộn xem tiếp ({awardedTeams.length})</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-yellow-400 bg-amber-500/15 dark:bg-yellow-500/10 px-2.5 py-1 rounded-full border border-amber-500/30 dark:border-yellow-500/30">
+                  <span>{awardedTeams.length} giải thưởng</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={scrollLeft}
+                    className="p-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-yellow-400 transition-colors"
+                    title="Scroll Left"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={scrollRight}
+                    className="p-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-yellow-400 transition-colors"
+                    title="Scroll Right"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
           <div
+            ref={scrollRef}
             className={
               awardedTeams.length > 4
-                ? "flex gap-4 overflow-x-auto pb-2 scrollbar-thin snap-x scroll-smooth"
+                ? "flex gap-4 overflow-x-auto pb-3 custom-horizontal-scrollbar snap-x scroll-smooth"
                 : "grid grid-cols-2 md:grid-cols-4 gap-4"
             }
           >

@@ -347,6 +347,29 @@
   }
 }
 
+/* Custom sleek horizontal scrollbar for UI containers */
+.custom-horizontal-scrollbar::-webkit-scrollbar {
+  height: 6px !important;
+  width: 6px !important;
+  display: block !important;
+}
+.custom-horizontal-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-radius: 9999px !important;
+}
+.custom-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.35) !important;
+  border-radius: 9999px !important;
+  transition: background-color 0.2s ease;
+}
+.custom-horizontal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 158, 11, 0.7) !important;
+}
+.custom-horizontal-scrollbar {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(245, 158, 11, 0.35) rgba(255, 255, 255, 0.04) !important;
+}
+
 /* =========================
    NOTISTACK POINTER-EVENTS ISOLATION
    Prevents invisible container overlays from blocking top header buttons

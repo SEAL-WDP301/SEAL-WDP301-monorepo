@@ -18,11 +18,6 @@ export function MetricCard({ metric }: { metric: MetricCardData }) {
       <Card className="h-full p-5 hover:-translate-y-0.5 hover:border-orange-500/30">
         <div className="flex items-start justify-between">
           <div className="grid size-10 place-items-center rounded-xl border border-orange-500/20 bg-orange-500/10 text-[#ff8a3d]"><Icon className="size-5" /></div>
-          {metric.delta !== 0 ? (
-            <span className={cn("rounded-full border px-2 py-1 text-xs font-semibold", metric.delta > 0 ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" : "border-red-500/20 bg-red-500/10 text-red-400")}>
-              {metric.delta > 0 ? "+" : ""}{metric.delta}%
-            </span>
-          ) : null}
         </div>
         <div className={cn("mt-5 grid items-end gap-3", sparkData.length > 0 && "grid-cols-[1fr_110px]")}>
           <div>
