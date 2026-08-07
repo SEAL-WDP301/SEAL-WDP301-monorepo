@@ -401,8 +401,8 @@ const emptySettings = (): OrganizerSettings => ({
   },
   eventDefaults: {
     season: "",
-    minTeamSize: 0,
-    maxTeamSize: 0,
+    minTeamSize: 2,
+    maxTeamSize: 5,
     registrationMode: "",
     fileLimit: 0,
     timezone: "",

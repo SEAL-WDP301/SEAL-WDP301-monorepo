@@ -41,13 +41,13 @@ export function AiSuggestPanel({
         : null;
 
   const basedOnLines = [
-    `Sự kiện: ${detail.event.name}`,
-    `Vòng: Round ${detail.round.roundNumber}: ${detail.round.name}`,
-    `Đội: ${detail.team.name}`,
+    `Event: ${detail.event.name}`,
+    `Round: Round ${detail.round.roundNumber}: ${detail.round.name}`,
+    `Team: ${detail.team.name}`,
     detail.team.track?.name ? `Track: ${detail.team.track.name}` : null,
-    sourceLabel ? `Nguồn đọc: ${sourceLabel}` : null,
+    sourceLabel ? `Source: ${sourceLabel}` : null,
     suggestion?.contextSummary
-      ? `Bằng chứng: ${suggestion.contextSummary}`
+      ? `Evidence: ${suggestion.contextSummary}`
       : null,
   ].filter(Boolean);
 
@@ -60,8 +60,8 @@ export function AiSuggestPanel({
             <h3 className="text-xl font-semibold">AI Scoring Assist</h3>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Nhấn AI Suggest để xem gợi ý điểm và nhận xét. Chỉ khi bấm Đồng ý
-            thì mới điền xuống form chấm điểm.
+            Select AI Suggest to preview suggested scores and comments. The
+            scoring form is updated only after you accept the suggestion.
           </p>
         </div>
         <Button
@@ -87,8 +87,8 @@ export function AiSuggestPanel({
             AI assist only — judge is final
           </p>
           <p className="text-xs leading-relaxed text-orange-100/80">
-            Gợi ý theo rubric của sự kiện. AI không tự lưu điểm — bạn xem trước,
-            chọn Đồng ý hoặc Không dùng, rồi Save khi sẵn sàng.
+            Suggestions follow the event rubric. AI never saves scores automatically.
+            Review the result, accept or discard it, then save when ready.
           </p>
         </div>
       </div>
@@ -96,7 +96,7 @@ export function AiSuggestPanel({
       {isSuggesting && (
         <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-background/40 p-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
-          Đang đọc bài nộp và tạo gợi ý chấm điểm…
+          Reading the submission and generating scoring suggestions…
         </div>
       )}
 
@@ -104,7 +104,7 @@ export function AiSuggestPanel({
         <div className="space-y-4">
           <div className="rounded-2xl border border-white/10 bg-background/40 p-4 text-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Dựa trên
+              Based on
             </p>
             <ul className="mt-2 space-y-1 text-muted-foreground">
               {basedOnLines.map((line) => (
@@ -165,7 +165,7 @@ export function AiSuggestPanel({
               onClick={onReject}
             >
               <X className="h-4 w-4" />
-              Không dùng
+              Discard
             </Button>
             <Button
               type="button"
@@ -179,7 +179,7 @@ export function AiSuggestPanel({
               ) : (
                 <Check className="h-4 w-4" />
               )}
-              Đồng ý — điền vào form
+              Accept — fill the form
             </Button>
           </div>
         </div>

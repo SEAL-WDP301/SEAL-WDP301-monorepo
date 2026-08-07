@@ -31,7 +31,7 @@ export type AssistantChatResult = {
 
 export async function postAssistantChat(input: {
   message: string;
-  locale?: "vi" | "en";
+  locale?: "en";
   context?: {
     eventId?: number;
     focusEventId?: number;
@@ -48,39 +48,39 @@ export function quickRepliesForAudience(audience?: AssistantAudience | null) {
     case "mentor":
     case "mentor_judge":
       return [
-        "Team của tôi",
-        "Team nào thiếu feedback",
-        "Event đang mở",
-        "Round tôi được assign",
+        "My teams",
+        "Teams missing feedback",
+        "Open events",
+        "My assigned rounds",
       ];
     case "judge":
       return [
-        "Round tôi được assign",
-        "Bài chưa chấm",
-        "Rubric round của tôi",
-        "Event đang mở",
+        "My assigned rounds",
+        "Submissions awaiting review",
+        "My round rubric",
+        "Open events",
       ];
     case "organizer":
     case "admin":
       return [
-        "Event của tôi",
-        "Tình trạng event này",
-        "Rubric/criteria event",
-        "Event đang mở",
+        "My events",
+        "This event's status",
+        "Event rubric and criteria",
+        "Open events",
       ];
     case "student":
       return [
-        "Thông tin của tôi",
-        "Event của tôi",
-        "Giải tôi đã đạt",
-        "Điểm đã công bố",
+        "My profile",
+        "My events",
+        "My awards",
+        "Published scores",
       ];
     default:
       return [
-        "Event đang mở",
-        "Cách đăng ký",
-        "Mentor/Judge event này",
-        "Deadline gần nhất",
+        "Open events",
+        "How to register",
+        "This event's mentors and judges",
+        "Nearest deadline",
       ];
   }
 }
@@ -88,17 +88,17 @@ export function quickRepliesForAudience(audience?: AssistantAudience | null) {
 export function welcomeForAudience(audience?: AssistantAudience | null) {
   switch (audience) {
     case "mentor":
-      return "Hi! Mình là SEAL Assistant cho Mentor — giúp bạn xem team được assign, submission thiếu feedback và điều hướng mentoring. Không gửi feedback hộ bạn.";
+      return "Hi! I'm the SEAL Assistant for mentors. I can help you review assigned teams, find submissions missing feedback, and navigate mentoring tools. I cannot submit feedback on your behalf.";
     case "judge":
-      return "Hi! Mình là SEAL Assistant cho Judge — giúp bạn xem round được assign, bài chưa chấm và rubric của round bạn phụ trách.";
+      return "Hi! I'm the SEAL Assistant for judges. I can help you review assigned rounds, find submissions awaiting review, and open the relevant rubric.";
     case "mentor_judge":
-      return "Hi! Mình là SEAL Assistant — bạn đang vừa mentor vừa judge. Có thể hỏi team mentoring, bài chưa chấm, hoặc rubric round được assign.";
+      return "Hi! I'm the SEAL Assistant. You are both a mentor and a judge, so you can ask about mentoring teams, submissions awaiting review, or assigned-round rubrics.";
     case "organizer":
     case "admin":
-      return "Hi! Mình là SEAL Assistant cho Organizer — giúp bạn xem event đang quản lý, tình trạng vận hành và criteria/rubric đã setup.";
+      return "Hi! I'm the SEAL Assistant for organizers. I can help you review managed events, operational status, and configured criteria or rubrics.";
     case "student":
-      return "Hi! Mình là SEAL Assistant — giúp bạn tìm event, đọc thông tin công khai, điều hướng đăng ký/nộp bài/kết quả đã công bố. Không đăng ký hộ và không tiết lộ cấu hình chấm nội bộ.";
+      return "Hi! I'm the SEAL Assistant. I can help you find events, read public information, and navigate registration, submissions, and published results. I cannot register on your behalf or reveal internal judging settings.";
     default:
-      return "Hi! Mình là SEAL Assistant — giúp tìm event và điều hướng trên SEAL theo quyền tài khoản của bạn.";
+      return "Hi! I'm the SEAL Assistant. I can help you find events and navigate SEAL according to your account permissions.";
   }
 }

@@ -8,7 +8,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 const fields = [
     {
         label: "Full name",
-        value: "Nguyễn Minh Khoa",
+        value: "Alex Nguyen",
     },
     {
         label: "Email",

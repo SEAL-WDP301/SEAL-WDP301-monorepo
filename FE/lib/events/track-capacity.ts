@@ -1,4 +1,4 @@
-/** Max teams per bảng when maxTeams slots are spread evenly. */
+/** Maximum teams per track when event capacity is distributed evenly. */
 export function maxTeamsPerTrack(
   maxTeams: number | null | undefined,
   trackCount: number,

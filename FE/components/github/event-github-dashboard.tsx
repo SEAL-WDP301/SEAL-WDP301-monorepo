@@ -737,15 +737,15 @@ export function EventGithubDashboard({
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi label="Repos" value={t.teamsWithRepo} tone="orange" hint="có GitHub" />
-          <Kpi label="Committed" value={t.teamsWithActivity} tone="green" hint="đã đẩy code" />
-          <Kpi label="Uncommitted" value={t.teamsIdle} tone="red" hint="có repo, chưa commit" />
+          <Kpi label="Repos" value={t.teamsWithRepo} tone="orange" hint="with GitHub" />
+          <Kpi label="Committed" value={t.teamsWithActivity} tone="green" hint="pushed code" />
+          <Kpi label="Uncommitted" value={t.teamsIdle} tone="red" hint="repo created, no commits" />
           <Kpi label="Commits" value={t.commits} tone="blue" />
         </div>
 
         <div className="grid lg:grid-cols-2 gap-4">
           <Panel
-            title="Pulse theo ngày thi"
+            title="Competition-day pulse"
             icon={<TrendingUp className="h-4 w-4 text-orange-500" />}
           >
             <MultiLineChart
@@ -772,7 +772,7 @@ export function EventGithubDashboard({
             <NetCumulativeChart days={data.netLinesByDay || []} />
           </Panel>
           <Panel
-            title="Team race — commits/ngày (top 5)"
+            title="Team race — commits per day (top 5)"
             icon={<FaGithub className="h-4 w-4 text-orange-500" />}
             wide
           >
@@ -798,7 +798,7 @@ export function EventGithubDashboard({
               color="bg-emerald-500"
             />
           </Panel>
-          <Panel title="Giờ code (UTC)" icon={<Clock className="h-4 w-4 text-orange-500" />}>
+          <Panel title="Coding hours (UTC)" icon={<Clock className="h-4 w-4 text-orange-500" />}>
             <HourBars hours={data.activityByHour || []} />
           </Panel>
         </div>

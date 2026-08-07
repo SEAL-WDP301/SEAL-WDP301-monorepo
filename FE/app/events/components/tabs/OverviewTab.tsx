@@ -26,7 +26,7 @@ export default function OverviewTab() {
     const faqs = [
         {
             q: "Who can participate in this hackathon?",
-            a: "All high school and university students nationwide (FPTU students are highly encouraged). You can participate in teams of 3-5 members or register solo to be matched with other members by the organizers.",
+            a: "All high school and university students nationwide (FPTU students are highly encouraged). You can participate in teams of 2-5 members or register solo to be matched with other members by the organizers.",
         },
         {
             q: "What is Reddit Devvit and why is it mandatory?",

@@ -18,7 +18,7 @@ export function JudgeStats() {
   const { stats, isLoading } = useJudgeWorkspace(params.eventId as string);
 
   const nearestDeadline = stats.nearestSubmissionDeadline
-    ? new Intl.DateTimeFormat("vi-VN", {
+    ? new Intl.DateTimeFormat("en-US", {
         dateStyle: "short",
         timeStyle: "short",
       }).format(new Date(stats.nearestSubmissionDeadline))

@@ -213,7 +213,7 @@ export default function SubmissionsPage() {
     
     const handleNewCommit = (data: any) => {
       enqueueSnackbar(
-        `🚀 [${data.pusher || 'GitHub'}] vừa commit: "${data.message}"`, 
+        `🚀 [${data.pusher || 'GitHub'}] just committed: "${data.message}"`,
         { 
           variant: 'info',
         }
@@ -737,7 +737,7 @@ export default function SubmissionsPage() {
             <div className="min-w-0">
               <h4 className="font-semibold">Assigned Team Repository</h4>
               <p className="text-sm text-muted-foreground mt-1">
-                This is your team's official repo. Push your code here, then click Submit — the system will use this link for grading.
+                This is your team&apos;s official repo. Push your code here, then click Submit — the system will use this link for grading.
               </p>
               <a
                 href={assignedRepoUrl}
@@ -998,7 +998,7 @@ export default function SubmissionsPage() {
                   onClick={() => setOpenTeamAnalytics(true)}
                   disabled={!workspaceData?.team?.id}
                 >
-                  Xem dashboard chi tiết
+                  View detailed dashboard
                 </Button>
                 <Button
                   type="button"
@@ -1009,7 +1009,7 @@ export default function SubmissionsPage() {
                   disabled={isSyncingCommits || isLoadingCommits}
                 >
                   {isSyncingCommits ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-                  Sync team này
+                  Sync this team
                 </Button>
               </div>
             </div>

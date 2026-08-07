@@ -1,4 +1,4 @@
-// Thành phần hiển thị mốc thời gian (TimelineItem) được tích hợp trực tiếp để tránh lỗi import
+// Keep TimelineItem local to avoid an extra import boundary.
 function TimelineItem({ date, title, desc }: { date: string; title: string; desc: string }) {
     return (
         <div className="bg-[#120F0E] border border-white/[0.02] rounded-[24px] p-6 flex flex-col sm:flex-row sm:items-center gap-6 transition-all hover:border-[#FF6B2C]/20">
@@ -23,7 +23,7 @@ export default function OverviewTab() {
     const faqs = [
         {
             q: "Who can participate in this hackathon?",
-            a: "All high school and university students nationwide (FPTU students are highly encouraged). You can participate in teams of 3-5 members or register solo to be matched with other members by the organizers.",
+            a: "All high school and university students nationwide (FPTU students are highly encouraged). You can participate in teams of 2-5 members or register solo to be matched with other members by the organizers.",
         },
         {
             q: "What is Reddit Devvit and why is it mandatory?",

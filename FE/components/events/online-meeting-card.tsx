@@ -28,13 +28,13 @@ function formatMeetingDateTime(
   if (Number.isNaN(date.getTime())) return "Not scheduled";
 
   try {
-    return new Intl.DateTimeFormat("vi-VN", {
+    return new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
       ...(timeZone ? { timeZone } : {}),
     }).format(date);
   } catch {
-    return new Intl.DateTimeFormat("vi-VN", {
+    return new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(date);

@@ -28,7 +28,7 @@ export function ProfileCard() {
                 </div>
 
                 <h2 className="mt-5 text-xl font-bold text-foreground">
-                    Nguyễn Minh Khoa
+                    Alex Nguyen
                 </h2>
 
                 <div className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">

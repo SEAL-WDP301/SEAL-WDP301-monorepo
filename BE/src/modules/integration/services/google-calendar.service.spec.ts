@@ -116,4 +116,27 @@ describe("GoogleCalendarService OAuth callback", () => {
 
     expect(prisma.googleCalendarConnection.findUnique).not.toHaveBeenCalled();
   });
+
+  it("rejects a meeting that starts before the event", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 42, role: "organizer" });
+    prisma.event.findUnique.mockResolvedValue({
+      id: 7,
+      name: "SEAL Event",
+      createdById: 42,
+      startDate: new Date("2026-08-10T01:00:00.000Z"),
+      endDate: new Date("2026-08-14T01:00:00.000Z"),
+      calendarMeeting: null,
+    });
+
+    await expect(
+      service.syncMeeting(42, 7, {
+        meetingStartDate: "2026-08-10T00:00:00.000Z",
+        meetingEndDate: "2026-08-10T02:00:00.000Z",
+      }),
+    ).rejects.toThrow(
+      "Meeting start time must not be before the event start time",
+    );
+
+    expect(prisma.googleCalendarConnection.findUnique).not.toHaveBeenCalled();
+  });
 });

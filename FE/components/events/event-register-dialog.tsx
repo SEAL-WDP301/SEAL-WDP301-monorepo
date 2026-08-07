@@ -155,8 +155,8 @@ export function EventRegisterDialog({
         setMemberEmails(
           ensureRequiredEmailSlots(
             otherMembers,
-            event?.minMembersPerTeam ?? 1,
-            event?.maxMembersPerTeam ?? 4,
+            event?.minMembersPerTeam ?? 2,
+            event?.maxMembersPerTeam ?? 5,
           ),
         );
       }
@@ -168,8 +168,8 @@ export function EventRegisterDialog({
   const isRegistrationBlocked = Boolean(registrationBlockReason);
   // Only Flow B (flag). Do not treat "0 visible tracks" as deferred.
   const deferred = Boolean(event?.deferredTrackAssignment);
-  const minMembersPerTeam = event?.minMembersPerTeam ?? 1;
-  const maxMembersPerTeam = event?.maxMembersPerTeam ?? 4;
+  const minMembersPerTeam = event?.minMembersPerTeam ?? 2;
+  const maxMembersPerTeam = event?.maxMembersPerTeam ?? 5;
   const maxAdditionalMembers = maxMembersPerTeam - 1;
   const requiredEmailSlots = Math.max(0, minMembersPerTeam - 1);
   const emailErrors = useMemo(
@@ -516,7 +516,7 @@ export function EventRegisterDialog({
                           Invite Members
                         </p>
                         <p className="text-xs text-foreground/60">
-                          You're the leader. {getRequiredEmailGuidance(requiredEmailSlots)}
+                          You&apos;re the leader. {getRequiredEmailGuidance(requiredEmailSlots)}
                         </p>
                       </div>
                       <Button

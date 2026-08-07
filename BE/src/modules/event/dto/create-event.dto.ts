@@ -118,24 +118,24 @@ export class CreateEventDto {
 
   @ApiProperty({
     description: "Minimum number of members required per team",
-    minimum: 1,
-    maximum: 20,
-    default: 3,
+    minimum: 2,
+    maximum: 5,
+    default: 2,
   })
   @IsInt()
-  @Min(1)
-  @Max(20)
+  @Min(2)
+  @Max(5)
   minMembersPerTeam: number;
 
   @ApiProperty({
     description: "Maximum number of members allowed per team",
-    minimum: 1,
-    maximum: 20,
+    minimum: 2,
+    maximum: 5,
     default: 5,
   })
   @IsInt()
-  @Min(1)
-  @Max(20)
+  @Min(2)
+  @Max(5)
   maxMembersPerTeam: number;
 
   @ApiPropertyOptional({ enum: EventStatus, default: EventStatus.draft })

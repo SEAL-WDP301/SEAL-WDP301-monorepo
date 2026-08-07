@@ -42,7 +42,7 @@ Quy trình quản lý sự kiện hiện tại đang tồn tại nhiều vấn �
 - Phân công Mentor cho Hạng mục (một giảng viên có thể làm Mentor một Hạng mục và Giám khảo Hạng mục khác trong cùng sự kiện).
 
 ### 4.4. Quản lý đội thi (Team Management)
-- Thành lập đội (3–5 Thành viên).
+- Thành lập đội (2–5 Thành viên).
 - Đăng ký đội vào một Hạng mục cụ thể.
 
 ### 4.5. Đăng ký & Xác thực người dùng (Auth & User Management)

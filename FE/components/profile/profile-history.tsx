@@ -66,7 +66,7 @@ export function ProfileHistory({ userId }: { userId?: number }) {
             {awardedTeams.length > 4 && (
               <div className="flex items-center gap-2">
                 <div className="hidden sm:flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-yellow-400 bg-amber-500/15 dark:bg-yellow-500/10 px-2.5 py-1 rounded-full border border-amber-500/30 dark:border-yellow-500/30">
-                  <span>{awardedTeams.length} giải thưởng</span>
+                  <span>{awardedTeams.length} {awardedTeams.length === 1 ? "award" : "awards"}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button

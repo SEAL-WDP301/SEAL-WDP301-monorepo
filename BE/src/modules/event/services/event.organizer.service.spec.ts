@@ -1,5 +1,10 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { EventStatus, RoundStatus, Season, SubmissionType } from "@prisma/client";
+import {
+  EventStatus,
+  RoundStatus,
+  Season,
+  SubmissionType,
+} from "@prisma/client";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { CreateEventDto } from "../dto/create-event.dto";
 import { RoundAutomationSchedulerService } from "../../round/services/round-automation-scheduler.service";
@@ -25,7 +30,7 @@ describe("EventOrganizerService team member limits", () => {
     season: Season.Summer,
     year: 2026,
     status: EventStatus.draft,
-    minMembersPerTeam: 3,
+    minMembersPerTeam: 2,
     maxMembersPerTeam: 5,
     tracks: [{ name: "Web" }],
     rounds: [
@@ -49,7 +54,7 @@ describe("EventOrganizerService team member limits", () => {
     expect(prisma.event.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          minMembersPerTeam: 3,
+          minMembersPerTeam: 2,
           maxMembersPerTeam: 5,
           tracks: { create: [{ name: "Web" }] },
         }),
@@ -61,10 +66,36 @@ describe("EventOrganizerService team member limits", () => {
     await expect(
       service.createEvent(42, {
         ...dto,
-        minMembersPerTeam: 6,
-        maxMembersPerTeam: 5,
+        minMembersPerTeam: 5,
+        maxMembersPerTeam: 4,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.event.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects event team limits outside 2 to 5 members", async () => {
+    await expect(
+      service.createEvent(42, {
+        ...dto,
+        minMembersPerTeam: 1,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        errorCode: "INVALID_TEAM_MEMBER_LIMITS",
+      }),
+    });
+
+    await expect(
+      service.createEvent(42, {
+        ...dto,
+        maxMembersPerTeam: 6,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        errorCode: "INVALID_TEAM_MEMBER_LIMITS",
+      }),
+    });
 
     expect(prisma.event.create).not.toHaveBeenCalled();
   });
@@ -169,7 +200,9 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prisma.event.findUnique.mockResolvedValue({ deferredTrackAssignment: true });
+    prisma.event.findUnique.mockResolvedValue({
+      deferredTrackAssignment: true,
+    });
     prisma.round.findFirst.mockResolvedValue({ roundNumber: 2 });
     prisma.round.findMany.mockResolvedValue([]);
     prisma.roundTrackProblem.findUnique.mockResolvedValue(null);
@@ -178,7 +211,9 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
   it("ignores event tracks not scoped to this round (Flow B, deferred)", async () => {
     prisma.roundTrackProblem.findMany
       .mockResolvedValueOnce([{ track: { id: 1, name: "AI" } }]) // round scope
-      .mockResolvedValueOnce([{ trackId: 1, problemFileUrl: "https://x/ai.pdf" }]); // uploaded files
+      .mockResolvedValueOnce([
+        { trackId: 1, problemFileUrl: "https://x/ai.pdf" },
+      ]); // uploaded files
 
     await expect(
       (service as any).assertRoundProblemsReady(1, round, true),
@@ -225,7 +260,9 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
   it("track-specific round (Flow A) uses round-scoped tracks only", async () => {
     prisma.roundTrackProblem.findMany
       .mockResolvedValueOnce([{ track: { id: 1, name: "AI" } }])
-      .mockResolvedValueOnce([{ trackId: 1, problemFileUrl: "https://x/ai.pdf" }]);
+      .mockResolvedValueOnce([
+        { trackId: 1, problemFileUrl: "https://x/ai.pdf" },
+      ]);
 
     await expect(
       (service as any).assertRoundProblemsReady(1, round, false),
@@ -240,7 +277,9 @@ describe("EventOrganizerService#assertRoundProblemsReady (private, via cast)", (
         { track: { id: 1, name: "AI" } },
         { track: { id: 2, name: "Web" } },
       ])
-      .mockResolvedValueOnce([{ trackId: 1, problemFileUrl: "https://x/ai.pdf" }]);
+      .mockResolvedValueOnce([
+        { trackId: 1, problemFileUrl: "https://x/ai.pdf" },
+      ]);
 
     await expect(
       (service as any).assertRoundProblemsReady(1, round, false),

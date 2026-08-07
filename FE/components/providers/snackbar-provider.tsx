@@ -64,7 +64,7 @@ const CustomSnackbar = forwardRef<HTMLDivElement, CustomContentProps>((props, re
       onClick={() => closeSnackbar(id)}
       role="button"
       tabIndex={0}
-      title="Bấm để đóng thông báo"
+      title="Click to dismiss notification"
       className={`
         group relative pointer-events-auto cursor-pointer select-none
         flex items-center gap-3 px-4 py-3.5 min-w-[280px] max-w-[420px]

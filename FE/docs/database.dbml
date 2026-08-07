@@ -375,7 +375,7 @@ Table activity_events {
     (occurred_at)
   }
 
-  Note: 'Log hoạt động người dùng, được Organizer Dashboard dùng để thống kê active users theo thời gian và role.'
+  Note: 'User activity log used by the Organizer Dashboard to aggregate active users by time and role.'
 }
 
 Table team_messages {

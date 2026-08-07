@@ -40,7 +40,7 @@ export function ProfileCompletionModal({ isOpen, onOpenChange }: { isOpen: boole
 
   const studentForm = useForm<z.infer<typeof studentSchema>>({
     resolver: zodResolver(studentSchema),
-    defaultValues: { studentType: "fpt", studentCode: "", universityName: "Đại học FPT", phone: "", githubUsername: "" },
+    defaultValues: { studentType: "fpt", studentCode: "", universityName: "FPT University", phone: "", githubUsername: "" },
   });
 
   const watchStudentType = studentForm.watch("studentType");

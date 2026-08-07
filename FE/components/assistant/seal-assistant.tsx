@@ -136,7 +136,7 @@ export function SealAssistant() {
 
       return postAssistantChat({
         message,
-        locale: "vi",
+        locale: "en",
         context: {
           eventId: contextEventId,
           focusEventId: focusEventIdRef.current || contextEventId,

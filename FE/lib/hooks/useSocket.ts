@@ -41,7 +41,7 @@ export const useSocket = (namespace: string = "") => {
     const handleTokenRefresh = () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
-        socketRef.current.connect(); // Tự động lấy token mới nhờ hàm auth ở trên
+        socketRef.current.connect(); // Reconnect with the latest token from the auth callback above.
       }
     };
 

@@ -26,12 +26,12 @@ function AssignedTrackCard({ trackName }: { trackName: string }) {
     <GlassCard className="rounded-[24px] border-emerald-500/40 bg-emerald-500/10 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">Bảng thi của đội bạn</p>
+          <p className="text-sm text-muted-foreground">Your team&apos;s competition track</p>
           <p className="mt-1 text-2xl font-bold text-emerald-600">{trackName}</p>
         </div>
         <Badge className="bg-emerald-600/90 text-white shrink-0 gap-1 px-3 py-1">
           <MapPin className="h-3.5 w-3.5" />
-          Đã gán bảng
+          Track assigned
         </Badge>
       </div>
     </GlassCard>
@@ -41,9 +41,9 @@ function AssignedTrackCard({ trackName }: { trackName: string }) {
 function WaitingBulkLotteryCard() {
   return (
     <GlassCard className="rounded-[24px] border-amber-500/30 bg-amber-500/5 p-6">
-      <p className="font-semibold text-foreground">Chưa có bảng</p>
+      <p className="font-semibold text-foreground">No track assigned</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Chờ BTC bốc thăm Phase 2.
+        Wait for the organizer to complete the Phase 2 draw.
       </p>
     </GlassCard>
   );

@@ -52,8 +52,8 @@ export function AiMentorDraftPanel({
             <h3 className="text-lg font-semibold">AI Mentoring Assist</h3>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Nhấn Draft with AI để xem gợi ý. Chỉ khi bấm Đồng ý thì mới copy
-            vào ô feedback.
+            Select Draft with AI to preview a suggestion. It is copied to the
+            feedback field only after you accept it.
           </p>
         </div>
         <Button
@@ -91,15 +91,15 @@ export function AiMentorDraftPanel({
         <div className="space-y-4">
           <div className="rounded-2xl border border-border bg-muted/20 p-4 text-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Dựa trên
+              Based on
             </p>
             <ul className="mt-2 space-y-1 text-muted-foreground">
-              {teamName && <li>Đội: {teamName}</li>}
-              {roundName && <li>Vòng: {roundName}</li>}
+              {teamName && <li>Team: {teamName}</li>}
+              {roundName && <li>Round: {roundName}</li>}
               {trackName && <li>Track: {trackName}</li>}
-              {sourceLabel && <li>Nguồn đọc: {sourceLabel}</li>}
+              {sourceLabel && <li>Source: {sourceLabel}</li>}
               {draft.contextSummary && (
-                <li>Bằng chứng: {draft.contextSummary}</li>
+                <li>Evidence: {draft.contextSummary}</li>
               )}
             </ul>
           </div>
@@ -179,7 +179,7 @@ export function AiMentorDraftPanel({
             {onDismiss && (
               <Button type="button" variant="outline" onClick={onDismiss}>
                 <X className="h-4 w-4" />
-                Không dùng
+                Discard
               </Button>
             )}
             {onUseDraft && (
@@ -190,7 +190,7 @@ export function AiMentorDraftPanel({
                 onClick={() => onUseDraft(draft.draftFeedback)}
               >
                 <Check className="h-4 w-4" />
-                Đồng ý — dùng draft
+                Accept — use draft
               </Button>
             )}
           </div>

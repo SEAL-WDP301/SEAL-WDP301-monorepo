@@ -18,7 +18,7 @@ export default function CriteriaTab() {
         }
     ];
 
-    // Cấu trúc mảng Giám khảo & Cố vấn: [Tên viết tắt, Họ và tên, Chức vụ/Vai trò, Đơn vị công tác]
+    // Judge and mentor data: [initials, full name, title or role, organization]
     const mentorsData = [
         ["NHA", "Dr. Nguyen H. Anh", "Head of Software Engineering", "FPT University"],
         ["LTM", "Le T. Minh", "Principal AI Engineer", "Vingroup"],
@@ -31,7 +31,7 @@ export default function CriteriaTab() {
     return (
         <div className="space-y-10 animate-fadeIn font-sans">
 
-            {/* 1. Khối tiêu đề chính của Criteria */}
+            {/* 1. Criteria header */}
             <section className="bg-[#1A1512] border border-white/[0.04] rounded-[32px] p-8 sm:p-10 shadow-xl relative overflow-hidden">
                 <div className="absolute -inset-x-20 -top-20 h-44 bg-[#FF6B2C]/10 blur-[100px] pointer-events-none" />
                 <div className="relative">
@@ -45,7 +45,7 @@ export default function CriteriaTab() {
                 </div>
             </section>
 
-            {/* 2. Danh sách các tiêu chí đánh giá */}
+            {/* 2. Evaluation criteria */}
             <div className="space-y-4">
                 {criteriaData.map((item, idx) => (
                     <div key={idx} className="bg-[#1A1512] border border-white/8 rounded-2xl p-6 flex gap-6 items-start hover:border-[#FF6B2C]/30 transition-all duration-200">
@@ -60,9 +60,9 @@ export default function CriteriaTab() {
                 ))}
             </div>
 
-            {/* 3. Rounds + Categories (Được cập nhật đồng bộ hoàn chỉnh theo thiết kế mới) */}
+            {/* 3. Competition rounds and categories */}
             <section className="grid md:grid-cols-2 gap-6">
-                {/* Khối Competition Rounds */}
+                {/* Competition rounds */}
                 <div className="bg-[#1A1512] border border-white/8 rounded-[32px] p-8">
                     <h3 className="text-xl font-black text-foreground mb-6 tracking-wide">Competition rounds</h3>
                     <ol className="space-y-4 font-bold text-base">
@@ -75,7 +75,7 @@ export default function CriteriaTab() {
                     </ol>
                 </div>
 
-                {/* Khối Categories */}
+                {/* Categories */}
                 <div className="bg-[#1A1512] border border-white/8 rounded-[32px] p-8">
                     <h3 className="text-xl font-black text-foreground mb-6 tracking-wide">Categories</h3>
                     <div className="flex flex-wrap gap-2.5">
@@ -91,12 +91,12 @@ export default function CriteriaTab() {
                 </div>
             </section>
 
-            {/* 4. Rules (Cập nhật đồng bộ viền mảnh không dùng seal-glass) */}
+            {/* 4. Rules */}
             <section className="bg-[#1A1512] border border-white/8 rounded-[32px] p-8">
                 <h2 className="text-2xl font-black text-foreground tracking-tight mb-5">Rules</h2>
                 <ul className="space-y-3.5 text-base text-[#A39690] font-bold">
                     {[
-                        "Teams of 3–5 students. At least one FPTU student required.",
+                        "Teams of 2–5 students. At least one FPTU student required.",
                         "All code must be written during the 48-hour build window.",
                         "Use of open-source libraries and AI tooling is encouraged.",
                         "Submissions include source code, demo video, and live pitch.",
@@ -110,7 +110,7 @@ export default function CriteriaTab() {
                 </ul>
             </section>
 
-            {/* 5. Khối Judges & Mentors với Avatar bo góc vuông rounded-2xl và phân dòng chi tiết */}
+            {/* 5. Judges and mentors */}
             <section className="bg-[#1A1512] border border-white/[0.04] rounded-[32px] p-8 sm:p-10 shadow-xl">
                 <h2 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-8 flex items-center gap-3">
                     <span className="h-6 w-1.5 bg-[#FF6B2C] rounded-full" /> Judges & Mentors
@@ -122,22 +122,22 @@ export default function CriteriaTab() {
                             key={name}
                             className="bg-[#120F0E] border border-white/[0.02] rounded-[24px] p-5 flex items-center gap-5 hover:border-[#FF6B2C]/20 transition-all duration-200 shadow-md"
                         >
-                            {/* Avatar hình chữ nhật đứng, bo góc lớn rounded-2xl rực màu cam chuẩn mẫu */}
+                            {/* Portrait avatar */}
                             <div className="h-14 w-14 rounded-2xl bg-[#E25A20] font-black text-base text-foreground flex items-center justify-center shrink-0 shadow-lg shadow-[#E25A20]/10">
                                 {initials}
                             </div>
 
-                            {/* Thông tin chi tiết được căn chỉnh và phân lớp chuẩn xác */}
+                            {/* Profile details */}
                             <div className="min-w-0 space-y-1">
-                                {/* Tên chính: text-base, font-black, màu trắng sáng */}
+                                {/* Name */}
                                 <div className="font-black text-base text-foreground tracking-wide truncate leading-tight">
                                     {name}
                                 </div>
-                                {/* Chức vụ: màu cam đặc trưng, viết hoa, font-black dầy dặn */}
+                                {/* Role */}
                                 <div className="text-xs sm:text-sm text-[#FF6B2C] font-black tracking-wide uppercase leading-tight">
                                     {role}
                                 </div>
-                                {/* Công ty: màu xám mờ tinh tế, font-bold vừa phải tạo tương phản đẹp mắt */}
+                                {/* Organization */}
                                 <div className="text-xs text-[#A39690] font-bold truncate leading-tight">
                                     {company}
                                 </div>

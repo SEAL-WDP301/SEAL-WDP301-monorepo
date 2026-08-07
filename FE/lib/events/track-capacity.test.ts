@@ -57,7 +57,7 @@ describe("track-capacity FE helpers", () => {
     ).toBeNull();
   });
 
-  it("inherits đề from ceremony round", () => {
+  it("inherits the problem statement from the ceremony round", () => {
     const rounds = [
       {
         id: 1,
