@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Bot, Loader2, Send, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -215,7 +216,11 @@ export function SealAssistant() {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-3">
+    <motion.div
+      drag
+      dragMomentum={false}
+      className="fixed bottom-5 right-5 z-[80] flex flex-col items-end gap-3 select-none"
+    >
       {open && (
         <div className="flex h-[min(560px,70vh)] w-[min(400px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-border bg-background shadow-2xl">
           <div className="flex items-start justify-between gap-3 border-b border-border bg-muted px-4 py-3">
@@ -344,15 +349,47 @@ export function SealAssistant() {
         </div>
       )}
 
-      <Button
-        type="button"
-        variant="orange"
-        className="h-14 rounded-full px-5 shadow-[0_0_24px_rgba(243,112,33,0.35)]"
-        onClick={toggleOpen}
+      <motion.div
+        animate={open ? { y: 0 } : { y: [0, -6, 0] }}
+        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        whileHover={{ scale: 1.12 }}
+        whileTap={{ scale: 0.92 }}
+        className="relative"
       >
-        {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
-        {open ? "Close" : "SEAL Assistant"}
-      </Button>
-    </div>
+        {/* Pulsing Aura Ring */}
+        {!open && (
+          <span className="absolute -inset-1 rounded-full bg-gradient-to-r from-orange-500 via-amber-400 to-orange-600 opacity-50 blur-xs animate-pulse pointer-events-none" />
+        )}
+
+        <Button
+          type="button"
+          variant="orange"
+          size="icon"
+          className="relative h-14 w-14 rounded-full shadow-[0_0_30px_rgba(243,112,33,0.5)] border-2 border-orange-300/50 cursor-grab active:cursor-grabbing shrink-0 bg-gradient-to-tr from-orange-600 via-orange-500 to-amber-500"
+          onClick={toggleOpen}
+          title={open ? "Close Assistant" : "Open SEAL AI Assistant (Drag to move)"}
+        >
+          {open ? (
+            <X className="h-6 w-6 text-white" />
+          ) : (
+            <div className="relative flex items-center justify-center">
+              <motion.div
+                animate={{ rotate: [-4, 4, -4] }}
+                transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Bot className="h-7 w-7 text-white drop-shadow-md" />
+              </motion.div>
+              <motion.div
+                animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -top-1.5 -right-2"
+              >
+                <Sparkles className="h-4 w-4 text-yellow-200 fill-yellow-300 drop-shadow-[0_0_8px_rgba(253,224,71,0.8)]" />
+              </motion.div>
+            </div>
+          )}
+        </Button>
+      </motion.div>
+    </motion.div>
   );
 }
