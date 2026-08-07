@@ -18,10 +18,10 @@ on:
       - 'FE/**'
       - '.github/workflows/ci-cd.yml'
 
-# One active run per ref: a new merge cancels older queued/in-progress runs
+# One active run per branch/PR: a new push/merge automatically cancels older queued/in-progress runs
 # so zombie queues do not block the latest production tip.
 concurrency:
-  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -34,6 +34,7 @@ jobs:
   test-backend:
     name: BE TypeCheck & Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Source Code
@@ -60,6 +61,7 @@ jobs:
   test-frontend:
     name: FE TypeCheck & Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Source Code
@@ -87,6 +89,7 @@ jobs:
     needs: [test-backend]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -128,6 +131,7 @@ jobs:
     needs: [test-frontend]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -170,6 +174,7 @@ jobs:
     name: Update K8s Manifests & Trigger GitOps Rollout
     needs: [build-backend, build-frontend]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     if: >-
       github.ref == 'refs/heads/production' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')

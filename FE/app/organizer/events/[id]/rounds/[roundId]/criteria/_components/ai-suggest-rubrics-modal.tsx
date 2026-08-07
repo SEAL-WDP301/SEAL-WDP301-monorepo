@@ -14,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import {
   bulkCreateOrganizerRubrics,
   bulkDeleteOrganizerRubrics,
@@ -116,7 +115,7 @@ export function AiSuggestRubricsModal({
       }
 
       await bulkCreateOrganizerRubrics(event.id, {
-        rubrics: criteriaToApply.map((criterion) => ({
+        rubrics: data.criteria.map((criterion) => ({
           name: criterion.name,
           description: criterion.description,
           maxScore: 10,
@@ -126,7 +125,7 @@ export function AiSuggestRubricsModal({
         })),
       });
 
-      return criteriaToApply;
+      return data.criteria;
     },
     onSuccess: (criteria) => {
       enqueueSnackbar(
