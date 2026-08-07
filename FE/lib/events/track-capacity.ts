@@ -25,9 +25,9 @@ export function formatTrackCapacityHint(
   if (perTrack == null) return null;
   const teams =
     registeredTeams != null
-      ? ` · hiện ${registeredTeams} đội đăng ký`
+      ? ` · ${registeredTeams} teams registered`
       : "";
-  return `Max ${maxTeams} đội ÷ ${trackCount} bảng ≈ ${perTrack} đội/bảng${teams}`;
+  return `Max ${maxTeams} teams ÷ ${trackCount} tracks ≈ ${perTrack} teams/track${teams}`;
 }
 
 export function countUnassignedPoolItems(
@@ -140,17 +140,17 @@ export function getProblemLotteryDisableReason(
   problemLotteryDone?: boolean,
 ): string | null {
   if (problemLotteryDone) {
-    return "Phase 1 đã chạy — không thể bốc lại.";
+    return "Phase 1 has been executed — re-drawing is disabled.";
   }
   if (trackCount <= 0) {
-    return "Thêm ít nhất 1 bảng vào round chưa mở (Not Started).";
+    return "Add at least 1 track to an unstarted round (Not Started).";
   }
   if (maxTeams != null && maxTeams > 0 && trackCount > maxTeams) {
-    return `Tối đa ${maxTeams} bảng (theo max teams) — giảm bảng hoặc tăng max teams.`;
+    return `Maximum ${maxTeams} tracks (based on max teams) — reduce tracks or increase max teams.`;
   }
   if (unassignedPoolCount < trackCount) {
     const missing = trackCount - unassignedPoolCount;
-    return `Upload thêm ${missing} đề vào Pool đề (cần ${trackCount} chưa gán, đang có ${unassignedPoolCount}).`;
+    return `Upload ${missing} more problem(s) to the Pool (requires ${trackCount} unassigned, currently ${unassignedPoolCount}).`;
   }
   return null;
 }
@@ -162,19 +162,19 @@ export function getTeamLotteryDisableReason(
   teamLotteryDone?: boolean,
 ): string | null {
   if (teamLotteryDone) {
-    return "Phase 2 đã chạy — không thể bốc lại.";
+    return "Phase 2 has been executed — re-drawing is disabled.";
   }
   if (trackCount <= 0) {
-    return "Thêm ít nhất 1 bảng vào round chưa mở (Not Started).";
+    return "Add at least 1 track to an unstarted round (Not Started).";
   }
   if (maxTeams != null && maxTeams > 0 && trackCount > maxTeams) {
-    return `Tối đa ${maxTeams} bảng (theo max teams) — giảm bảng hoặc tăng max teams.`;
+    return `Maximum ${maxTeams} tracks (based on max teams) — reduce tracks or increase max teams.`;
   }
   const missingProblems = (trackProblems ?? []).filter(
     (p) => !p.problemFileUrl?.trim(),
   ).length;
   if (missingProblems > 0) {
-    return `Chạy Random Track (Phase 1) trước — còn ${missingProblems} bảng chưa có đề.`;
+    return `Run Random Track (Phase 1) first — ${missingProblems} track(s) missing problem statements.`;
   }
   return null;
 }

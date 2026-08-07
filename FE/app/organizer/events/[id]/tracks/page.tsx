@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { enqueueSnackbar } from "notistack";
 import {
   Check,
@@ -200,7 +200,7 @@ function LotteryHeaderButton({
   return (
     <span
       title={disableReason ?? undefined}
-      className={cn("inline-flex", disabled && "cursor-not-allowed")}
+      className={cn("inline-flex", disabled && "cursor-not-allowed pointer-events-auto")}
     >
       <Button
         type="button"
@@ -316,7 +316,24 @@ export default function EventRoundsPage() {
     trackCount: number;
     trackSlots: { trackId: number; trackName: string }[];
   } | null>(null);
-  const [tracksTab, setTracksTab] = useState("rounds");
+
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "pool" ? "pool" : "rounds";
+  const [tracksTab, setTracksTabState] = useState(initialTab);
+
+  const setTracksTab = (tab: string) => {
+    setTracksTabState(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tab);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
+
+  useEffect(() => {
+    const tabFromUrl = searchParams.get("tab");
+    if (tabFromUrl === "pool" || tabFromUrl === "rounds") {
+      setTracksTabState(tabFromUrl);
+    }
+  }, [searchParams]);
 
   const toggleRoundExpanded = (roundId: number) => {
     setExpandedRoundIds((current) =>
@@ -524,12 +541,13 @@ export default function EventRoundsPage() {
     onSuccess: (res, variables) => {
       const assignment = res?.data?.trackAssignment;
       if (assignment && variables.status === "open") {
-        enqueueSnackbar(
+        const message =
           assignment.assignedCount > 0
             ? `Round opened · assigned ${assignment.assignedCount} team(s) to this round's track(s)`
-            : "Round opened · no eligible teams to assign for this round",
-          { variant: "success" },
-        );
+            : assignment.skippedAlreadyAssigned > 0
+              ? `Round opened · teams already have tracks assigned`
+              : `Round opened successfully`;
+        enqueueSnackbar(message, { variant: "success" });
       } else {
         enqueueSnackbar("Round status updated", { variant: "success" });
       }
@@ -868,8 +886,13 @@ export default function EventRoundsPage() {
     const key = `remove-${round.id}-${track.id}`;
     try {
       setUploadingKey(key);
-      await removeTrackFromRound(eventId, round.id, track.id);
-      enqueueSnackbar("Track removed from round.", { variant: "info" });
+      const res = await removeTrackFromRound(eventId, round.id, track.id);
+      enqueueSnackbar(
+        res.purgedTrack
+          ? `Track "${track.name}" removed and deleted from event.`
+          : `Track "${track.name}" removed from round.`,
+        { variant: "info" },
+      );
       eventQuery.refetch();
       setPendingRemove(null);
     } catch (err: unknown) {
@@ -923,6 +946,11 @@ export default function EventRoundsPage() {
           }
           action={
             <div
+              className={cn(
+                "inline-block",
+                (!canModifyStructure || saveStructureMutation.isPending) &&
+                  "cursor-not-allowed pointer-events-auto",
+              )}
               title={
                 !canModifyStructure
                   ? "Tracks and rounds are read-only after a round has been opened."
@@ -1141,32 +1169,56 @@ export default function EventRoundsPage() {
                                 : undefined
                             }
                           >
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon-sm"
-                              title="Edit round"
-                              disabled={
-                                !canModifyStructure ||
-                                saveStructureMutation.isPending
+                            <span
+                              className={cn(
+                                "inline-block",
+                                (!canModifyStructure || saveStructureMutation.isPending) &&
+                                  "cursor-not-allowed pointer-events-auto",
+                              )}
+                              title={
+                                !canModifyStructure
+                                  ? "Tracks and rounds are read-only after a round has been opened."
+                                  : "Edit round"
                               }
-                              onClick={() => openEditRound(round)}
                             >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Delete round"
-                              disabled={
-                                !canModifyStructure ||
-                                saveStructureMutation.isPending
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon-sm"
+                                disabled={
+                                  !canModifyStructure ||
+                                  saveStructureMutation.isPending
+                                }
+                                onClick={() => openEditRound(round)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                            </span>
+                            <span
+                              className={cn(
+                                "inline-block",
+                                (!canModifyStructure || saveStructureMutation.isPending) &&
+                                  "cursor-not-allowed pointer-events-auto",
+                              )}
+                              title={
+                                !canModifyStructure
+                                  ? "Cannot delete round — rounds can only be deleted before a round is opened."
+                                  : "Delete round"
                               }
-                              onClick={() => deleteRound(round)}
                             >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                disabled={
+                                  !canModifyStructure ||
+                                  saveStructureMutation.isPending
+                                }
+                                onClick={() => deleteRound(round)}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </span>
                           </div>
                         </td>
                       </tr>
@@ -1251,7 +1303,7 @@ export default function EventRoundsPage() {
                                         event.maxTeams,
                                         sortedTracks.length,
                                       )
-                                        ? `Max ${event.maxTeams} đội → tối đa ${event.maxTeams} bảng trong round này.`
+                                        ? `Max ${event.maxTeams} teams → maximum ${event.maxTeams} tracks in this round.`
                                         : null;
                                     const addTrackReason =
                                       structureBlock || maxTeamsBlock;
@@ -1324,8 +1376,21 @@ export default function EventRoundsPage() {
                                         onRemoveFromRound={
                                           isRoundScopedTracks &&
                                           canModifyRoundTracks(round)
-                                            ? () =>
-                                                setPendingRemove({ round, track })
+                                            ? () => {
+                                                const usedInOtherRounds = rounds.some(
+                                                  (r) =>
+                                                    r.id !== round.id &&
+                                                    r.trackProblems?.some(
+                                                      (tp) => tp.trackId === track.id,
+                                                    ),
+                                                );
+                                                const confirmMsg = usedInOtherRounds
+                                                  ? `Remove track "${track.name}" from Round ${round.roundNumber}?`
+                                                  : `Remove track "${track.name}"? Since it is not used in any other round, it will be deleted completely from this event.`;
+                                                if (window.confirm(confirmMsg)) {
+                                                  setPendingRemove({ round, track });
+                                                }
+                                              }
                                             : undefined
                                         }
                                         onUpload={(file) =>
@@ -1459,7 +1524,7 @@ export default function EventRoundsPage() {
             >
               <Shuffle className="h-4 w-4" />
               Team Draw (Phase 2)
-              {event.studentTrackDrawOpen ? " · SV đang bốc" : ""}
+              {event.studentTrackDrawOpen ? " · Students drawing" : ""}
             </LotteryHeaderButton>
           </div>
         ) : null}
@@ -1750,10 +1815,9 @@ function RoundDialog({
 
           {deferredTrackAssignment ? (
             <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 text-sm md:col-span-2">
-              <strong className="text-foreground">Luồng B — thi theo track</strong>
+              <strong className="text-foreground">Flow B — Track-based competition</strong>
               <p className="mt-1 text-muted-foreground">
-                All rounds follow tracks: teams stay in their drawn tracks until the end (finals included). Each round has separate problem uploads and scoreboard.
-                cấu hình tiêu chí chấm riêng.
+                All rounds follow tracks: teams stay in their drawn tracks until the end (finals included). Each round has separate problem uploads, scoreboard, and evaluation criteria configuration.
               </p>
             </div>
           ) : (
@@ -1971,7 +2035,7 @@ function ProblemTrackRow({
             onClick={onEditTrack}
           >
             <Edit2 className="h-3.5 w-3.5" />
-            Edit track
+            Edit
           </Button>
         ) : null}
 
@@ -1985,18 +2049,12 @@ function ProblemTrackRow({
             onClick={onRemoveFromRound}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Remove from round
+            Remove
           </Button>
         ) : null}
 
         {fileUrl ? (
           <>
-            <span
-              title="Đã có đề — bảng này đã được gán / upload file đề bài."
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
-            >
-              <Check className="h-4 w-4" aria-label="Has problem file" />
-            </span>
             <ProblemStatementViewer
               compact
               fileUrl={fileUrl}
@@ -2005,17 +2063,28 @@ function ProblemTrackRow({
               className="inline-flex h-9 items-center gap-1.5 rounded-md border border-orange-500/40 bg-background px-3 text-sm font-semibold text-orange-500 no-underline hover:bg-orange-500/10 hover:text-orange-600"
             />
             {canUpload ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                disabled={busy}
+              <span
+                className={cn("inline-block", busy && "cursor-not-allowed pointer-events-auto")}
                 title="Remove problem file"
-                onClick={onRemove}
               >
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={busy}
+                  onClick={onRemove}
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              </span>
             ) : null}
+            <span
+              title="Topic statement assigned — problem file uploaded."
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 shrink-0"
+            >
+              <Check className="h-3.5 w-3.5" aria-label="Has problem file" />
+              Assigned
+            </span>
           </>
         ) : canUpload ? (
           <label
@@ -2045,7 +2114,7 @@ function ProblemTrackRow({
           <span
             title={
               emptyHint ??
-              "Chưa có đề — bảng này chưa được gán / upload file đề bài."
+              "No problem statement — this track has not been assigned or uploaded a file yet."
             }
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-red-500"
           >

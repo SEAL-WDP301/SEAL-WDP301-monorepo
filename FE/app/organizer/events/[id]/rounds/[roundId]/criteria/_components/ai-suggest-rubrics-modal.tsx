@@ -126,13 +126,6 @@ export function AiSuggestRubricsModal({
 
       const criteriaToApply = normalizeCriteriaWeights(selectedCriteria);
 
-      if (roundExisting.length > 0) {
-        await bulkDeleteOrganizerRubrics(
-          event.id,
-          roundExisting.map((r) => r.id),
-        );
-      }
-
       await bulkCreateOrganizerRubrics(event.id, {
         rubrics: criteriaToApply.map((criterion) => ({
           name: criterion.name,
@@ -148,7 +141,7 @@ export function AiSuggestRubricsModal({
     },
     onSuccess: (criteria) => {
       enqueueSnackbar(
-        `Applied ${criteria.length} selected AI-suggested criteria to this round`,
+        `Added ${criteria.length} new AI-suggested criteria to this round`,
         { variant: "success" },
       );
       queryClient.invalidateQueries({
@@ -417,13 +410,14 @@ export function AiSuggestRubricsModal({
                     } selected`}
             </p>
             {roundExisting.length > 0 && suggestion && (
-              <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
-                <AlertTriangle
+              <p className="mt-1 flex items-start gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+                <Sparkles
                   aria-hidden="true"
                   className="mt-0.5 h-3.5 w-3.5 shrink-0"
                 />
-                Applying will replace {roundExisting.length} existing rubric
-                {roundExisting.length === 1 ? "" : "s"}.
+                Will add {selectedCriteria.length} new rubric
+                {selectedCriteria.length === 1 ? "" : "s"} ({roundExisting.length} existing rubric
+                {roundExisting.length === 1 ? "" : "s"} preserved).
               </p>
             )}
           </div>

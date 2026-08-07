@@ -151,7 +151,7 @@ export function TracksProblemPoolTab({
           <Label htmlFor="pool-label">Name / Topic (hidden from students until draw)</Label>
           <Input
             id="pool-label"
-            placeholder="VD: Smart Factory, Smart Campus..."
+            placeholder="e.g. Smart Factory, Smart Campus..."
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />
@@ -229,18 +229,31 @@ export function TracksProblemPoolTab({
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={
-                        item.assignedRoundId != null ||
-                        removeMutation.isPending
+                    <span
+                      className={cn(
+                        "inline-block",
+                        (item.assignedRoundId != null || removeMutation.isPending) &&
+                          "cursor-not-allowed pointer-events-auto",
+                      )}
+                      title={
+                        item.assignedRoundId != null
+                          ? "Cannot delete — this problem is already assigned to a track. Clear draw or unassign first."
+                          : "Delete problem from pool"
                       }
-                      onClick={() => removeMutation.mutate(item.id)}
                     >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={
+                          item.assignedRoundId != null ||
+                          removeMutation.isPending
+                        }
+                        onClick={() => removeMutation.mutate(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </span>
                   </td>
                 </tr>
               ))}

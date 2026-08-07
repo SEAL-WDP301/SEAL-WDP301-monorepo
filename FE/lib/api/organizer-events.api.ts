@@ -588,7 +588,7 @@ export async function removeTrackFromRound(
   const res = await axiosClient.delete(
     `/organizer/events/${eventId}/rounds/${roundId}/tracks/${trackId}`,
   );
-  return unwrapData<unknown>(res);
+  return unwrapData<{ purgedTrack?: boolean }>(res);
 }
 
 export async function revealEventTracks(
