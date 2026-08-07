@@ -78,6 +78,16 @@ export class TeamStudentService {
     return { email, rawToken, tokenHash, expiresAt };
   }
 
+  /** Auto-approve only when accepted members (not pending invites) meet the event minimum. */
+  private resolveAutoApprovalStatus(
+    acceptedMemberCount: number,
+    minMembersPerTeam: number,
+  ): TeamStatus {
+    return acceptedMemberCount >= minMembersPerTeam
+      ? TeamStatus.approved
+      : TeamStatus.pending;
+  }
+
   private async resolveRegistrationTrackId(
     event: { id: number; deferredTrackAssignment: boolean },
     requestedTrackId?: number | null,
@@ -492,13 +502,19 @@ export class TeamStudentService {
         }
       }
 
+      // Only the leader is accepted at registration; invites do not count until accepted.
+      const initialStatus = this.resolveAutoApprovalStatus(
+        1,
+        event.minMembersPerTeam,
+      );
+
       const team = await prisma.team.create({
         data: {
           name: dto.teamName,
           eventId,
           trackId,
           leaderId: userId,
-          status: TeamStatus.approved,
+          status: initialStatus,
         },
       });
 
@@ -771,9 +787,21 @@ export class TeamStudentService {
         });
       }
 
+      const acceptedCount = await prisma.teamMember.count({
+        where: {
+          teamId: team.id,
+          status: TeamMemberStatus.accepted,
+        },
+      });
+
       await prisma.team.update({
         where: { id: team.id },
-        data: { status: TeamStatus.approved },
+        data: {
+          status: this.resolveAutoApprovalStatus(
+            acceptedCount,
+            event.minMembersPerTeam,
+          ),
+        },
       });
 
       return prisma.team.findUnique({ where: { id: team.id } });
@@ -896,6 +924,12 @@ export class TeamStudentService {
       );
     }
 
+    const event = await this.prisma.event.findUnique({
+      where: { id: membership.team.eventId },
+      select: { minMembersPerTeam: true },
+    });
+    if (!event) throw new NotFoundException("Event not found");
+
     return this.prisma.$transaction(async (prisma) => {
       const updated = await prisma.teamMember.update({
         where: { id: membership.id },
@@ -920,6 +954,23 @@ export class TeamStudentService {
           createdAt: new Date(),
         },
       });
+
+      const acceptedCount = await prisma.teamMember.count({
+        where: {
+          teamId,
+          status: TeamMemberStatus.accepted,
+        },
+      });
+      if (acceptedCount >= event.minMembersPerTeam) {
+        await prisma.team.updateMany({
+          where: {
+            id: teamId,
+            status: TeamStatus.pending,
+          },
+          data: { status: TeamStatus.approved },
+        });
+      }
+
       return updated;
     });
   }

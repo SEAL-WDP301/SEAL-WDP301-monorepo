@@ -242,7 +242,7 @@ export default function WorkspaceOverviewPage() {
         <div>
           <div className="mb-3 flex flex-wrap items-center gap-2">
             {visibleTrackName ? (
-              <Badge className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600">
+              <Badge className="border-orange-500/40 bg-orange-500/10 text-orange-600 dark:text-orange-400">
                 Track: {visibleTrackName}
               </Badge>
             ) : null}
@@ -473,6 +473,7 @@ export default function WorkspaceOverviewPage() {
         isLeader={Boolean(isLeader)}
         teamTrackId={workspaceData?.team?.trackId}
         teamTrackName={workspaceData?.team?.track?.name}
+        teamTrackDescription={workspaceData?.team?.track?.description}
         event={eventMeta}
         trackDraw={trackDraw}
       />

@@ -42,14 +42,22 @@ export function ScoreSummary({
       </div>
 
       <div className="mt-1.5 flex items-baseline gap-2 flex-wrap">
-        <span className={cn("text-5xl font-black tabular-nums tracking-tight", getScoreColorClass(previewScore))}>
+        <span
+          className={cn(
+            "text-5xl font-black tabular-nums tracking-tight",
+            getScoreColorClass(previewScore),
+          )}
+        >
           {previewScore.toFixed(2)}
         </span>
         <span className="text-base font-bold text-muted-foreground">/ 10</span>
       </div>
 
       <div className="mt-1 text-xs font-semibold text-muted-foreground capitalize">
-        Status: <span className="text-foreground font-bold">{scoringStatus?.replace("_", " ") ?? "pending"}</span>
+        Status:{" "}
+        <span className="text-foreground font-bold">
+          {scoringStatus?.replace("_", " ") ?? "pending"}
+        </span>
       </div>
 
       <div className="mt-5 space-y-3">
@@ -58,30 +66,45 @@ export function ScoreSummary({
           const weight = Number(item.weight);
 
           return (
-            <div key={item.id} className="rounded-xl border border-border bg-background/40 p-3 shadow-2xs space-y-2">
+            <div
+              key={item.id}
+              className="rounded-xl border border-border bg-background/40 p-3 shadow-2xs space-y-2"
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2">
                     {item.name}
                   </p>
                   <span className="text-[11px] font-medium text-muted-foreground mt-0.5 block">
-                    Weight: <strong className="text-foreground/80">{weight}%</strong>
+                    Weight:{" "}
+                    <strong className="text-foreground/80">{weight}%</strong>
                   </span>
                 </div>
 
                 <div className="text-right shrink-0 ml-1">
-                  <span className={cn("text-sm font-extrabold tabular-nums", getScoreColorClass(score))}>
-                    {score % 1 === 0 ? score.toFixed(1) : score.toFixed(2)}
+                  <span
+                    className={cn(
+                      "text-sm font-extrabold tabular-nums",
+                      getScoreColorClass(score),
+                    )}
+                  >
+                    {score.toFixed(2)}
                   </span>
-                  <span className="text-xs text-muted-foreground font-medium">/10</span>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    /10
+                  </span>
                 </div>
               </div>
 
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted/60">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
                 <div
-                  className={cn("h-full transition-all duration-300 rounded-full", getScoreColorClass(score).replace("text-", "bg-"))}
+                  className={cn(
+                    "h-full origin-left rounded-full transition-transform duration-150 will-change-transform",
+                    getScoreColorClass(score).replace("text-", "bg-"),
+                  )}
                   style={{
-                    width: `${Math.min(100, (score / 10) * 100)}%`,
+                    transform: `scaleX(${Math.min(1, Math.max(0, score / 10))})`,
+                    width: "100%",
                   }}
                 />
               </div>

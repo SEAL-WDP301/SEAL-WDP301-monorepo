@@ -180,6 +180,8 @@ export const judgeApi = {
 
 /** Judge rates each criterion 0–10; weight is % of final (total 100%). */
 export const JUDGE_SCORE_SCALE = 10;
+/** Allowed score increment (supports values like 3.25). */
+export const JUDGE_SCORE_STEP = 0.25;
 export const RUBRIC_WEIGHT_TOTAL = 100;
 
 export function criterionContribution(
