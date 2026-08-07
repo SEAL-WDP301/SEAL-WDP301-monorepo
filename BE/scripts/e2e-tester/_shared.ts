@@ -25,9 +25,9 @@ export const prisma = new PrismaClient({
   },
 });
 export const API = process.env.API_BASE || "http://localhost:3000/api";
-export const PASS = process.env.E2E_DEFAULT_PASSWORD || "12345678";
-export const STUDENT_PASS = process.env.E2E_DEFAULT_PASSWORD || "12345678";
-export const ADMIN_PASS = process.env.DEMO_ADMIN_PASSWORD || "12345678";
+export const PASS = process.env.E2E_DEFAULT_PASSWORD || "";
+export const STUDENT_PASS = process.env.E2E_DEFAULT_PASSWORD || PASS;
+export const ADMIN_PASS = process.env.DEMO_ADMIN_PASSWORD || PASS;
 export const DUMMY_PDF =
   "https://hackathon-submissions.sgp1.digitaloceanspaces.com/general/e2e-demo-problem.pdf";
 
@@ -117,7 +117,7 @@ function getRandomScoreFrom4To10WithStep025(): number {
 
 export async function signIn(email: string, password = PASS): Promise<string> {
   const passwordsToTry = Array.from(
-    new Set([password, PASS, "12345678", "Admin@123", "Student@123"]),
+    new Set([password, PASS, process.env.E2E_DEFAULT_PASSWORD, process.env.DEMO_ADMIN_PASSWORD].filter(Boolean) as string[]),
   );
 
   let lastError: unknown;
