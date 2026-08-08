@@ -42,16 +42,10 @@ export class TeamRegistrationProcessor extends WorkerHost {
       // Notify the leader via Notification / SSE
       await this.notificationService.createNotification({
         userId,
-        type: NotificationType.system,
+        eventId,
+        type: NotificationType.registration_approved,
         title: "Đăng ký sự kiện thành công",
-        message: `Đội "${createdTeam.name}" của bạn đã được đăng ký thành công cho sự kiện!`,
-        meta: {
-          eventId,
-          teamId: createdTeam.id,
-          teamName: createdTeam.name,
-          jobId: job.id,
-          status: "SUCCESS",
-        },
+        content: `Đội "${createdTeam.name}" của bạn đã được đăng ký thành công cho sự kiện!`,
       });
 
       this.logger.log(
@@ -71,16 +65,10 @@ export class TeamRegistrationProcessor extends WorkerHost {
 
       await this.notificationService.createNotification({
         userId,
-        type: NotificationType.system,
+        eventId,
+        type: NotificationType.registration_rejected,
         title: "Đăng ký sự kiện không thành công",
-        message: error.message || "Đã xảy ra lỗi trong quá trình xử lý đăng ký đội.",
-        meta: {
-          eventId,
-          teamName: dto.teamName,
-          jobId: job.id,
-          status: "FAILED",
-          error: error.message,
-        },
+        content: error.message || "Đã xảy ra lỗi trong quá trình xử lý đăng ký đội.",
       });
 
       throw error;
