@@ -9,7 +9,10 @@ import {
   HttpStatus,
   Inject,
   forwardRef,
+  Optional,
 } from "@nestjs/common";
+import { InjectQueue } from "@nestjs/bullmq";
+import { Queue } from "bullmq";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ConfigService } from "@nestjs/config";
 import { createHash, randomBytes } from "node:crypto";
@@ -48,6 +51,9 @@ export class TeamStudentService {
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => TrackAssignmentService))
     private readonly trackAssignmentService: TrackAssignmentService,
+    @Optional()
+    @InjectQueue("team-registration")
+    private readonly registrationQueue?: Queue,
   ) {}
 
   private normalizeInvitationEmails(emails: string[], leaderEmail: string) {
@@ -1741,5 +1747,68 @@ export class TeamStudentService {
 
       return updatedNewLeader;
     });
+  }
+
+  /**
+   * Enqueue a team registration into the FIFO BullMQ queue for high-concurrency peak protection
+   */
+  async enqueueTeamRegistration(
+    userId: number,
+    eventId: number,
+    dto: RegisterTeamDto,
+  ) {
+    if (!this.registrationQueue) {
+      // Fallback to direct synchronous execution if BullMQ queue is not configured
+      const team = await this.registerTeam(userId, eventId, dto);
+      return {
+        status: "COMPLETED",
+        teamId: team.id,
+        teamName: team.name,
+        message: "Registration completed synchronously",
+      };
+    }
+
+    const job = await this.registrationQueue.add(
+      "process-team-registration",
+      {
+        userId,
+        eventId,
+        dto,
+      },
+      {
+        attempts: 1,
+        removeOnComplete: 100,
+        removeOnFail: 100,
+      },
+    );
+
+    return {
+      status: "QUEUED",
+      jobId: job.id,
+      message: "Yêu cầu đăng ký đội đã được đưa vào hàng đợi xử lý tuần tự.",
+    };
+  }
+
+  /**
+   * Query the status of an asynchronous team registration BullMQ job
+   */
+  async getRegistrationJobStatus(jobId: string) {
+    if (!this.registrationQueue) {
+      return { status: "COMPLETED", message: "Queue not enabled" };
+    }
+
+    const job = await this.registrationQueue.getJob(jobId);
+    if (!job) {
+      throw new NotFoundException(`Registration job ${jobId} not found`);
+    }
+
+    const state = await job.getState();
+    return {
+      jobId: job.id,
+      state,
+      progress: job.progress,
+      result: job.returnvalue,
+      failedReason: job.failedReason,
+    };
   }
 }

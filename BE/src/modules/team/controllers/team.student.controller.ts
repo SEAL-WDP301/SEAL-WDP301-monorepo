@@ -81,6 +81,34 @@ export class TeamStudentController {
     return { message: "Team registration successful", data: team };
   }
 
+  @Post("register/team/:eventId/queue")
+  @ApiOperation({ summary: "Enqueue a team registration request into BullMQ FIFO queue for high-concurrency peak protection" })
+  async enqueueTeamRegistration(
+    @Param("eventId", ParseIntPipe) eventId: number,
+    @CurrentUser("id") userId: string,
+    @Body() dto: RegisterTeamDto,
+  ) {
+    const queuedJob = await this.teamStudentService.enqueueTeamRegistration(
+      Number(userId),
+      eventId,
+      dto,
+    );
+    return {
+      message: queuedJob.message,
+      data: queuedJob,
+    };
+  }
+
+  @Get("register/team/jobs/:jobId")
+  @ApiOperation({ summary: "Get the status of an asynchronous team registration queue job" })
+  async getRegistrationJobStatus(@Param("jobId") jobId: string) {
+    const status = await this.teamStudentService.getRegistrationJobStatus(jobId);
+    return {
+      message: "Job status fetched successfully",
+      data: status,
+    };
+  }
+
   @Put("register/team/:eventId")
   @ApiOperation({ summary: "Update team registration for an event" })
   async updateTeamRegistration(
