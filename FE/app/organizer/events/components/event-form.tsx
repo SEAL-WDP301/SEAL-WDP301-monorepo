@@ -107,21 +107,18 @@ import {
 import {
   DEFAULT_EVENT_DURATION_DAYS,
   addDaysToLocalDateTimeValue,
-  createDefaultEventSchedule,
   createDefaultRoundDeadlines,
   getEventSeason,
 } from "@/lib/events/event-defaults";
 
-const defaultLocation = {
-  venueName: "FPT University Ho Chi Minh City",
-  room: "Innovation Hall",
-  address: "Lot E2a-7, D1 Street, Saigon Hi-Tech Park, Thu Duc City, Ho Chi Minh City",
-  meetingPlatform: "Google Meet",
-  meetingUrl: "https://meet.google.com/",
-  mapUrl: buildGoogleMapsSearchUrl(
-    "FPT University Ho Chi Minh City, Lot E2a-7, D1 Street, Saigon Hi-Tech Park, Thu Duc City, Ho Chi Minh City",
-  ),
-  note: "Teams will receive detailed room allocation before the event day.",
+const emptyLocation = {
+  venueName: "",
+  room: "",
+  address: "",
+  meetingPlatform: "",
+  meetingUrl: "",
+  mapUrl: "",
+  note: "",
 };
 
 type StoredGoogleMeetConfig = {
@@ -131,71 +128,18 @@ type StoredGoogleMeetConfig = {
   timeZone?: string;
 };
 
-const defaultContacts = [
-  {
-    label: "Organizer Support",
-    name: "SEAL Organizing Committee",
-    email: "seal@fe.edu.vn",
-    phone: "0123 456 789",
-    detail:
-      "Questions about registration, teams, schedules, and event logistics.",
-    responseTime: "Within 24 hours",
-  },
-  {
-    label: "Technical Support",
-    name: "SEAL Technical Team",
-    email: "tech.seal@fe.edu.vn",
-    phone: "0987 654 321",
-    detail:
-      "Support for GitHub, submissions, file upload, and workspace access.",
-    responseTime: "During competition hours",
-  },
-];
+const emptyContacts: Array<{
+  label: string;
+  name: string;
+  email: string;
+  phone: string;
+  detail: string;
+  responseTime: string;
+}> = [];
 
-const defaultRuleGroups = [
-  {
-    title: "Team Rules",
-    itemsText: [
-      "Each team must follow the official team size configured for its track.",
-      "Participants must use their registered account and team workspace.",
-      "Team members are responsible for keeping project work original and transparent.",
-    ].join("\n"),
-  },
-  {
-    title: "Submission Rules",
-    itemsText: [
-      "Submit before the round deadline shown in the event workspace.",
-      "GitHub repositories or uploaded files must be accessible to organizers and judges.",
-      "Late, inaccessible, or incomplete submissions may not be evaluated.",
-    ].join("\n"),
-  },
-  {
-    title: "Judging Rules",
-    itemsText: [
-      "Projects are evaluated using the official rubric for each round.",
-      "Judge decisions are based on submitted work, presentation, and rule compliance.",
-      "Organizers may request clarification when submission evidence is unclear.",
-    ].join("\n"),
-  },
-];
+const emptyRuleGroups: Array<{ title: string; itemsText: string }> = [];
 
-const defaultFaqItems = [
-  {
-    question: "Who can join this event?",
-    answer:
-      "Students who meet the event eligibility rules can register individually or as part of a team, depending on organizer settings.",
-  },
-  {
-    question: "Can a team update its submission?",
-    answer:
-      "Teams can update submissions while the round is still open. After the deadline, submissions are locked for evaluation.",
-  },
-  {
-    question: "Where will announcements be posted?",
-    answer:
-      "Official announcements are posted in the event workspace and may also be sent through registered contact channels.",
-  },
-];
+const emptyFaqItems: Array<{ question: string; answer: string }> = [];
 
 interface RuleGroupSource {
   title?: string;
@@ -233,7 +177,7 @@ function getApiStatus(error: unknown) {
 
 function normalizeRuleGroups(event?: OrganizerEvent) {
   const rulesArray = parseJsonSafe<RuleGroupSource[]>(event?.rules, []);
-  if (!rulesArray.length) return defaultRuleGroups;
+  if (!rulesArray.length) return emptyRuleGroups;
   return rulesArray.map((group) => ({
     title: group.title || group.name || group.category || "Rules",
     itemsText: (group.rules || []).join("\n"),
@@ -241,7 +185,7 @@ function normalizeRuleGroups(event?: OrganizerEvent) {
 }
 
 function normalizeFaqItems(event?: OrganizerEvent) {
-  if (!event?.faq?.length) return defaultFaqItems;
+  if (!event?.faq?.length) return emptyFaqItems;
   return event.faq.map((faq: OrganizerEventFAQItem) => ({
     question: faq.question || faq.q || faq.title || "",
     answer: faq.answer || faq.a || faq.content || "",
@@ -272,11 +216,15 @@ const createEventSchema = (isEdit: boolean) =>
           new Date().getFullYear() + 5,
           "Year cannot exceed 5 years in the future",
         ),
-      maxTeams: z.coerce
-        .number()
-        .int("Maximum teams must be an integer")
-        .min(1, "Maximum teams must be at least 1")
-        .max(1000, "Maximum teams cannot exceed 1000"),
+      maxTeams: z.preprocess(
+        (value) => (value === "" || value == null ? undefined : value),
+        z.coerce
+          .number()
+          .int("Maximum teams must be an integer")
+          .min(1, "Maximum teams must be at least 1")
+          .max(1000, "Maximum teams cannot exceed 1000")
+          .optional(),
+      ),
       /**
        * ON  → define tracks now; students pick a track when registering.
        * OFF → create without tracks (Flow B); add later in Tracks & Rounds,
@@ -297,9 +245,7 @@ const createEventSchema = (isEdit: boolean) =>
       status: z.enum(["draft", "active", "ongoing", "closed"]).optional(),
       registrationDeadline: z.string().optional(),
       startDate: z.string().optional(),
-      endDate: isEdit
-        ? z.string().optional()
-        : z.string().min(1, "End date is required"),
+      endDate: z.string().optional(),
       githubOrgUrl: z
         .string()
         .url("Invalid GitHub URL")
@@ -340,40 +286,7 @@ const createEventSchema = (isEdit: boolean) =>
           }),
         )
         .optional()
-        .default([
-          {
-            name: "Champion (First Prize)",
-            description: "Gold Trophy",
-            quantity: 1,
-            amount: 10_000_000,
-            placement: 1,
-            currency: "VND",
-          },
-          {
-            name: "Second Prize (Runner-up)",
-            description: "Silver Trophy",
-            quantity: 1,
-            amount: 5_000_000,
-            placement: 2,
-            currency: "VND",
-          },
-          {
-            name: "Third Prize",
-            description: "Bronze Trophy",
-            quantity: 1,
-            amount: 2_500_000,
-            placement: 3,
-            currency: "VND",
-          },
-          {
-            name: "Honorable Mention",
-            description: "Certificate",
-            quantity: 1,
-            amount: 1_000_000,
-            placement: null,
-            currency: "VND",
-          },
-        ]),
+        .default([]),
       tracks: z
         .array(
           z.object({
@@ -390,7 +303,7 @@ const createEventSchema = (isEdit: boolean) =>
             id: z.number().optional(),
             _count: z.object({ submissions: z.number().optional() }).optional(),
             roundNumber: z.coerce.number().int().min(1, "Must be >= 1"),
-            name: z.string().min(1, "Round name is required"),
+            name: z.string(),
             submissionType: z.enum(["github_link", "file"]),
             submissionDeadline: z.string().optional(),
             maxFileSizeMb: z.coerce
@@ -412,20 +325,11 @@ const createEventSchema = (isEdit: boolean) =>
         .default([
           {
             roundNumber: 1,
-            name: "Qualification Round",
+            name: "",
             submissionType: "github_link",
             submissionDeadline: "",
             maxFileSizeMb: 20,
-            isTrackSpecific: true,
-            advanceCount: 2,
-          },
-          {
-            roundNumber: 2,
-            name: "Final Round",
-            submissionType: "github_link",
-            submissionDeadline: "",
-            maxFileSizeMb: 20,
-            isTrackSpecific: true,
+            isTrackSpecific: false,
           },
         ]),
       location: z
@@ -446,8 +350,8 @@ const createEventSchema = (isEdit: boolean) =>
             .or(z.literal("")),
           note: z.string().optional(),
         })
-        .default(defaultLocation),
-      createGoogleMeet: z.boolean().default(true),
+        .default(emptyLocation),
+      createGoogleMeet: z.boolean().default(false),
       calendarMeetingStart: z.string().optional(),
       calendarMeetingEnd: z.string().optional(),
       calendarAttendeeEmails: z.string().optional(),
@@ -468,7 +372,7 @@ const createEventSchema = (isEdit: boolean) =>
             responseTime: z.string().optional(),
           }),
         )
-        .default(defaultContacts),
+        .default(emptyContacts),
       ruleGroups: z
         .array(
           z.object({
@@ -476,7 +380,7 @@ const createEventSchema = (isEdit: boolean) =>
             itemsText: z.string().optional(),
           }),
         )
-        .default(defaultRuleGroups),
+        .default(emptyRuleGroups),
       faqItems: z
         .array(
           z.object({
@@ -484,7 +388,7 @@ const createEventSchema = (isEdit: boolean) =>
             answer: z.string().min(1, "Answer is required"),
           }),
         )
-        .default(defaultFaqItems),
+        .default(emptyFaqItems),
     })
     .superRefine((data, ctx) => {
       const now = new Date();
@@ -498,7 +402,9 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
-      if (!isEdit) {
+      const requiresFullDetails = data.status && data.status !== "draft";
+
+      if (!isEdit && requiresFullDetails) {
         const requireText = (
           value: string | undefined,
           path: Array<string | number>,
@@ -521,6 +427,7 @@ const createEventSchema = (isEdit: boolean) =>
           "Registration deadline",
         );
         requireText(data.startDate, ["startDate"], "Start date");
+        requireText(data.endDate, ["endDate"], "End date");
         requireText(
           data.githubOrgUrl,
           ["githubOrgUrl"],
@@ -622,6 +529,7 @@ const createEventSchema = (isEdit: boolean) =>
         }
 
         data.rounds.forEach((round, index) => {
+          requireText(round.name, ["rounds", index, "name"], "Round name");
           requireText(
             round.submissionDeadline,
             ["rounds", index, "submissionDeadline"],
@@ -796,11 +704,12 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
+      const prizes = data.prizes ?? [];
       const primaryPrizes = new Map<
         number,
-        (typeof data.prizes)[number] & { index: number }
+        (typeof prizes)[number] & { index: number }
       >();
-      data.prizes.forEach((prize, index) => {
+      prizes.forEach((prize, index) => {
         if (prize.placement == null) return;
         const existing = primaryPrizes.get(prize.placement);
         if (existing) {
@@ -829,7 +738,7 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
-      getPrizeAmountOrderViolations(data.prizes).forEach(({ lowerIndex }) => {
+      getPrizeAmountOrderViolations(prizes).forEach(({ lowerIndex }) => {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Amounts must decrease or stay equal from top to bottom",
@@ -1029,7 +938,7 @@ export default function EventForm({ initialData }: EventFormProps) {
 
   const initialLocation = useMemo(
     () =>
-      parseJsonSafe<Partial<typeof defaultLocation> & StoredGoogleMeetConfig>(
+      parseJsonSafe<Partial<typeof emptyLocation> & StoredGoogleMeetConfig>(
         initialData?.location,
         {},
       ),
@@ -1046,31 +955,15 @@ export default function EventForm({ initialData }: EventFormProps) {
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
-  const DEFAULT_EVENT_DESCRIPTION =
-    "Building a Retrieval-Augmented Generation (RAG) AI automation involves connecting a Large Language Model (LLM) to your private data sources (like PDFs or databases). When a user asks a question, the system retrieves relevant information and passes it to the AI, allowing it to generate accurate, context-aware responses without hallucinating";
-
-  const createPreset = useMemo(() => {
-    const schedule = createDefaultEventSchedule();
-    const startDate = new Date(schedule.startDate);
-
-    return {
-      ...schedule,
-      year: startDate.getFullYear(),
-      season: getEventSeason(startDate),
-    };
-  }, []);
+  const today = useMemo(() => new Date(), []);
 
   const defaultValues: Partial<EventFormValues> = {
-    name:
-      initialData?.name ||
-      (isEdit ? "" : `SEAL AI Innovation Hackathon ${createPreset.year}`),
-    description: initialData?.description || DEFAULT_EVENT_DESCRIPTION,
-    imageUrl: isEdit
-      ? initialData?.imageUrl || initialData?.image_url || ""
-      : "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
-    season: initialData?.season || createPreset.season,
-    year: initialData?.year || createPreset.year,
-    maxTeams: initialData?.maxTeams ?? 50,
+    name: initialData?.name || "",
+    description: initialData?.description || "",
+    imageUrl: initialData?.imageUrl || initialData?.image_url || "",
+    season: initialData?.season || getEventSeason(today),
+    year: initialData?.year || today.getFullYear(),
+    maxTeams: initialData?.maxTeams,
     // useTracks = students pick track at register (= !deferred). Never infer from track count
     // (Flow B may already have tracks added on Tracks & Rounds).
     useTracks: isEdit
@@ -1084,21 +977,14 @@ export default function EventForm({ initialData }: EventFormProps) {
     status: initialData?.status || "draft",
     registrationDeadline: initialData?.registrationDeadline
       ? new Date(initialData.registrationDeadline).toISOString().slice(0, 16)
-      : isEdit
-        ? ""
-        : createPreset.registrationDeadline,
+      : "",
     startDate: initialData?.startDate
       ? new Date(initialData.startDate).toISOString().slice(0, 16)
-      : isEdit
-        ? ""
-        : createPreset.startDate,
+      : "",
     endDate: initialData?.endDate
       ? new Date(initialData.endDate).toISOString().slice(0, 16)
-      : isEdit
-        ? ""
-        : createPreset.endDate,
-    githubOrgUrl:
-      initialData?.githubOrgUrl || "https://github.com/DEMO-SEAL-HackaThon-ORG",
+      : "",
+    githubOrgUrl: initialData?.githubOrgUrl || "",
     prizes: initialData?.prizes
       ? normalizePrizeOrder(
           initialData.prizes.map((prize) => ({
@@ -1111,40 +997,7 @@ export default function EventForm({ initialData }: EventFormProps) {
             currency: prize.currency || "VND",
           })),
         )
-      : [
-          {
-            name: "Champion (First Prize)",
-            description: "Gold Trophy",
-            quantity: 1,
-            amount: 10_000_000,
-            placement: 1,
-            currency: "VND",
-          },
-          {
-            name: "Second Prize (Runner-up)",
-            description: "Silver Trophy",
-            quantity: 1,
-            amount: 5_000_000,
-            placement: 2,
-            currency: "VND",
-          },
-          {
-            name: "Third Prize",
-            description: "Bronze Trophy",
-            quantity: 1,
-            amount: 2_500_000,
-            placement: 3,
-            currency: "VND",
-          },
-          {
-            name: "Honorable Mention",
-            description: "Certificate",
-            quantity: 1,
-            amount: 1_000_000,
-            placement: null,
-            currency: "VND",
-          },
-        ],
+      : [],
     tracks: isEdit
       ? (initialData?.tracks || []).map((track) => ({
           id: track.id,
@@ -1166,48 +1019,35 @@ export default function EventForm({ initialData }: EventFormProps) {
       : [
           {
             roundNumber: 1,
-            name: "Qualification Round",
+            name: "",
             submissionType: "github_link",
-            submissionDeadline: createPreset.firstRoundDeadline,
+            submissionDeadline: "",
             maxFileSizeMb: 20,
-            isTrackSpecific: true,
-            advanceCount: 2,
-          },
-          {
-            roundNumber: 2,
-            name: "Final Round",
-            submissionType: "github_link",
-            submissionDeadline: createPreset.finalRoundDeadline,
-            maxFileSizeMb: 20,
-            isTrackSpecific: true,
+            isTrackSpecific: false,
           },
         ],
     location: {
-      ...defaultLocation,
+      ...emptyLocation,
       ...initialLocation,
-      mapUrl: getEventMapUrl(initialLocation) || defaultLocation.mapUrl,
+      mapUrl: getEventMapUrl(initialLocation) || "",
     },
     createGoogleMeet: isEdit
       ? initialLocation.createGoogleMeetOnOngoing || hasExistingCalendarMeeting
-      : true,
+      : false,
     calendarMeetingStart: initialData?.calendarMeeting?.startDate
       ? toDateTimeLocalValue(initialData.calendarMeeting.startDate)
       : initialLocation.meetingStartDate
         ? toDateTimeLocalValue(initialLocation.meetingStartDate)
         : hasExistingCalendarMeeting && initialData?.startDate
           ? toDateTimeLocalValue(initialData.startDate)
-          : isEdit
-            ? ""
-            : createPreset.startDate,
+          : "",
     calendarMeetingEnd: initialData?.calendarMeeting?.endDate
       ? toDateTimeLocalValue(initialData.calendarMeeting.endDate)
       : initialLocation.meetingEndDate
         ? toDateTimeLocalValue(initialLocation.meetingEndDate)
         : hasExistingCalendarMeeting && initialData?.endDate
           ? toDateTimeLocalValue(initialData.endDate)
-          : isEdit
-            ? ""
-            : createPreset.endDate,
+          : "",
     calendarAttendeeEmails: "",
     sendCalendarInvitations: true,
     notifyParticipants: true,
@@ -1225,7 +1065,7 @@ export default function EventForm({ initialData }: EventFormProps) {
             detail: contact.detail || "",
             responseTime: contact.responseTime || "",
           }))
-        : defaultContacts;
+        : emptyContacts;
     })(),
     ruleGroups: normalizeRuleGroups(initialData),
     faqItems: normalizeFaqItems(initialData),
@@ -1714,7 +1554,7 @@ export default function EventForm({ initialData }: EventFormProps) {
           return {
           id: r.id,
           roundNumber: r.roundNumber,
-          name: r.name,
+          name: r.name?.trim() || `Round ${r.roundNumber}`,
           submissionType: r.submissionType,
           submissionDeadline: r.submissionDeadline
             ? new Date(r.submissionDeadline).toISOString()
@@ -2101,7 +1941,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                     render={({ field }) => (
                       <FormItem className="md:col-span-4">
                         <FormLabel className="text-foreground/80 font-medium">
-                          Maximum Teams <span className="text-red-500">*</span>
+                          Maximum Teams
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -2109,6 +1949,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                             min={1}
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />
