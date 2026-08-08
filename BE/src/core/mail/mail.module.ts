@@ -11,16 +11,20 @@ import { EmailQueueProcessor } from "./email-queue.processor";
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         transport: {
-          host: configService.get<string>("SMTP_HOST"),
-          port: configService.get<number>("SMTP_PORT"),
-          secure: false, // TLS
+          host: configService.get<string>("SMTP_HOST") || "smtp.gmail.com",
+          port: Number(configService.get<number>("SMTP_PORT")) || 587,
+          secure: Number(configService.get<number>("SMTP_PORT")) === 465,
+          requireTLS: Number(configService.get<number>("SMTP_PORT")) !== 465,
           auth: {
             user: configService.get<string>("SMTP_USER"),
             pass: configService.get<string>("SMTP_PASS"),
           },
+          tls: {
+            rejectUnauthorized: false,
+          },
         },
         defaults: {
-          from: configService.get<string>("MAIL_FROM"),
+          from: configService.get<string>("MAIL_FROM") || "SEAL Hackathon <phamthanhqb2005@gmail.com>",
         },
       }),
     }),

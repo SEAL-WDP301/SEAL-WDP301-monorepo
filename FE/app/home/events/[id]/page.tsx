@@ -1134,10 +1134,43 @@ export default function EventDetailPage() {
                 <div className="text-xs text-muted-foreground uppercase font-medium flex items-center gap-1.5">
                   {event.status === "closed" ? (
                     teamInfo?.team?.award ? (
-                      <span className="flex items-center gap-1.5 text-yellow-500 font-bold">
-                        <Trophy className="h-3.5 w-3.5" />
-                        {teamInfo.team.award.name}
-                      </span>
+                      (() => {
+                        const name = (teamInfo.team.award.name || "").toLowerCase();
+                        const desc = (teamInfo.team.award.description || "").toLowerCase();
+                        const isChampion =
+                          name.includes("champion") ||
+                          name.includes("first") ||
+                          name.includes("nhất") ||
+                          name.includes("1st") ||
+                          desc.includes("gold");
+                        const isSecond =
+                          name.includes("second") ||
+                          name.includes("nhì") ||
+                          name.includes("2nd") ||
+                          name.includes("runner") ||
+                          desc.includes("silver");
+                        const isThird =
+                          name.includes("third") ||
+                          name.includes("ba") ||
+                          name.includes("3rd") ||
+                          desc.includes("bronze");
+
+                        const AwardIcon = isChampion ? Trophy : (isSecond || isThird) ? Medal : Sparkles;
+                        const iconColor = isChampion
+                          ? "text-yellow-500"
+                          : isSecond
+                            ? "text-slate-600 dark:text-slate-300"
+                            : isThird
+                              ? "text-amber-700 dark:text-amber-400"
+                              : "text-sky-600 dark:text-sky-400";
+
+                        return (
+                          <span className={cn("flex items-center gap-1.5 font-bold", iconColor)}>
+                            <AwardIcon className="h-3.5 w-3.5" />
+                            {teamInfo.team.award.name}
+                          </span>
+                        );
+                      })()
                     ) : (
                       <span className="text-muted-foreground">COMPLETED</span>
                     )
@@ -1219,36 +1252,83 @@ export default function EventDetailPage() {
             )}
 
             {displayStatus === "approved" && event.status === "closed" && (
-              <div className="w-full order-first mb-2 bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-sm text-blue-700 dark:text-blue-400 flex items-start gap-3 shadow-sm">
-                {teamInfo?.team?.award ? (
-                  <>
-                    <Trophy className="h-5 w-5 shrink-0 mt-0.5 text-yellow-500" />
-                    <div>
-                      <p className="font-semibold text-yellow-600 dark:text-yellow-500">
-                        Congratulations! Your team won the{" "}
-                        {teamInfo.team.award.name}!
-                      </p>
-                      <p className="text-xs opacity-90 mt-1">
-                        {
-                          'This event has concluded. Click "View Workspace" to review your team\'s complete activity history, submissions, and feedback from the judges.'
-                        }
-                      </p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Award className="h-5 w-5 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold">A Memorable Journey!</p>
-                      <p className="text-xs opacity-90 mt-1">
-                        {
-                          "This event has concluded. Although you didn't win the top prize, your team's efforts are commendable. Click \"View Workspace\" to review your activity history."
-                        }
-                      </p>
-                    </div>
-                  </>
-                )}
-              </div>
+              (() => {
+                const userAward = teamInfo?.team?.award;
+                const name = (userAward?.name || "").toLowerCase();
+                const desc = (userAward?.description || "").toLowerCase();
+                const isChampion =
+                  name.includes("champion") ||
+                  name.includes("first") ||
+                  name.includes("nhất") ||
+                  name.includes("1st") ||
+                  desc.includes("gold");
+                const isSecond =
+                  name.includes("second") ||
+                  name.includes("nhì") ||
+                  name.includes("2nd") ||
+                  name.includes("runner") ||
+                  desc.includes("silver");
+                const isThird =
+                  name.includes("third") ||
+                  name.includes("ba") ||
+                  name.includes("3rd") ||
+                  desc.includes("bronze");
+
+                const AwardIcon = isChampion ? Trophy : (isSecond || isThird) ? Medal : Sparkles;
+                const boxColor = isChampion
+                  ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-700 dark:text-yellow-400"
+                  : isSecond
+                    ? "bg-slate-500/10 border-slate-400/30 text-slate-700 dark:text-slate-300"
+                    : isThird
+                      ? "bg-amber-600/10 border-amber-600/30 text-amber-700 dark:text-amber-400"
+                      : "bg-sky-500/10 border-sky-500/30 text-sky-700 dark:text-sky-400";
+                const titleColor = isChampion
+                  ? "text-yellow-600 dark:text-yellow-400"
+                  : isSecond
+                    ? "text-slate-800 dark:text-slate-200"
+                    : isThird
+                      ? "text-amber-700 dark:text-amber-400"
+                      : "text-sky-600 dark:text-sky-400";
+                const iconClass = isChampion
+                  ? "text-yellow-500"
+                  : isSecond
+                    ? "text-slate-600 dark:text-slate-300"
+                    : isThird
+                      ? "text-amber-700 dark:text-amber-400"
+                      : "text-sky-600 dark:text-sky-400";
+
+                return (
+                  <div className={cn("w-full order-first mb-2 border rounded-xl p-4 text-sm flex items-start gap-3 shadow-sm", boxColor)}>
+                    {userAward ? (
+                      <>
+                        <AwardIcon className={cn("h-5 w-5 shrink-0 mt-0.5", iconClass)} />
+                        <div>
+                          <p className={cn("font-semibold", titleColor)}>
+                            Congratulations! Your team won the {userAward.name}!
+                          </p>
+                          <p className="text-xs opacity-90 mt-1">
+                            {
+                              'This event has concluded. Click "View Workspace" to review your team\'s complete activity history, submissions, and feedback from the judges.'
+                            }
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Award className="h-5 w-5 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold">A Memorable Journey!</p>
+                          <p className="text-xs opacity-90 mt-1">
+                            {
+                              "This event has concluded. Although you didn't win the top prize, your team's efforts are commendable. Click \"View Workspace\" to review your activity history."
+                            }
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </>
         );
@@ -1572,6 +1652,8 @@ export default function EventDetailPage() {
                   };
                 };
 
+                const userTeamName = studentInfo?.teamInfo?.team?.name?.toLowerCase().trim();
+
                 const sortedAchievements = [...(event.eventAchievements || [])].sort((a, b) => {
                   return getAwardTier(a).rank - getAwardTier(b).rank;
                 });
@@ -1582,15 +1664,31 @@ export default function EventDetailPage() {
                       const tier = getAwardTier(achievement);
                       const IconComponent = tier.Icon;
                       const trackName = achievement.track?.name?.trim();
+                      const isUserTeam = Boolean(
+                        userTeamName && achievement.name?.toLowerCase().trim() === userTeamName,
+                      );
 
                       return (
                         <article
                           key={achievement.id}
                           className={cn(
-                            "rounded-2xl border p-5 sm:p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5",
+                            "relative rounded-2xl border p-5 sm:p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5",
                             tier.card,
+                            isUserTeam && "border-l-4 border-l-orange-500 ring-1 ring-orange-500/30",
                           )}
                         >
+                          {/* Track Badge at Top-Right Corner - No 'TRACK:' prefix */}
+                          {trackName ? (
+                            <div className="absolute top-4 right-4 sm:top-5 sm:right-5">
+                              <Badge
+                                variant="outline"
+                                className="border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold px-2.5 py-0.5 text-xs rounded-full shadow-2xs"
+                              >
+                                {trackName}
+                              </Badge>
+                            </div>
+                          ) : null}
+
                           <div className="flex items-start gap-4">
                             <div
                               className={cn(
@@ -1601,7 +1699,7 @@ export default function EventDetailPage() {
                               <IconComponent className={tier.iconColor} />
                             </div>
 
-                            <div className="min-w-0 flex-1">
+                            <div className="min-w-0 flex-1 pr-16 sm:pr-20">
                               <div className="flex items-center gap-2 flex-wrap mb-1">
                                 <Badge
                                   variant="outline"
@@ -1612,6 +1710,14 @@ export default function EventDetailPage() {
                                 >
                                   {tier.badge}
                                 </Badge>
+                                {isUserTeam && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="border border-orange-500/30 bg-orange-500/15 text-orange-600 dark:text-orange-400 text-[10px] font-bold px-2 py-0.5 rounded-md"
+                                  >
+                                    Your Team
+                                  </Badge>
+                                )}
                               </div>
 
                               <h3
@@ -1625,11 +1731,16 @@ export default function EventDetailPage() {
 
                               <p
                                 className={cn(
-                                  "text-sm truncate mt-0.5",
+                                  "text-sm truncate mt-0.5 flex items-center gap-1.5",
                                   tier.teamColor,
                                 )}
                               >
-                                Team: {achievement.name}
+                                <span>Team: {achievement.name}</span>
+                                {isUserTeam && (
+                                  <span className="text-[11px] font-semibold text-orange-600 dark:text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">
+                                    (You)
+                                  </span>
+                                )}
                               </p>
 
                               {achievement.award?.description && (
@@ -1637,20 +1748,6 @@ export default function EventDetailPage() {
                                   {achievement.award.description}
                                 </p>
                               )}
-
-                              {trackName ? (
-                                <div className="mt-4 flex items-center gap-2">
-                                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                                    Track:
-                                  </span>
-                                  <Badge
-                                    variant="outline"
-                                    className="border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold px-2.5 py-0.5 text-xs rounded-full shadow-2xs"
-                                  >
-                                    {trackName}
-                                  </Badge>
-                                </div>
-                              ) : null}
                             </div>
                           </div>
                         </article>
