@@ -113,15 +113,13 @@ import {
 } from "@/lib/events/event-defaults";
 
 const defaultLocation = {
-  venueName: "FPT University Ho Chi Minh City",
-  room: "Innovation Hall",
-  address: "Lot E2a-7, D1 Street, Saigon Hi-Tech Park, Thu Duc City, Ho Chi Minh City",
-  meetingPlatform: "Google Meet",
-  meetingUrl: "https://meet.google.com/",
-  mapUrl: buildGoogleMapsSearchUrl(
-    "FPT University Ho Chi Minh City, Lot E2a-7, D1 Street, Saigon Hi-Tech Park, Thu Duc City, Ho Chi Minh City",
-  ),
-  note: "Teams will receive detailed room allocation before the event day.",
+  venueName: "",
+  room: "",
+  address: "",
+  meetingPlatform: "",
+  meetingUrl: "",
+  mapUrl: "",
+  note: "",
 };
 
 type StoredGoogleMeetConfig = {
@@ -131,71 +129,24 @@ type StoredGoogleMeetConfig = {
   timeZone?: string;
 };
 
-const defaultContacts = [
-  {
-    label: "Organizer Support",
-    name: "SEAL Organizing Committee",
-    email: "seal@fe.edu.vn",
-    phone: "0123 456 789",
-    detail:
-      "Questions about registration, teams, schedules, and event logistics.",
-    responseTime: "Within 24 hours",
-  },
-  {
-    label: "Technical Support",
-    name: "SEAL Technical Team",
-    email: "tech.seal@fe.edu.vn",
-    phone: "0987 654 321",
-    detail:
-      "Support for GitHub, submissions, file upload, and workspace access.",
-    responseTime: "During competition hours",
-  },
-];
+const defaultContacts: Array<{
+  label: string;
+  name: string;
+  email: string;
+  phone: string;
+  detail: string;
+  responseTime: string;
+}> = [];
 
-const defaultRuleGroups = [
-  {
-    title: "Team Rules",
-    itemsText: [
-      "Each team must follow the official team size configured for its track.",
-      "Participants must use their registered account and team workspace.",
-      "Team members are responsible for keeping project work original and transparent.",
-    ].join("\n"),
-  },
-  {
-    title: "Submission Rules",
-    itemsText: [
-      "Submit before the round deadline shown in the event workspace.",
-      "GitHub repositories or uploaded files must be accessible to organizers and judges.",
-      "Late, inaccessible, or incomplete submissions may not be evaluated.",
-    ].join("\n"),
-  },
-  {
-    title: "Judging Rules",
-    itemsText: [
-      "Projects are evaluated using the official rubric for each round.",
-      "Judge decisions are based on submitted work, presentation, and rule compliance.",
-      "Organizers may request clarification when submission evidence is unclear.",
-    ].join("\n"),
-  },
-];
+const defaultRuleGroups: Array<{
+  title: string;
+  itemsText: string;
+}> = [];
 
-const defaultFaqItems = [
-  {
-    question: "Who can join this event?",
-    answer:
-      "Students who meet the event eligibility rules can register individually or as part of a team, depending on organizer settings.",
-  },
-  {
-    question: "Can a team update its submission?",
-    answer:
-      "Teams can update submissions while the round is still open. After the deadline, submissions are locked for evaluation.",
-  },
-  {
-    question: "Where will announcements be posted?",
-    answer:
-      "Official announcements are posted in the event workspace and may also be sent through registered contact channels.",
-  },
-];
+const defaultFaqItems: Array<{
+  question: string;
+  answer: string;
+}> = [];
 
 interface RuleGroupSource {
   title?: string;
@@ -233,7 +184,7 @@ function getApiStatus(error: unknown) {
 
 function normalizeRuleGroups(event?: OrganizerEvent) {
   const rulesArray = parseJsonSafe<RuleGroupSource[]>(event?.rules, []);
-  if (!rulesArray.length) return defaultRuleGroups;
+  if (!rulesArray.length) return [];
   return rulesArray.map((group) => ({
     title: group.title || group.name || group.category || "Rules",
     itemsText: (group.rules || []).join("\n"),
@@ -241,7 +192,7 @@ function normalizeRuleGroups(event?: OrganizerEvent) {
 }
 
 function normalizeFaqItems(event?: OrganizerEvent) {
-  if (!event?.faq?.length) return defaultFaqItems;
+  if (!event?.faq?.length) return [];
   return event.faq.map((faq: OrganizerEventFAQItem) => ({
     question: faq.question || faq.q || faq.title || "",
     answer: faq.answer || faq.a || faq.content || "",
@@ -340,40 +291,7 @@ const createEventSchema = (isEdit: boolean) =>
           }),
         )
         .optional()
-        .default([
-          {
-            name: "Champion (First Prize)",
-            description: "Gold Trophy",
-            quantity: 1,
-            amount: 10_000_000,
-            placement: 1,
-            currency: "VND",
-          },
-          {
-            name: "Second Prize (Runner-up)",
-            description: "Silver Trophy",
-            quantity: 1,
-            amount: 5_000_000,
-            placement: 2,
-            currency: "VND",
-          },
-          {
-            name: "Third Prize",
-            description: "Bronze Trophy",
-            quantity: 1,
-            amount: 2_500_000,
-            placement: 3,
-            currency: "VND",
-          },
-          {
-            name: "Honorable Mention",
-            description: "Certificate",
-            quantity: 1,
-            amount: 1_000_000,
-            placement: null,
-            currency: "VND",
-          },
-        ]),
+        .default([]),
       tracks: z
         .array(
           z.object({
@@ -412,20 +330,11 @@ const createEventSchema = (isEdit: boolean) =>
         .default([
           {
             roundNumber: 1,
-            name: "Qualification Round",
+            name: "Round 1",
             submissionType: "github_link",
             submissionDeadline: "",
             maxFileSizeMb: 20,
-            isTrackSpecific: true,
-            advanceCount: 2,
-          },
-          {
-            roundNumber: 2,
-            name: "Final Round",
-            submissionType: "github_link",
-            submissionDeadline: "",
-            maxFileSizeMb: 20,
-            isTrackSpecific: true,
+            isTrackSpecific: false,
           },
         ]),
       location: z
@@ -447,12 +356,12 @@ const createEventSchema = (isEdit: boolean) =>
           note: z.string().optional(),
         })
         .default(defaultLocation),
-      createGoogleMeet: z.boolean().default(true),
+      createGoogleMeet: z.boolean().default(false),
       calendarMeetingStart: z.string().optional(),
       calendarMeetingEnd: z.string().optional(),
       calendarAttendeeEmails: z.string().optional(),
-      sendCalendarInvitations: z.boolean().default(true),
-      notifyParticipants: z.boolean().default(true),
+      sendCalendarInvitations: z.boolean().default(false),
+      notifyParticipants: z.boolean().default(false),
       contacts: z
         .array(
           z.object({
@@ -498,138 +407,6 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
-      if (!isEdit) {
-        const requireText = (
-          value: string | undefined,
-          path: Array<string | number>,
-          label: string,
-        ) => {
-          if (!value?.trim()) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `${label} is required`,
-              path,
-            });
-          }
-        };
-
-        requireText(data.description, ["description"], "Description");
-        requireText(data.imageUrl, ["imageUrl"], "Cover image");
-        requireText(
-          data.registrationDeadline,
-          ["registrationDeadline"],
-          "Registration deadline",
-        );
-        requireText(data.startDate, ["startDate"], "Start date");
-        requireText(
-          data.githubOrgUrl,
-          ["githubOrgUrl"],
-          "GitHub organization URL",
-        );
-
-        requireText(
-          data.location.venueName,
-          ["location", "venueName"],
-          "Venue",
-        );
-        requireText(data.location.room, ["location", "room"], "Room / Hall");
-        requireText(data.location.address, ["location", "address"], "Address");
-        requireText(
-          data.location.meetingPlatform,
-          ["location", "meetingPlatform"],
-          "Online platform",
-        );
-        if (!data.createGoogleMeet) {
-          requireText(
-            data.location.meetingUrl,
-            ["location", "meetingUrl"],
-            "Meeting URL",
-          );
-        }
-        requireText(data.location.mapUrl, ["location", "mapUrl"], "Map URL");
-
-        if (data.contacts.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "At least one contact is required",
-            path: ["contacts"],
-          });
-        }
-        data.contacts.forEach((contact, index) => {
-          requireText(
-            contact.label,
-            ["contacts", index, "label"],
-            "Contact label",
-          );
-          requireText(
-            contact.name,
-            ["contacts", index, "name"],
-            "Contact name",
-          );
-          requireText(
-            contact.email,
-            ["contacts", index, "email"],
-            "Contact email",
-          );
-          requireText(
-            contact.phone,
-            ["contacts", index, "phone"],
-            "Contact phone",
-          );
-          requireText(
-            contact.detail,
-            ["contacts", index, "detail"],
-            "Contact detail",
-          );
-          requireText(
-            contact.responseTime,
-            ["contacts", index, "responseTime"],
-            "Response time",
-          );
-        });
-
-        if (data.ruleGroups.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "At least one rule group is required",
-            path: ["ruleGroups"],
-          });
-        }
-        data.ruleGroups.forEach((group, index) => {
-          requireText(
-            group.itemsText,
-            ["ruleGroups", index, "itemsText"],
-            "Rules",
-          );
-        });
-
-        if (data.faqItems.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "At least one FAQ is required",
-            path: ["faqItems"],
-          });
-        }
-
-        if (data.useTracks) {
-          data.tracks.forEach((track, index) => {
-            requireText(
-              track.description,
-              ["tracks", index, "description"],
-              "Track description",
-            );
-          });
-        }
-
-        data.rounds.forEach((round, index) => {
-          requireText(
-            round.submissionDeadline,
-            ["rounds", index, "submissionDeadline"],
-            "Round deadline",
-          );
-        });
-      }
-
       if (data.useTracks && data.tracks.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -637,6 +414,183 @@ const createEventSchema = (isEdit: boolean) =>
           path: ["tracks"],
         });
       }
+
+      if (data.useTracks) {
+        data.tracks.forEach((track, index) => {
+          if (!track.name?.trim()) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Track name is required",
+              path: ["tracks", index, "name"],
+            });
+          }
+        });
+      }
+
+      const attendeeEmails = (data.calendarAttendeeEmails || "")
+        .split(/[\s,;]+/)
+        .map((email) => email.trim())
+        .filter(Boolean);
+      attendeeEmails.forEach((email) => {
+        if (!z.string().email().safeParse(email).success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Invalid attendee email: ${email}`,
+            path: ["calendarAttendeeEmails"],
+          });
+        }
+      });
+
+      if (data.createGoogleMeet) {
+        if (!data.startDate) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Start date is required to create Google Meet",
+            path: ["startDate"],
+          });
+        }
+        if (!data.endDate) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "End date is required to create Google Meet",
+            path: ["endDate"],
+          });
+        }
+        const meetingStart = data.calendarMeetingStart || data.startDate;
+        const meetingEnd = data.calendarMeetingEnd || data.endDate;
+        if (
+          meetingStart &&
+          data.startDate &&
+          new Date(meetingStart) < new Date(data.startDate)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Meeting start time must not be before event start time",
+            path: ["calendarMeetingStart"],
+          });
+        }
+        if (
+          meetingStart &&
+          meetingEnd &&
+          new Date(meetingEnd) <= new Date(meetingStart)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Meeting end time must be after meeting start time",
+            path: ["calendarMeetingEnd"],
+          });
+        }
+        if (
+          meetingEnd &&
+          data.endDate &&
+          new Date(meetingEnd) > new Date(data.endDate)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Meeting end time must not be after event end time",
+            path: ["calendarMeetingEnd"],
+          });
+        }
+      }
+
+      if (!isEdit && data.startDate) {
+        if (new Date(data.startDate) <= now) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Start date must be in the future",
+            path: ["startDate"],
+          });
+        }
+      }
+
+      if (!isEdit && data.registrationDeadline) {
+        if (new Date(data.registrationDeadline) <= now) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Registration deadline must be in the future",
+            path: ["registrationDeadline"],
+          });
+        }
+      }
+
+      if (data.registrationDeadline && data.startDate) {
+        if (new Date(data.registrationDeadline) > new Date(data.startDate)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "Registration deadline must be before or equal to the event start date",
+            path: ["registrationDeadline"],
+          });
+        }
+      }
+
+      if (!isEdit && data.endDate && new Date(data.endDate) <= now) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End date must be in the future",
+          path: ["endDate"],
+        });
+      }
+
+      if (
+        data.startDate &&
+        data.endDate &&
+        new Date(data.startDate) > new Date(data.endDate)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "End date must be after or equal to the event start date",
+          path: ["endDate"],
+        });
+      }
+
+      if (
+        data.registrationDeadline &&
+        data.endDate &&
+        new Date(data.registrationDeadline) > new Date(data.endDate)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Registration deadline must be before or equal to the event end date",
+          path: ["registrationDeadline"],
+        });
+      }
+
+      data.rounds.forEach((round, idx) => {
+        if (round.submissionDeadline) {
+          const roundDate = new Date(round.submissionDeadline);
+          if (data.startDate && roundDate < new Date(data.startDate)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                "Round deadline must be after or at the same time as event start date",
+              path: ["rounds", idx, "submissionDeadline"],
+            });
+          }
+          if (data.endDate && roundDate > new Date(data.endDate)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                "Round deadline must be before or at the same time as event end date",
+              path: ["rounds", idx, "submissionDeadline"],
+            });
+          }
+          if (idx > 0) {
+            const prevRound = data.rounds[idx - 1];
+            if (prevRound.submissionDeadline) {
+              if (roundDate < new Date(prevRound.submissionDeadline)) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `Deadline must be after or equal to Round ${prevRound.roundNumber}`,
+                  path: ["rounds", idx, "submissionDeadline"],
+                });
+              }
+            }
+          }
+        }
+      });
+    });
 
       const attendeeEmails = (data.calendarAttendeeEmails || "")
         .split(/[\s,;]+/)
@@ -1061,13 +1015,11 @@ export default function EventForm({ initialData }: EventFormProps) {
   }, []);
 
   const defaultValues: Partial<EventFormValues> = {
-    name:
-      initialData?.name ||
-      (isEdit ? "" : `SEAL AI Innovation Hackathon ${createPreset.year}`),
-    description: initialData?.description || DEFAULT_EVENT_DESCRIPTION,
+    name: initialData?.name || "",
+    description: initialData?.description || "",
     imageUrl: isEdit
       ? initialData?.imageUrl || initialData?.image_url || ""
-      : "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80",
+      : "",
     season: initialData?.season || createPreset.season,
     year: initialData?.year || createPreset.year,
     maxTeams: initialData?.maxTeams ?? 50,
@@ -1097,8 +1049,7 @@ export default function EventForm({ initialData }: EventFormProps) {
       : isEdit
         ? ""
         : createPreset.endDate,
-    githubOrgUrl:
-      initialData?.githubOrgUrl || "https://github.com/DEMO-SEAL-HackaThon-ORG",
+    githubOrgUrl: initialData?.githubOrgUrl || "",
     prizes: initialData?.prizes
       ? normalizePrizeOrder(
           initialData.prizes.map((prize) => ({
@@ -1111,40 +1062,7 @@ export default function EventForm({ initialData }: EventFormProps) {
             currency: prize.currency || "VND",
           })),
         )
-      : [
-          {
-            name: "Champion (First Prize)",
-            description: "Gold Trophy",
-            quantity: 1,
-            amount: 10_000_000,
-            placement: 1,
-            currency: "VND",
-          },
-          {
-            name: "Second Prize (Runner-up)",
-            description: "Silver Trophy",
-            quantity: 1,
-            amount: 5_000_000,
-            placement: 2,
-            currency: "VND",
-          },
-          {
-            name: "Third Prize",
-            description: "Bronze Trophy",
-            quantity: 1,
-            amount: 2_500_000,
-            placement: 3,
-            currency: "VND",
-          },
-          {
-            name: "Honorable Mention",
-            description: "Certificate",
-            quantity: 1,
-            amount: 1_000_000,
-            placement: null,
-            currency: "VND",
-          },
-        ],
+      : [],
     tracks: isEdit
       ? (initialData?.tracks || []).map((track) => ({
           id: track.id,
@@ -1166,30 +1084,21 @@ export default function EventForm({ initialData }: EventFormProps) {
       : [
           {
             roundNumber: 1,
-            name: "Qualification Round",
+            name: "Round 1",
             submissionType: "github_link",
             submissionDeadline: createPreset.firstRoundDeadline,
             maxFileSizeMb: 20,
-            isTrackSpecific: true,
-            advanceCount: 2,
-          },
-          {
-            roundNumber: 2,
-            name: "Final Round",
-            submissionType: "github_link",
-            submissionDeadline: createPreset.finalRoundDeadline,
-            maxFileSizeMb: 20,
-            isTrackSpecific: true,
+            isTrackSpecific: false,
           },
         ],
     location: {
       ...defaultLocation,
       ...initialLocation,
-      mapUrl: getEventMapUrl(initialLocation) || defaultLocation.mapUrl,
+      mapUrl: getEventMapUrl(initialLocation) || "",
     },
     createGoogleMeet: isEdit
       ? initialLocation.createGoogleMeetOnOngoing || hasExistingCalendarMeeting
-      : true,
+      : false,
     calendarMeetingStart: initialData?.calendarMeeting?.startDate
       ? toDateTimeLocalValue(initialData.calendarMeeting.startDate)
       : initialLocation.meetingStartDate
@@ -1209,23 +1118,21 @@ export default function EventForm({ initialData }: EventFormProps) {
             ? ""
             : createPreset.endDate,
     calendarAttendeeEmails: "",
-    sendCalendarInvitations: true,
-    notifyParticipants: true,
+    sendCalendarInvitations: false,
+    notifyParticipants: false,
     contacts: (() => {
       const parsedContacts = parseJsonSafe<OrganizerEventContact[]>(
         initialData?.contact,
         [],
       );
-      return parsedContacts.length
-        ? parsedContacts.map((contact) => ({
-            label: contact.label || contact.type || "",
-            name: contact.name || contact.title || "",
-            email: contact.email || "",
-            phone: contact.phone || "",
-            detail: contact.detail || "",
-            responseTime: contact.responseTime || "",
-          }))
-        : defaultContacts;
+      return parsedContacts.map((contact) => ({
+        label: contact.label || contact.type || "",
+        name: contact.name || contact.title || "",
+        email: contact.email || "",
+        phone: contact.phone || "",
+        detail: contact.detail || "",
+        responseTime: contact.responseTime || "",
+      }));
     })(),
     ruleGroups: normalizeRuleGroups(initialData),
     faqItems: normalizeFaqItems(initialData),
