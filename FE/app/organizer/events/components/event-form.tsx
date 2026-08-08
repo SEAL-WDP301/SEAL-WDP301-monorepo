@@ -111,11 +111,7 @@ import {
   getEventSeason,
 } from "@/lib/events/event-defaults";
 
-<<<<<<< HEAD
 const defaultLocation = {
-=======
-const emptyLocation = {
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   venueName: "",
   room: "",
   address: "",
@@ -132,11 +128,7 @@ type StoredGoogleMeetConfig = {
   timeZone?: string;
 };
 
-<<<<<<< HEAD
 const defaultContacts: Array<{
-=======
-const emptyContacts: Array<{
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   label: string;
   name: string;
   email: string;
@@ -145,7 +137,6 @@ const emptyContacts: Array<{
   responseTime: string;
 }> = [];
 
-<<<<<<< HEAD
 const defaultRuleGroups: Array<{
   title: string;
   itemsText: string;
@@ -155,11 +146,6 @@ const defaultFaqItems: Array<{
   question: string;
   answer: string;
 }> = [];
-=======
-const emptyRuleGroups: Array<{ title: string; itemsText: string }> = [];
-
-const emptyFaqItems: Array<{ question: string; answer: string }> = [];
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
 
 interface RuleGroupSource {
   title?: string;
@@ -197,11 +183,7 @@ function getApiStatus(error: unknown) {
 
 function normalizeRuleGroups(event?: OrganizerEvent) {
   const rulesArray = parseJsonSafe<RuleGroupSource[]>(event?.rules, []);
-<<<<<<< HEAD
   if (!rulesArray.length) return [];
-=======
-  if (!rulesArray.length) return emptyRuleGroups;
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   return rulesArray.map((group) => ({
     title: group.title || group.name || group.category || "Rules",
     itemsText: (group.rules || []).join("\n"),
@@ -209,11 +191,7 @@ function normalizeRuleGroups(event?: OrganizerEvent) {
 }
 
 function normalizeFaqItems(event?: OrganizerEvent) {
-<<<<<<< HEAD
   if (!event?.faq?.length) return [];
-=======
-  if (!event?.faq?.length) return emptyFaqItems;
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   return event.faq.map((faq: OrganizerEventFAQItem) => ({
     question: faq.question || faq.q || faq.title || "",
     answer: faq.answer || faq.a || faq.content || "",
@@ -353,11 +331,7 @@ const createEventSchema = (isEdit: boolean) =>
         .default([
           {
             roundNumber: 1,
-<<<<<<< HEAD
             name: "Round 1",
-=======
-            name: "",
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
             submissionType: "github_link",
             submissionDeadline: "",
             maxFileSizeMb: 20,
@@ -382,11 +356,7 @@ const createEventSchema = (isEdit: boolean) =>
             .or(z.literal("")),
           note: z.string().optional(),
         })
-<<<<<<< HEAD
         .default(defaultLocation),
-=======
-        .default(emptyLocation),
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
       createGoogleMeet: z.boolean().default(false),
       calendarMeetingStart: z.string().optional(),
       calendarMeetingEnd: z.string().optional(),
@@ -438,145 +408,6 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
-<<<<<<< HEAD
-=======
-      const requiresFullDetails = data.status && data.status !== "draft";
-
-      if (!isEdit && requiresFullDetails) {
-        const requireText = (
-          value: string | undefined,
-          path: Array<string | number>,
-          label: string,
-        ) => {
-          if (!value?.trim()) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: `${label} is required`,
-              path,
-            });
-          }
-        };
-
-        requireText(data.description, ["description"], "Description");
-        requireText(data.imageUrl, ["imageUrl"], "Cover image");
-        requireText(
-          data.registrationDeadline,
-          ["registrationDeadline"],
-          "Registration deadline",
-        );
-        requireText(data.startDate, ["startDate"], "Start date");
-        requireText(data.endDate, ["endDate"], "End date");
-        requireText(
-          data.githubOrgUrl,
-          ["githubOrgUrl"],
-          "GitHub organization URL",
-        );
-
-        requireText(
-          data.location.venueName,
-          ["location", "venueName"],
-          "Venue",
-        );
-        requireText(data.location.room, ["location", "room"], "Room / Hall");
-        requireText(data.location.address, ["location", "address"], "Address");
-        requireText(
-          data.location.meetingPlatform,
-          ["location", "meetingPlatform"],
-          "Online platform",
-        );
-        if (!data.createGoogleMeet) {
-          requireText(
-            data.location.meetingUrl,
-            ["location", "meetingUrl"],
-            "Meeting URL",
-          );
-        }
-        requireText(data.location.mapUrl, ["location", "mapUrl"], "Map URL");
-
-        if (data.contacts.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "At least one contact is required",
-            path: ["contacts"],
-          });
-        }
-        data.contacts.forEach((contact, index) => {
-          requireText(
-            contact.label,
-            ["contacts", index, "label"],
-            "Contact label",
-          );
-          requireText(
-            contact.name,
-            ["contacts", index, "name"],
-            "Contact name",
-          );
-          requireText(
-            contact.email,
-            ["contacts", index, "email"],
-            "Contact email",
-          );
-          requireText(
-            contact.phone,
-            ["contacts", index, "phone"],
-            "Contact phone",
-          );
-          requireText(
-            contact.detail,
-            ["contacts", index, "detail"],
-            "Contact detail",
-          );
-          requireText(
-            contact.responseTime,
-            ["contacts", index, "responseTime"],
-            "Response time",
-          );
-        });
-
-        if (data.ruleGroups.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "At least one rule group is required",
-            path: ["ruleGroups"],
-          });
-        }
-        data.ruleGroups.forEach((group, index) => {
-          requireText(
-            group.itemsText,
-            ["ruleGroups", index, "itemsText"],
-            "Rules",
-          );
-        });
-
-        if (data.faqItems.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "At least one FAQ is required",
-            path: ["faqItems"],
-          });
-        }
-
-        if (data.useTracks) {
-          data.tracks.forEach((track, index) => {
-            requireText(
-              track.description,
-              ["tracks", index, "description"],
-              "Track description",
-            );
-          });
-        }
-
-        data.rounds.forEach((round, index) => {
-          requireText(round.name, ["rounds", index, "name"], "Round name");
-          requireText(
-            round.submissionDeadline,
-            ["rounds", index, "submissionDeadline"],
-            "Round deadline",
-          );
-        });
-      }
-
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
       if (data.useTracks && data.tracks.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -1208,13 +1039,9 @@ export default function EventForm({ initialData }: EventFormProps) {
       : "",
     endDate: initialData?.endDate
       ? new Date(initialData.endDate).toISOString().slice(0, 16)
-<<<<<<< HEAD
       : isEdit
         ? ""
         : createPreset.endDate,
-=======
-      : "",
->>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
     githubOrgUrl: initialData?.githubOrgUrl || "",
     prizes: initialData?.prizes
       ? normalizePrizeOrder(
