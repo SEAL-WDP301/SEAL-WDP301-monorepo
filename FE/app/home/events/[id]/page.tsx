@@ -1712,7 +1712,7 @@ export default function EventDetailPage() {
                                 </Badge>
                                 {isUserTeam && (
                                   <Badge
-                                    variant="secondary"
+                                    variant="highlight"
                                     className="border border-orange-500/30 bg-orange-500/15 text-orange-600 dark:text-orange-400 text-[10px] font-bold px-2 py-0.5 rounded-md"
                                   >
                                     Your Team
