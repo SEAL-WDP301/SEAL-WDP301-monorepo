@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { EventRegisterDialog } from "@/components/events/event-register-dialog";
+import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -23,14 +24,18 @@ import {
   ChevronDown,
   CircleHelp,
   Clock,
+  Crown,
   ExternalLink,
   FileText,
   GraduationCap,
   Headphones,
   Mail,
   MapPin,
+  Medal,
   Phone,
   Scale,
+  Sparkles,
+  Star,
   Trophy,
   Users,
   Video,
@@ -1487,46 +1492,177 @@ export default function EventDetailPage() {
                 </div>
               </div>
 
-              {event.eventAchievements && event.eventAchievements.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {event.eventAchievements.map((achievement) => (
-                    <article
-                      key={achievement.id}
-                      className="rounded-2xl border border-amber-400/20 bg-background/55 p-5 backdrop-blur-sm"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-amber-400">
-                          <Award className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="truncate text-lg font-bold text-foreground">
-                            {achievement.award?.name || "Official achievement"}
-                          </h3>
-                          <p className="truncate text-sm font-semibold text-amber-400">
-                            {achievement.name}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-sm text-muted-foreground">
-                        {achievement.award?.description ||
-                          "Awarded by the event organizer"}
-                      </p>
-                      {achievement.track?.name ? (
-                        <Badge
-                          variant="outline"
-                          className="mt-4 border-border text-muted-foreground"
+              {(() => {
+                const getAwardTier = (achievement: EventAchievement) => {
+                  const name = (achievement.award?.name || "").toLowerCase();
+                  const desc = (achievement.award?.description || "").toLowerCase();
+
+                  const isChampion =
+                    name.includes("champion") ||
+                    name.includes("first") ||
+                    name.includes("nhất") ||
+                    name.includes("1st") ||
+                    desc.includes("gold");
+
+                  const isSecond =
+                    name.includes("second") ||
+                    name.includes("nhì") ||
+                    name.includes("2nd") ||
+                    name.includes("runner") ||
+                    desc.includes("silver");
+
+                  const isThird =
+                    name.includes("third") ||
+                    name.includes("ba") ||
+                    name.includes("3rd") ||
+                    desc.includes("bronze");
+
+                  if (isChampion) {
+                    return {
+                      rank: 1,
+                      badge: "Grand Champion",
+                      Icon: Trophy,
+                      iconBox: "bg-gradient-to-tr from-yellow-400 via-amber-400 to-yellow-300 text-yellow-950 shadow-[0_0_20px_rgba(250,204,21,0.5)] border-2 border-yellow-200 ring-2 ring-yellow-400/40",
+                      iconColor: "h-6 w-6 text-yellow-950",
+                      card: "border-yellow-500/50 bg-gradient-to-br from-yellow-500/[0.14] via-amber-500/[0.08] to-background shadow-[0_0_30px_rgba(234,179,8,0.18)] ring-1 ring-yellow-400/40 relative overflow-hidden",
+                      titleColor: "text-amber-500 dark:text-yellow-400 font-black",
+                      teamColor: "text-amber-600 dark:text-yellow-300 font-bold",
+                      tierBadge: "border-yellow-500/40 bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 font-bold",
+                    };
+                  }
+
+                  if (isSecond) {
+                    return {
+                      rank: 2,
+                      badge: "Runner-Up (2nd)",
+                      Icon: Medal,
+                      iconBox: "bg-gradient-to-tr from-slate-200 via-slate-100 to-white dark:from-slate-700 dark:via-slate-600 dark:to-slate-500 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-500 shadow-sm",
+                      iconColor: "h-6 w-6 text-slate-700 dark:text-slate-100",
+                      card: "border-slate-300/60 dark:border-slate-600/50 bg-gradient-to-br from-slate-200/[0.08] via-slate-300/[0.03] to-background shadow-sm hover:border-slate-400/60",
+                      titleColor: "text-slate-800 dark:text-slate-200 font-bold",
+                      teamColor: "text-slate-700 dark:text-slate-300 font-semibold",
+                      tierBadge: "border-slate-400/30 bg-slate-500/10 text-slate-700 dark:text-slate-300 font-semibold",
+                    };
+                  }
+
+                  if (isThird) {
+                    return {
+                      rank: 3,
+                      badge: "Third Place (3rd)",
+                      Icon: Medal,
+                      iconBox: "bg-gradient-to-tr from-amber-600/25 to-amber-500/15 border border-amber-600/30 text-amber-700 dark:text-amber-400 shadow-sm",
+                      iconColor: "h-6 w-6 text-amber-700 dark:text-amber-400",
+                      card: "border-amber-600/30 bg-gradient-to-br from-amber-700/[0.08] via-amber-600/[0.03] to-background shadow-sm hover:border-amber-600/50",
+                      titleColor: "text-amber-700 dark:text-amber-400 font-bold",
+                      teamColor: "text-amber-600 dark:text-amber-300 font-semibold",
+                      tierBadge: "border-amber-600/30 bg-amber-600/10 text-amber-700 dark:text-amber-400 font-semibold",
+                    };
+                  }
+
+                  return {
+                    rank: 4,
+                    badge: "Honorable Mention",
+                    Icon: Sparkles,
+                    iconBox: "bg-sky-500/15 border border-sky-500/30 text-sky-600 dark:text-sky-400 shadow-sm",
+                    iconColor: "h-6 w-6 text-sky-600 dark:text-sky-400",
+                    card: "border-border/70 bg-background/55 hover:border-border shadow-xs",
+                    titleColor: "text-foreground font-semibold",
+                    teamColor: "text-sky-600 dark:text-sky-400 font-medium",
+                    tierBadge: "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400 font-semibold",
+                  };
+                };
+
+                const sortedAchievements = [...(event.eventAchievements || [])].sort((a, b) => {
+                  return getAwardTier(a).rank - getAwardTier(b).rank;
+                });
+
+                return sortedAchievements.length > 0 ? (
+                  <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
+                    {sortedAchievements.map((achievement) => {
+                      const tier = getAwardTier(achievement);
+                      const IconComponent = tier.Icon;
+                      const trackName = achievement.track?.name?.trim();
+
+                      return (
+                        <article
+                          key={achievement.id}
+                          className={cn(
+                            "rounded-2xl border p-5 sm:p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5",
+                            tier.card,
+                          )}
                         >
-                          {achievement.track.name}
-                        </Badge>
-                      ) : null}
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="rounded-2xl border border-border bg-background/40 p-5 text-sm text-muted-foreground">
-                  No team achievements have been announced for this event.
-                </p>
-              )}
+                          <div className="flex items-start gap-4">
+                            <div
+                              className={cn(
+                                "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
+                                tier.iconBox,
+                              )}
+                            >
+                              <IconComponent className={tier.iconColor} />
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md",
+                                    tier.tierBadge,
+                                  )}
+                                >
+                                  {tier.badge}
+                                </Badge>
+                              </div>
+
+                              <h3
+                                className={cn(
+                                  "text-lg leading-tight truncate",
+                                  tier.titleColor,
+                                )}
+                              >
+                                {achievement.award?.name || "Official Achievement"}
+                              </h3>
+
+                              <p
+                                className={cn(
+                                  "text-sm truncate mt-0.5",
+                                  tier.teamColor,
+                                )}
+                              >
+                                Team: {achievement.name}
+                              </p>
+
+                              {achievement.award?.description && (
+                                <p className="mt-2 text-xs text-muted-foreground line-clamp-2">
+                                  {achievement.award.description}
+                                </p>
+                              )}
+
+                              {trackName ? (
+                                <div className="mt-4 flex items-center gap-2">
+                                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                    Track:
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className="border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold px-2.5 py-0.5 text-xs rounded-full shadow-2xs"
+                                  >
+                                    {trackName}
+                                  </Badge>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="rounded-2xl border border-border bg-background/40 p-5 text-sm text-muted-foreground">
+                    No team achievements have been announced for this event.
+                  </p>
+                );
+              })()}
             </div>
           </section>
         )}
