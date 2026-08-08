@@ -1087,11 +1087,17 @@ export class TeamStudentService {
     // Record rate limit counter & cooldown in Redis
     await this.recordInviteSent(userId, teamId, invitation.email);
 
+    const trackLabel =
+      invitation.team.track?.name ??
+      (invitation.team.event.deferredTrackAssignment
+        ? "Sẽ công bố khi mở vòng thi"
+        : "TBA");
+
     await this.mailService.sendTeamInvitationEmail({
       to: invitation.email,
       teamName: invitation.team.name,
       eventName: invitation.team.event.name,
-      trackName: invitation.team.track.name,
+      trackName: trackLabel,
       leaderName: invitation.team.leader.name,
       invitationUrl: this.getInvitationUrl(replacement.rawToken),
       expiresAt: replacement.expiresAt,

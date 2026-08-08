@@ -107,12 +107,15 @@ import {
 import {
   DEFAULT_EVENT_DURATION_DAYS,
   addDaysToLocalDateTimeValue,
-  createDefaultEventSchedule,
   createDefaultRoundDeadlines,
   getEventSeason,
 } from "@/lib/events/event-defaults";
 
+<<<<<<< HEAD
 const defaultLocation = {
+=======
+const emptyLocation = {
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   venueName: "",
   room: "",
   address: "",
@@ -129,7 +132,11 @@ type StoredGoogleMeetConfig = {
   timeZone?: string;
 };
 
+<<<<<<< HEAD
 const defaultContacts: Array<{
+=======
+const emptyContacts: Array<{
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   label: string;
   name: string;
   email: string;
@@ -138,6 +145,7 @@ const defaultContacts: Array<{
   responseTime: string;
 }> = [];
 
+<<<<<<< HEAD
 const defaultRuleGroups: Array<{
   title: string;
   itemsText: string;
@@ -147,6 +155,11 @@ const defaultFaqItems: Array<{
   question: string;
   answer: string;
 }> = [];
+=======
+const emptyRuleGroups: Array<{ title: string; itemsText: string }> = [];
+
+const emptyFaqItems: Array<{ question: string; answer: string }> = [];
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
 
 interface RuleGroupSource {
   title?: string;
@@ -184,7 +197,11 @@ function getApiStatus(error: unknown) {
 
 function normalizeRuleGroups(event?: OrganizerEvent) {
   const rulesArray = parseJsonSafe<RuleGroupSource[]>(event?.rules, []);
+<<<<<<< HEAD
   if (!rulesArray.length) return [];
+=======
+  if (!rulesArray.length) return emptyRuleGroups;
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   return rulesArray.map((group) => ({
     title: group.title || group.name || group.category || "Rules",
     itemsText: (group.rules || []).join("\n"),
@@ -192,7 +209,11 @@ function normalizeRuleGroups(event?: OrganizerEvent) {
 }
 
 function normalizeFaqItems(event?: OrganizerEvent) {
+<<<<<<< HEAD
   if (!event?.faq?.length) return [];
+=======
+  if (!event?.faq?.length) return emptyFaqItems;
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
   return event.faq.map((faq: OrganizerEventFAQItem) => ({
     question: faq.question || faq.q || faq.title || "",
     answer: faq.answer || faq.a || faq.content || "",
@@ -223,11 +244,15 @@ const createEventSchema = (isEdit: boolean) =>
           new Date().getFullYear() + 5,
           "Year cannot exceed 5 years in the future",
         ),
-      maxTeams: z.coerce
-        .number()
-        .int("Maximum teams must be an integer")
-        .min(1, "Maximum teams must be at least 1")
-        .max(1000, "Maximum teams cannot exceed 1000"),
+      maxTeams: z.preprocess(
+        (value) => (value === "" || value == null ? undefined : value),
+        z.coerce
+          .number()
+          .int("Maximum teams must be an integer")
+          .min(1, "Maximum teams must be at least 1")
+          .max(1000, "Maximum teams cannot exceed 1000")
+          .optional(),
+      ),
       /**
        * ON  → define tracks now; students pick a track when registering.
        * OFF → create without tracks (Flow B); add later in Tracks & Rounds,
@@ -248,9 +273,7 @@ const createEventSchema = (isEdit: boolean) =>
       status: z.enum(["draft", "active", "ongoing", "closed"]).optional(),
       registrationDeadline: z.string().optional(),
       startDate: z.string().optional(),
-      endDate: isEdit
-        ? z.string().optional()
-        : z.string().min(1, "End date is required"),
+      endDate: z.string().optional(),
       githubOrgUrl: z
         .string()
         .url("Invalid GitHub URL")
@@ -308,7 +331,7 @@ const createEventSchema = (isEdit: boolean) =>
             id: z.number().optional(),
             _count: z.object({ submissions: z.number().optional() }).optional(),
             roundNumber: z.coerce.number().int().min(1, "Must be >= 1"),
-            name: z.string().min(1, "Round name is required"),
+            name: z.string(),
             submissionType: z.enum(["github_link", "file"]),
             submissionDeadline: z.string().optional(),
             maxFileSizeMb: z.coerce
@@ -330,7 +353,11 @@ const createEventSchema = (isEdit: boolean) =>
         .default([
           {
             roundNumber: 1,
+<<<<<<< HEAD
             name: "Round 1",
+=======
+            name: "",
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
             submissionType: "github_link",
             submissionDeadline: "",
             maxFileSizeMb: 20,
@@ -355,7 +382,11 @@ const createEventSchema = (isEdit: boolean) =>
             .or(z.literal("")),
           note: z.string().optional(),
         })
+<<<<<<< HEAD
         .default(defaultLocation),
+=======
+        .default(emptyLocation),
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
       createGoogleMeet: z.boolean().default(false),
       calendarMeetingStart: z.string().optional(),
       calendarMeetingEnd: z.string().optional(),
@@ -377,7 +408,7 @@ const createEventSchema = (isEdit: boolean) =>
             responseTime: z.string().optional(),
           }),
         )
-        .default(defaultContacts),
+        .default(emptyContacts),
       ruleGroups: z
         .array(
           z.object({
@@ -385,7 +416,7 @@ const createEventSchema = (isEdit: boolean) =>
             itemsText: z.string().optional(),
           }),
         )
-        .default(defaultRuleGroups),
+        .default(emptyRuleGroups),
       faqItems: z
         .array(
           z.object({
@@ -393,7 +424,7 @@ const createEventSchema = (isEdit: boolean) =>
             answer: z.string().min(1, "Answer is required"),
           }),
         )
-        .default(defaultFaqItems),
+        .default(emptyFaqItems),
     })
     .superRefine((data, ctx) => {
       const now = new Date();
@@ -407,6 +438,145 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
+<<<<<<< HEAD
+=======
+      const requiresFullDetails = data.status && data.status !== "draft";
+
+      if (!isEdit && requiresFullDetails) {
+        const requireText = (
+          value: string | undefined,
+          path: Array<string | number>,
+          label: string,
+        ) => {
+          if (!value?.trim()) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `${label} is required`,
+              path,
+            });
+          }
+        };
+
+        requireText(data.description, ["description"], "Description");
+        requireText(data.imageUrl, ["imageUrl"], "Cover image");
+        requireText(
+          data.registrationDeadline,
+          ["registrationDeadline"],
+          "Registration deadline",
+        );
+        requireText(data.startDate, ["startDate"], "Start date");
+        requireText(data.endDate, ["endDate"], "End date");
+        requireText(
+          data.githubOrgUrl,
+          ["githubOrgUrl"],
+          "GitHub organization URL",
+        );
+
+        requireText(
+          data.location.venueName,
+          ["location", "venueName"],
+          "Venue",
+        );
+        requireText(data.location.room, ["location", "room"], "Room / Hall");
+        requireText(data.location.address, ["location", "address"], "Address");
+        requireText(
+          data.location.meetingPlatform,
+          ["location", "meetingPlatform"],
+          "Online platform",
+        );
+        if (!data.createGoogleMeet) {
+          requireText(
+            data.location.meetingUrl,
+            ["location", "meetingUrl"],
+            "Meeting URL",
+          );
+        }
+        requireText(data.location.mapUrl, ["location", "mapUrl"], "Map URL");
+
+        if (data.contacts.length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "At least one contact is required",
+            path: ["contacts"],
+          });
+        }
+        data.contacts.forEach((contact, index) => {
+          requireText(
+            contact.label,
+            ["contacts", index, "label"],
+            "Contact label",
+          );
+          requireText(
+            contact.name,
+            ["contacts", index, "name"],
+            "Contact name",
+          );
+          requireText(
+            contact.email,
+            ["contacts", index, "email"],
+            "Contact email",
+          );
+          requireText(
+            contact.phone,
+            ["contacts", index, "phone"],
+            "Contact phone",
+          );
+          requireText(
+            contact.detail,
+            ["contacts", index, "detail"],
+            "Contact detail",
+          );
+          requireText(
+            contact.responseTime,
+            ["contacts", index, "responseTime"],
+            "Response time",
+          );
+        });
+
+        if (data.ruleGroups.length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "At least one rule group is required",
+            path: ["ruleGroups"],
+          });
+        }
+        data.ruleGroups.forEach((group, index) => {
+          requireText(
+            group.itemsText,
+            ["ruleGroups", index, "itemsText"],
+            "Rules",
+          );
+        });
+
+        if (data.faqItems.length === 0) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "At least one FAQ is required",
+            path: ["faqItems"],
+          });
+        }
+
+        if (data.useTracks) {
+          data.tracks.forEach((track, index) => {
+            requireText(
+              track.description,
+              ["tracks", index, "description"],
+              "Track description",
+            );
+          });
+        }
+
+        data.rounds.forEach((round, index) => {
+          requireText(round.name, ["rounds", index, "name"], "Round name");
+          requireText(
+            round.submissionDeadline,
+            ["rounds", index, "submissionDeadline"],
+            "Round deadline",
+          );
+        });
+      }
+
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
       if (data.useTracks && data.tracks.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -750,11 +920,12 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
+      const prizes = data.prizes ?? [];
       const primaryPrizes = new Map<
         number,
-        (typeof data.prizes)[number] & { index: number }
+        (typeof prizes)[number] & { index: number }
       >();
-      data.prizes.forEach((prize, index) => {
+      prizes.forEach((prize, index) => {
         if (prize.placement == null) return;
         const existing = primaryPrizes.get(prize.placement);
         if (existing) {
@@ -783,7 +954,7 @@ const createEventSchema = (isEdit: boolean) =>
         });
       }
 
-      getPrizeAmountOrderViolations(data.prizes).forEach(({ lowerIndex }) => {
+      getPrizeAmountOrderViolations(prizes).forEach(({ lowerIndex }) => {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "Amounts must decrease or stay equal from top to bottom",
@@ -983,7 +1154,7 @@ export default function EventForm({ initialData }: EventFormProps) {
 
   const initialLocation = useMemo(
     () =>
-      parseJsonSafe<Partial<typeof defaultLocation> & StoredGoogleMeetConfig>(
+      parseJsonSafe<Partial<typeof emptyLocation> & StoredGoogleMeetConfig>(
         initialData?.location,
         {},
       ),
@@ -1000,29 +1171,24 @@ export default function EventForm({ initialData }: EventFormProps) {
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
 
-  const DEFAULT_EVENT_DESCRIPTION =
-    "Building a Retrieval-Augmented Generation (RAG) AI automation involves connecting a Large Language Model (LLM) to your private data sources (like PDFs or databases). When a user asks a question, the system retrieves relevant information and passes it to the AI, allowing it to generate accurate, context-aware responses without hallucinating";
-
-  const createPreset = useMemo(() => {
-    const schedule = createDefaultEventSchedule();
-    const startDate = new Date(schedule.startDate);
-
-    return {
-      ...schedule,
-      year: startDate.getFullYear(),
-      season: getEventSeason(startDate),
-    };
-  }, []);
+  const today = useMemo(() => new Date(), []);
 
   const defaultValues: Partial<EventFormValues> = {
     name: initialData?.name || "",
     description: initialData?.description || "",
+<<<<<<< HEAD
     imageUrl: isEdit
       ? initialData?.imageUrl || initialData?.image_url || ""
       : "",
     season: initialData?.season || createPreset.season,
     year: initialData?.year || createPreset.year,
     maxTeams: initialData?.maxTeams ?? 50,
+=======
+    imageUrl: initialData?.imageUrl || initialData?.image_url || "",
+    season: initialData?.season || getEventSeason(today),
+    year: initialData?.year || today.getFullYear(),
+    maxTeams: initialData?.maxTeams,
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
     // useTracks = students pick track at register (= !deferred). Never infer from track count
     // (Flow B may already have tracks added on Tracks & Rounds).
     useTracks: isEdit
@@ -1036,19 +1202,19 @@ export default function EventForm({ initialData }: EventFormProps) {
     status: initialData?.status || "draft",
     registrationDeadline: initialData?.registrationDeadline
       ? new Date(initialData.registrationDeadline).toISOString().slice(0, 16)
-      : isEdit
-        ? ""
-        : createPreset.registrationDeadline,
+      : "",
     startDate: initialData?.startDate
       ? new Date(initialData.startDate).toISOString().slice(0, 16)
-      : isEdit
-        ? ""
-        : createPreset.startDate,
+      : "",
     endDate: initialData?.endDate
       ? new Date(initialData.endDate).toISOString().slice(0, 16)
+<<<<<<< HEAD
       : isEdit
         ? ""
         : createPreset.endDate,
+=======
+      : "",
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
     githubOrgUrl: initialData?.githubOrgUrl || "",
     prizes: initialData?.prizes
       ? normalizePrizeOrder(
@@ -1084,15 +1250,19 @@ export default function EventForm({ initialData }: EventFormProps) {
       : [
           {
             roundNumber: 1,
+<<<<<<< HEAD
             name: "Round 1",
+=======
+            name: "",
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
             submissionType: "github_link",
-            submissionDeadline: createPreset.firstRoundDeadline,
+            submissionDeadline: "",
             maxFileSizeMb: 20,
             isTrackSpecific: false,
           },
         ],
     location: {
-      ...defaultLocation,
+      ...emptyLocation,
       ...initialLocation,
       mapUrl: getEventMapUrl(initialLocation) || "",
     },
@@ -1105,18 +1275,14 @@ export default function EventForm({ initialData }: EventFormProps) {
         ? toDateTimeLocalValue(initialLocation.meetingStartDate)
         : hasExistingCalendarMeeting && initialData?.startDate
           ? toDateTimeLocalValue(initialData.startDate)
-          : isEdit
-            ? ""
-            : createPreset.startDate,
+          : "",
     calendarMeetingEnd: initialData?.calendarMeeting?.endDate
       ? toDateTimeLocalValue(initialData.calendarMeeting.endDate)
       : initialLocation.meetingEndDate
         ? toDateTimeLocalValue(initialLocation.meetingEndDate)
         : hasExistingCalendarMeeting && initialData?.endDate
           ? toDateTimeLocalValue(initialData.endDate)
-          : isEdit
-            ? ""
-            : createPreset.endDate,
+          : "",
     calendarAttendeeEmails: "",
     sendCalendarInvitations: false,
     notifyParticipants: false,
@@ -1125,6 +1291,7 @@ export default function EventForm({ initialData }: EventFormProps) {
         initialData?.contact,
         [],
       );
+<<<<<<< HEAD
       return parsedContacts.map((contact) => ({
         label: contact.label || contact.type || "",
         name: contact.name || contact.title || "",
@@ -1133,6 +1300,18 @@ export default function EventForm({ initialData }: EventFormProps) {
         detail: contact.detail || "",
         responseTime: contact.responseTime || "",
       }));
+=======
+      return parsedContacts.length
+        ? parsedContacts.map((contact) => ({
+            label: contact.label || contact.type || "",
+            name: contact.name || contact.title || "",
+            email: contact.email || "",
+            phone: contact.phone || "",
+            detail: contact.detail || "",
+            responseTime: contact.responseTime || "",
+          }))
+        : emptyContacts;
+>>>>>>> 27c5c58190bee98cd8ed55b54488816e2eb2b87d
     })(),
     ruleGroups: normalizeRuleGroups(initialData),
     faqItems: normalizeFaqItems(initialData),
@@ -1621,7 +1800,7 @@ export default function EventForm({ initialData }: EventFormProps) {
           return {
           id: r.id,
           roundNumber: r.roundNumber,
-          name: r.name,
+          name: r.name?.trim() || `Round ${r.roundNumber}`,
           submissionType: r.submissionType,
           submissionDeadline: r.submissionDeadline
             ? new Date(r.submissionDeadline).toISOString()
@@ -2008,7 +2187,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                     render={({ field }) => (
                       <FormItem className="md:col-span-4">
                         <FormLabel className="text-foreground/80 font-medium">
-                          Maximum Teams <span className="text-red-500">*</span>
+                          Maximum Teams
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -2016,6 +2195,7 @@ export default function EventForm({ initialData }: EventFormProps) {
                             min={1}
                             className="bg-background/50 border-border/50 focus-visible:ring-blue-500/30 rounded-xl"
                             {...field}
+                            value={field.value ?? ""}
                           />
                         </FormControl>
                         <FormMessage />
