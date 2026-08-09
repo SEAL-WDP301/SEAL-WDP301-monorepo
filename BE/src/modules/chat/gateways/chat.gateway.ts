@@ -54,35 +54,93 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage("join_team_room")
-  handleJoinRoom(
+  async handleJoinRoom(
     @MessageBody() teamId: number,
     @ConnectedSocket() client: Socket,
   ) {
+    if (!client.data?.user || !teamId) {
+      return { event: "error", message: "Unauthorized or invalid team ID" };
+    }
+
+    const userId = Number(client.data.user.sub || client.data.user.id);
+    const role = client.data.user.role;
+
+    const hasAccess = await this.chatService.validateUserTeamAccess(
+      userId,
+      role,
+      Number(teamId),
+    );
+
+    if (!hasAccess) {
+      return {
+        event: "error",
+        message: "Forbidden: You are not authorized to join this team room",
+      };
+    }
+
     const roomName = `team_${teamId}`;
     client.join(roomName);
     return { event: "joined_room", data: roomName };
   }
 
   @SubscribeMessage("join_event_chat_room")
-  handleJoinEventChatRoom(
+  async handleJoinEventChatRoom(
     @MessageBody() eventId: number,
     @ConnectedSocket() client: Socket,
   ) {
-    if (!eventId) return;
+    if (!client.data?.user || !eventId) {
+      return { event: "error", message: "Unauthorized or invalid event ID" };
+    }
+
+    const userId = Number(client.data.user.sub || client.data.user.id);
+    const role = client.data.user.role;
+
+    const hasAccess = await this.chatService.validateUserEventAccess(
+      userId,
+      role,
+      Number(eventId),
+    );
+
+    if (!hasAccess) {
+      return {
+        event: "error",
+        message: "Forbidden: You are not authorized to monitor this event chat",
+      };
+    }
+
     const roomName = `event_chat_${eventId}`;
     client.join(roomName);
     return { event: "joined_event_chat_room", data: roomName };
   }
 
   @SubscribeMessage("join_multiple_team_rooms")
-  handleJoinMultipleRooms(
+  async handleJoinMultipleRooms(
     @MessageBody() teamIds: number[],
     @ConnectedSocket() client: Socket,
   ) {
-    if (Array.isArray(teamIds)) {
-      teamIds.forEach((id) => client.join(`team_${id}`));
+    if (!client.data?.user || !Array.isArray(teamIds)) {
+      return { event: "error", message: "Unauthorized or invalid team IDs" };
     }
-    return { event: "joined_multiple_rooms", data: teamIds };
+
+    const userId = Number(client.data.user.sub || client.data.user.id);
+    const role = client.data.user.role;
+
+    const authorizedTeamIds: number[] = [];
+    await Promise.all(
+      teamIds.map(async (id) => {
+        const hasAccess = await this.chatService.validateUserTeamAccess(
+          userId,
+          role,
+          Number(id),
+        );
+        if (hasAccess) {
+          client.join(`team_${id}`);
+          authorizedTeamIds.push(id);
+        }
+      }),
+    );
+
+    return { event: "joined_multiple_rooms", data: authorizedTeamIds };
   }
 
   @SubscribeMessage("leave_team_room")
@@ -100,10 +158,24 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { teamId: number; content: string },
     @ConnectedSocket() client: Socket,
   ) {
-    if (!client.data.user) return;
+    if (!client.data?.user) return { error: "Unauthorized" };
 
     const { teamId, content } = data;
+    if (!teamId || !content?.trim()) {
+      return { error: "Invalid teamId or message content" };
+    }
+
     const userId = Number(client.data.user.sub || client.data.user.id);
+    const role = client.data.user.role;
+
+    const hasAccess = await this.chatService.validateUserTeamAccess(
+      userId,
+      role,
+      Number(teamId),
+    );
+    if (!hasAccess) {
+      return { error: "Forbidden: You are not authorized to send messages to this team" };
+    }
 
     // Save to DB
     const savedMessage = await this.chatService.saveMessage(
@@ -127,8 +199,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() teamId: number,
     @ConnectedSocket() client: Socket,
   ) {
-    if (!client.data.user) return;
+    if (!client.data?.user || !teamId) return;
     const userId = Number(client.data.user.sub || client.data.user.id);
+    const role = client.data.user.role;
+
+    const hasAccess = await this.chatService.validateUserTeamAccess(
+      userId,
+      role,
+      Number(teamId),
+    );
+    if (!hasAccess) return;
 
     const updatedMessages = await this.chatService.markMessagesAsRead(
       teamId,

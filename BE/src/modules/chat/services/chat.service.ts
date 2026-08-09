@@ -9,30 +9,72 @@ import {
 export class ChatService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async validateUserTeamAccess(
+    userId: number,
+    role: string,
+    teamId: number,
+  ): Promise<boolean> {
+    if (!userId || !teamId) return false;
+
+    // Admin & Organizer have oversight access
+    if (role === "admin" || role === "organizer") {
+      return true;
+    }
+
+    if (role === "student") {
+      const team = await this.prisma.team.findUnique({
+        where: { id: teamId },
+        select: {
+          id: true,
+          leaderId: true,
+          members: {
+            where: {
+              userId,
+              status: "accepted",
+            },
+            select: { id: true },
+          },
+        },
+      });
+
+      if (!team) return false;
+      return team.leaderId === userId || team.members.length > 0;
+    }
+
+    if (role === "stakeholder" || role === "mentor") {
+      const assignment = await this.prisma.mentorAssignment.findFirst({
+        where: { mentorId: userId, teamId },
+        select: { id: true },
+      });
+      return Boolean(assignment);
+    }
+
+    return false;
+  }
+
+  async validateUserEventAccess(
+    userId: number,
+    role: string,
+    eventId: number,
+  ): Promise<boolean> {
+    if (!userId || !eventId) return false;
+
+    if (role === "admin" || role === "organizer") {
+      return true;
+    }
+
+    return false;
+  }
+
   async getTeamMessages(
     userId: number,
     role: string,
     teamId: number,
     cursorId?: number,
   ) {
-    // Basic authorization
-    // Admins and organizers can view all teams
-    if (role === "student") {
-      const isMember = await this.prisma.teamMember.findFirst({
-        where: { userId, teamId },
-      });
-      const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-
-      if (!isMember && team?.leaderId !== userId) {
-        throw new ForbiddenException("You do not belong to this team");
-      }
-    } else if (role === "stakeholder") {
-      const assignment = await this.prisma.mentorAssignment.findFirst({
-        where: { mentorId: userId, teamId },
-      });
-      if (!assignment) {
-        throw new ForbiddenException("You are not assigned to this team");
-      }
+    const hasAccess = await this.validateUserTeamAccess(userId, role, teamId);
+    if (!hasAccess) {
+      throw new ForbiddenException("You do not have permission to view this team's chat");
     }
 
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
