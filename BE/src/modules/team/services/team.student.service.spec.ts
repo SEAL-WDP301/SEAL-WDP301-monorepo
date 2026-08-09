@@ -1,9 +1,11 @@
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { TeamStatus } from "@prisma/client";
 import { MailService } from "../../../core/mail/mail.service";
-import { StorageService } from "../../../core/storage/storage.service";
 import { PrismaService } from "../../../database/prisma/prisma.service";
 import { TeamStudentService } from "./team.student.service";
+import { TeamRegistrationService } from "./team-registration.service";
+import { TeamInvitationService } from "./team-invitation.service";
+import { TeamWorkspaceService } from "./team-workspace.service";
 import { TrackAssignmentService } from "../../event/services/track-assignment.service";
 
 describe("TeamStudentService event capacity", () => {
@@ -47,14 +49,42 @@ describe("TeamStudentService event capacity", () => {
   };
   const mailService = { sendTeamInvitationEmail: jest.fn() };
   const eventEmitter = { emit: jest.fn() };
-  const service = new TeamStudentService(
+  const configService = {
+    get: jest.fn().mockReturnValue("http://localhost:3001"),
+  } as never;
+  const redisService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    exists: jest.fn(),
+    incr: jest.fn(),
+  } as never;
+  const trackAssignmentService = {} as TrackAssignmentService;
+
+  const invitationService = new TeamInvitationService(
     prisma as unknown as PrismaService,
     mailService as unknown as MailService,
-    {} as StorageService,
+    configService,
+    redisService,
+  );
+
+  const registrationService = new TeamRegistrationService(
+    prisma as unknown as PrismaService,
+    mailService as unknown as MailService,
     eventEmitter as unknown as EventEmitter2,
-    { get: jest.fn().mockReturnValue("http://localhost:3001") } as never,
-    { get: jest.fn(), set: jest.fn(), del: jest.fn() } as never,
-    {} as TrackAssignmentService,
+    invitationService,
+  );
+
+  const workspaceService = new TeamWorkspaceService(
+    prisma as unknown as PrismaService,
+    trackAssignmentService,
+  );
+
+  const service = new TeamStudentService(
+    prisma as unknown as PrismaService,
+    registrationService,
+    invitationService,
+    workspaceService,
   );
 
   beforeEach(() => {

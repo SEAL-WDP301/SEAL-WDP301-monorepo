@@ -1,6 +1,9 @@
 import { Module, forwardRef } from "@nestjs/common";
 import { BullModule } from "@nestjs/bullmq";
 import { TeamStudentService } from "./services/team.student.service";
+import { TeamRegistrationService } from "./services/team-registration.service";
+import { TeamInvitationService } from "./services/team-invitation.service";
+import { TeamWorkspaceService } from "./services/team-workspace.service";
 import { TeamOrganizerService } from "./services/team.organizer.service";
 import { TeamGithubService } from "./services/team-github.service";
 import { TeamRegistrationProcessor } from "./queues/team-registration.processor";
@@ -33,12 +36,18 @@ import { TeamInvitationPublicController } from "./controllers/team-invitation.pu
   ],
   providers: [
     TeamStudentService,
+    TeamRegistrationService,
+    TeamInvitationService,
+    TeamWorkspaceService,
     TeamOrganizerService,
     TeamGithubService,
     TeamRegistrationProcessor,
   ],
   exports: [
     TeamStudentService,
+    TeamRegistrationService,
+    TeamInvitationService,
+    TeamWorkspaceService,
     TeamOrganizerService,
     TeamGithubService,
     BullModule,
