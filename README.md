@@ -81,54 +81,31 @@ The deployment workflow leverages **GitHub Actions** and **Argo CD** with a stri
 
 ```mermaid
 flowchart TD
-    subgraph "1. Pull Request Stage (Quality Gate)"
-        PR[Developer opens PR to production] --> PR_Check[GitHub Actions: PR Workflow]
-        PR_Check --> JobBE[Job test-backend: npx tsc --noEmit + Jest Tests]
-        PR_Check --> JobFE[Job test-frontend: npx tsc --noEmit + Vitest Tests]
-        JobBE & JobFE -->|All Pass (<45s)| MergeReady[PR Mergeable / Quality Gate Passed]
-        JobBE & JobFE -->|Any Error| BlockMerge[❌ PR Blocked: Must Fix Syntax / Tests]
+    subgraph PR_Stage ["1. Pull Request Stage (Quality Gate)"]
+        PR["Developer opens PR to production"] --> PR_Check["GitHub Actions: PR Workflow"]
+        PR_Check --> JobBE["Job test-backend: npx tsc --noEmit + Jest Tests"]
+        PR_Check --> JobFE["Job test-frontend: npx tsc --noEmit + Vitest Tests"]
+        JobBE --> MergeGate{"Quality Gate Verification"}
+        JobFE --> MergeGate
+        MergeGate -->|Pass| MergeReady["PR Mergeable"]
+        MergeGate -->|Fail| BlockMerge["PR Blocked: Must Fix Syntax / Tests"]
     end
 
-    subgraph "2. Push / Merge Stage (Docker Build & GHCR)"
-        MergeReady -->|Merge to production| PushEvent[Push Event on branch production]
-        PushEvent --> ReCheck[Parallel Quality Gate Verification]
-        ReCheck --> BuildBE[Build & Push Backend Docker Image: ghcr.io/seal-wdp301/be:SHA]
-        ReCheck --> BuildFE[Build & Push Frontend Docker Image: ghcr.io/seal-wdp301/fe:SHA]
+    subgraph Build_Stage ["2. Push / Merge Stage (Docker Build & GHCR)"]
+        MergeReady -->|Merge to production| PushEvent["Push Event on branch production"]
+        PushEvent --> ReCheck["Parallel Quality Gate Verification"]
+        ReCheck --> BuildBE["Build & Push Backend Image: ghcr.io/seal-wdp301/be:SHA"]
+        ReCheck --> BuildFE["Build & Push Frontend Image: ghcr.io/seal-wdp301/fe:SHA"]
     end
 
-    subgraph "3. GitOps Mutation & Cluster Rollout"
-        BuildBE & BuildFE --> Mutate[Update Image Tags in k8s/base/deployment.yaml]
-        Mutate --> CommitGit[Git Commit & Push with message '[skip ci]']
-        CommitGit --> ArgoSync[Argo CD Operator: Detects Git Manifest Changes]
-        ArgoSync --> K8sRollout[K3s Cluster: Zero-Downtime Rolling Update & HPA Management]
+    subgraph GitOps_Stage ["3. GitOps Mutation & Cluster Rollout"]
+        BuildBE --> Mutate["Update Image Tags in k8s/base/deployment.yaml"]
+        BuildFE --> Mutate
+        Mutate --> CommitGit["Git Commit & Push with message [skip ci]"]
+        CommitGit --> ArgoSync["Argo CD Operator: Detects Git Manifest Changes"]
+        ArgoSync --> K8sRollout["K3s Cluster: Zero-Downtime Rolling Update & HPA"]
     end
 ```
-<<<<<<< HEAD
-[ Developer Push / PR ]
-         │
-         ├──► Branch: 'dev' ─────────► [ Parallel Quality Gate ]
-         ├──► PR Branch: 'production'─>├── BE: npx tsc --noEmit + npm run test
-         │                             └── FE: npx tsc --noEmit + npm run test
-         │                             └── ❌ Fail: Block Merge | ✅ Pass: Complete (<40s)
-         │
-         └──► Branch: 'production' ──► [ Parallel Quality Gate ]
-                                       │   └── (Must Pass 100%)
-                                       ▼
-                                [ Build & Push Docker Images ] ──► GitHub Container Registry (GHCR)
-                                       │
-                                       ▼
-                                [ Update K8s Manifest Image Tags ]
-                                       │   └── Commit & Push to Git [skip ci]
-                                       ▼
-                                [ Argo CD GitOps Operator ]
-                                       │   └── Reconcile Manifests (Auto-Sync & Self-Healing)
-                                       ▼
-                                [ K3s Kubernetes Cluster ] ──► Zero-Downtime Rolling Update Rollout
-
----
-
-## 📂 Repository Structure
-=======
 
 ### Pipeline Stage Details:
 
@@ -148,7 +125,6 @@ flowchart TD
 ---
 
 ## 📂 Monorepo Directory Structure
->>>>>>> 9a17b84 (docs: comprehensive update to root, BE, and FE READMEs highlighting DevOps, architecture, and features)
 
 ```
 SEAL-WDP301-monorepo/
